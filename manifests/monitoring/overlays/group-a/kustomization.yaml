@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Group A — Shared Binder (Baseline): Original Gödel architecture
+# Usage: kubectl apply -k manifests/monitoring/overlays/group-a/
+
+resources:
+  - ../../base
+  - godel-services.yaml
+  - prometheus-config.yaml

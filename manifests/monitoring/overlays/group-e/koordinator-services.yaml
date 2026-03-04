@@ -1,0 +1,41 @@
+# Headless Services that expose /metrics endpoints of Koordinator components.
+#
+# Group E: Koordinator — koord-scheduler + koord-manager
+# The Koordinator Helm chart creates its own services, but we create explicit
+# headless services here for Prometheus service-discovery consistency.
+
+# Koordinator Scheduler metrics (default HTTP port: 10251, or HTTPS: 10259)
+apiVersion: v1
+kind: Service
+metadata:
+  name: koord-scheduler-metrics
+  namespace: koordinator-system
+  labels:
+    component: koord-scheduler
+spec:
+  clusterIP: None
+  selector:
+    app: koord-scheduler
+  ports:
+    - name: metrics
+      port: 10251
+      targetPort: 10251
+      protocol: TCP
+---
+# Koordinator Manager metrics (default port: 9316)
+apiVersion: v1
+kind: Service
+metadata:
+  name: koord-manager-metrics
+  namespace: koordinator-system
+  labels:
+    component: koord-manager
+spec:
+  clusterIP: None
+  selector:
+    app: koord-manager
+  ports:
+    - name: metrics
+      port: 9316
+      targetPort: 9316
+      protocol: TCP

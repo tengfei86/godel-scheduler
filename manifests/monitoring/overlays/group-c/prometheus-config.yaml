@@ -1,0 +1,207 @@
+# ================================================================
+# Prometheus config for Group C — kube-scheduler (Reference)
+#
+# Scrape targets:
+#   • kube-scheduler (kube-system, HTTPS port 10259)
+#
+# kube-scheduler runs as a static pod on the control-plane node.
+# Metrics are served over HTTPS at /metrics on port 10259.
+# We use the Prometheus service-account bearer token + skip TLS
+# verification since the scheduler uses a self-signed cert.
+# ================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    rule_files:
+      - "/etc/prometheus/rules.yml"
+
+    scrape_configs:
+      # ── kube-scheduler (static pod) ──
+      - job_name: "kube-scheduler"
+        scheme: https
+        tls_config:
+          insecure_skip_verify: true
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: ["kube-system"]
+        relabel_configs:
+          # Only target the kube-scheduler static pod
+          - source_labels: [__meta_kubernetes_pod_label_component]
+            action: keep
+            regex: kube-scheduler
+          # Override address to use the secure metrics port
+          - source_labels: [__address__]
+            action: replace
+            regex: (.+):.*
+            replacement: $1:10259
+            target_label: __address__
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_node_name]
+            target_label: node
+
+      # ── kube-controller-manager (optional, for scheduling-related metrics) ──
+      - job_name: "kube-controller-manager"
+        scheme: https
+        tls_config:
+          insecure_skip_verify: true
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: ["kube-system"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_component]
+            action: keep
+            regex: kube-controller-manager
+          - source_labels: [__address__]
+            action: replace
+            regex: (.+):.*
+            replacement: $1:10257
+            target_label: __address__
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+  # ================================================================
+  # Recording rules for Group C — kube-scheduler
+  #
+  # kube-scheduler metric names use the "scheduler_" prefix:
+  #   scheduler_schedule_attempts_total{result}
+  #   scheduler_scheduling_attempt_duration_seconds
+  #   scheduler_e2e_scheduling_duration_seconds
+  #   scheduler_pod_scheduling_sli_duration_seconds
+  #   scheduler_pending_pods{queue}
+  #   scheduler_framework_extension_point_duration_seconds
+  #   scheduler_plugin_execution_duration_seconds
+  #   scheduler_binding_duration_seconds
+  # ================================================================
+  rules.yml: |
+    groups:
+      # ──────────────────────────────────────────────────
+      #  Throughput
+      # ──────────────────────────────────────────────────
+      - name: kube_scheduler_throughput
+        interval: 15s
+        rules:
+          # Scheduling throughput (pods/s) by result
+          - record: kube:scheduler_schedule_attempts:rate1m
+            expr: rate(scheduler_schedule_attempts_total[1m])
+
+          - record: kube:scheduler_schedule_attempts:rate5m
+            expr: rate(scheduler_schedule_attempts_total[5m])
+
+          # Successful scheduling throughput
+          - record: kube:scheduler_schedule_attempts_scheduled:rate1m
+            expr: rate(scheduler_schedule_attempts_total{result="scheduled"}[1m])
+
+          - record: kube:scheduler_schedule_attempts_scheduled:rate5m
+            expr: rate(scheduler_schedule_attempts_total{result="scheduled"}[5m])
+
+          # Peak throughput (max over 30m)
+          - record: kube:scheduler_peak_throughput:30m
+            expr: max_over_time(sum(rate(scheduler_schedule_attempts_total{result="scheduled"}[1m]))[30m:])
+
+      # ──────────────────────────────────────────────────
+      #  Latency
+      # ──────────────────────────────────────────────────
+      - name: kube_scheduler_latency
+        interval: 15s
+        rules:
+          # E2E scheduling latency (includes queue wait + algorithm + binding)
+          - record: kube:scheduler_e2e_scheduling_duration:p50
+            expr: histogram_quantile(0.50, rate(scheduler_e2e_scheduling_duration_seconds_bucket[5m]))
+
+          - record: kube:scheduler_e2e_scheduling_duration:p90
+            expr: histogram_quantile(0.90, rate(scheduler_e2e_scheduling_duration_seconds_bucket[5m]))
+
+          - record: kube:scheduler_e2e_scheduling_duration:p99
+            expr: histogram_quantile(0.99, rate(scheduler_e2e_scheduling_duration_seconds_bucket[5m]))
+
+          - record: kube:scheduler_e2e_scheduling_duration:avg
+            expr: >
+              rate(scheduler_e2e_scheduling_duration_seconds_sum[5m])
+              /
+              rate(scheduler_e2e_scheduling_duration_seconds_count[5m])
+
+          # Scheduling attempt latency (core algorithm)
+          - record: kube:scheduler_scheduling_attempt_duration:p50
+            expr: histogram_quantile(0.50, rate(scheduler_scheduling_attempt_duration_seconds_bucket[5m]))
+
+          - record: kube:scheduler_scheduling_attempt_duration:p90
+            expr: histogram_quantile(0.90, rate(scheduler_scheduling_attempt_duration_seconds_bucket[5m]))
+
+          - record: kube:scheduler_scheduling_attempt_duration:p99
+            expr: histogram_quantile(0.99, rate(scheduler_scheduling_attempt_duration_seconds_bucket[5m]))
+
+          # SLI scheduling duration (added in K8s 1.28+)
+          - record: kube:scheduler_pod_scheduling_sli_duration:p90
+            expr: histogram_quantile(0.90, rate(scheduler_pod_scheduling_sli_duration_seconds_bucket[5m]))
+
+          - record: kube:scheduler_pod_scheduling_sli_duration:p99
+            expr: histogram_quantile(0.99, rate(scheduler_pod_scheduling_sli_duration_seconds_bucket[5m]))
+
+          # Binding duration
+          - record: kube:scheduler_binding_duration:p90
+            expr: histogram_quantile(0.90, rate(scheduler_binding_duration_seconds_bucket[5m]))
+
+          - record: kube:scheduler_binding_duration:p99
+            expr: histogram_quantile(0.99, rate(scheduler_binding_duration_seconds_bucket[5m]))
+
+          - record: kube:scheduler_binding_duration:avg
+            expr: >
+              rate(scheduler_binding_duration_seconds_sum[5m])
+              /
+              rate(scheduler_binding_duration_seconds_count[5m])
+
+      # ──────────────────────────────────────────────────
+      #  Success rate & queue metrics
+      # ──────────────────────────────────────────────────
+      - name: kube_scheduler_success
+        interval: 15s
+        rules:
+          # Scheduling success rate
+          - record: kube:scheduler_schedule_attempts:success_rate5m
+            expr: >
+              sum(rate(scheduler_schedule_attempts_total{result="scheduled"}[5m]))
+              /
+              sum(rate(scheduler_schedule_attempts_total[5m]))
+
+          # Scheduling failure rate
+          - record: kube:scheduler_schedule_attempts:error_rate5m
+            expr: >
+              sum(rate(scheduler_schedule_attempts_total{result="error"}[5m]))
+              /
+              sum(rate(scheduler_schedule_attempts_total[5m]))
+
+          # Pending pods by queue type (direct gauge — query: scheduler_pending_pods)
+
+      # ──────────────────────────────────────────────────
+      #  Framework extension point latency
+      # ──────────────────────────────────────────────────
+      - name: kube_scheduler_framework
+        interval: 15s
+        rules:
+          # Per-extension-point P90 latency
+          - record: kube:scheduler_framework_extension_point_duration:p90
+            expr: histogram_quantile(0.90, rate(scheduler_framework_extension_point_duration_seconds_bucket[5m]))
+
+          - record: kube:scheduler_framework_extension_point_duration:p99
+            expr: histogram_quantile(0.99, rate(scheduler_framework_extension_point_duration_seconds_bucket[5m]))
+
+          # Per-plugin P90 latency
+          - record: kube:scheduler_plugin_execution_duration:p90
+            expr: histogram_quantile(0.90, rate(scheduler_plugin_execution_duration_seconds_bucket[5m]))

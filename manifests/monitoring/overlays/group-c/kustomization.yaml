@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Group C — kube-scheduler (Reference): Native Kubernetes scheduler
+# Usage: kubectl apply -k manifests/monitoring/overlays/group-c/
+
+resources:
+  - ../../base
+  - prometheus-config.yaml
