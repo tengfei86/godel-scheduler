@@ -841,3 +841,123 @@ def plot_throughput_timeseries(data_a, data_b, data_c=None, data_d=None, data_e=
 | 数据分析 | 清洗、统计、可视化 | 2 天 |
 | 论文撰写 | 实验章节（含图表） | 2 天 |
 | **总计** | | **~13.5 天** |
+---
+
+## 11. 自动化脚本体系
+
+### 11.1 目录结构
+
+```
+test/e2e/benchmark/
+├── config.sh                    # 全局配置（集群名、镜像、路径等常量）
+├── lib/
+│   ├── utils.sh                 # 通用函数（日志、等待、颜色输出）
+│   ├── cluster.sh               # 集群管理（创建/销毁 kind、KWOK 节点）
+│   └── prometheus.sh            # Prometheus 操作（部署、等待就绪、数据导出）
+│
+├── setup-cluster.sh             # Phase 0: 一键搭建集群 + KWOK 节点
+│
+├── schedulers/
+│   ├── deploy-group-a.sh        # 部署组 A（共享 Binder）
+│   ├── deploy-group-b.sh        # 部署组 B（独立 Binder）
+│   ├── deploy-group-c.sh        # 部署组 C（kube-scheduler，仅需禁用 Gödel）
+│   ├── deploy-group-d.sh        # 部署组 D（Volcano）
+│   ├── deploy-group-e.sh        # 部署组 E（Koordinator）
+│   └── teardown.sh              # 通用卸载（按组清理调度器 + monitoring）
+│
+├── workloads/
+│   ├── templates/               # Pod 模板（schedulerName 作为变量）
+│   │   ├── basic-pod.yaml.tpl
+│   │   └── gang-pod.yaml.tpl
+│   ├── create-pods.sh           # 按固定速率批量创建 Pod
+│   └── workload-matrix.sh       # W1~W8 参数定义（速率、总量、规格）
+│
+├── run-experiment.sh            # 单次实验 SOP（清理→部署→压测→采集→导出）
+├── run-all.sh                   # 全量实验入口（遍历 A~E × W1~W4 × 3 次）
+│
+├── collect/
+│   ├── export-prometheus.sh     # 从 Prometheus API 导出时间序列 JSON
+│   ├── collect-utilization.sh   # kubectl 采集节点资源分布
+│   └── collect-distribution.sh  # kubectl 采集 Pod 分布
+│
+└── results/                     # 实验输出（自动按 group/workload/run 分目录）
+```
+
+### 11.2 核心脚本职责
+
+| 脚本 | 做什么 | 关键逻辑 |
+|------|--------|----------|
+| **config.sh** | 定义所有常量 | 集群名、KWOK 版本、节点数梯度 S1–S5、Prometheus 地址、镜像 tag、超时 |
+| **setup-cluster.sh** | 一键建集群 | `kind create` → 部署 KWOK → 创建 N 个模拟节点 → 等待 Ready |
+| **deploy-group-X.sh** | 部署第 X 组调度器 + Prometheus | ① 清理上一组残留 ② `kubectl apply -k` 部署调度器 ③ `kubectl apply -k manifests/monitoring/overlays/group-X/` 切换 Prometheus 配置 ④ 等待所有组件 Ready |
+| **create-pods.sh** | 可控速率创建 Pod | 参数：`RATE TOTAL SCHEDULER_NAME CPU MEM`；用 `sleep` + 后台并发控制速率 |
+| **run-experiment.sh** | 单次完整 SOP | 参数：`GROUP WORKLOAD RUN_ID`；清理 bench NS → 等待稳定 → 记录 start → 创建 Pod → 等待全部调度完成 → 记录 end → 导出数据 |
+| **run-all.sh** | 全量编排 | 外层循环组 A–E → 调用 `deploy-group-X.sh` → 内层循环 W1–W4 × 3 runs → 调用 `run-experiment.sh` |
+| **export-prometheus.sh** | 导出指标 | 按组选择不同的 PromQL 查询集（A/B 用 Gödel 指标名，C 用 kube 指标名，D 用 volcano 指标名，E 用 koord 指标名） |
+
+### 11.3 每组调度器部署差异
+
+| 组 | 调度器部署命令 | Prometheus overlay | `schedulerName` | 特殊处理 |
+|----|--------------|-------------------|----------------|----------|
+| **A** | `kubectl apply -k manifests/base/` | `group-a` | `godel-scheduler` | 确保 `binder replicas=1` |
+| **B** | `kubectl apply -k manifests/overlays/embedded-binder/` | `group-b` | `godel-scheduler` | 确保 `--enable-embedded-binder=true` + `binder replicas=0` |
+| **C** | 无需额外部署（kind 自带） | `group-c` | `default-scheduler` | 确保已卸载 Gödel |
+| **D** | `helm install volcano ...` | `group-d` | `volcano` | 需要 `volcano-system` NS + CRDs |
+| **E** | `helm install koordinator ...` | `group-e` | `koord-scheduler` | 需要 `koordinator-system` NS |
+
+### 11.4 单次实验执行流（run-experiment.sh）
+
+```bash
+#!/bin/bash
+# run-experiment.sh <group> <workload> <run_id>
+# 示例: ./run-experiment.sh b w3 2
+
+# ── Step 1: 清理上一轮测试环境 ──
+kubectl delete ns bench --ignore-not-found
+sleep 10
+
+# ── Step 2: 等待系统冷却 ──
+sleep 30
+
+# ── Step 3: 记录实验开始时间 ──
+START_TIME=$(date +%s)
+
+# ── Step 4: 执行负载（按 workload 参数选择速率和总量） ──
+bash workloads/create-pods.sh $RATE $TOTAL $SCHEDULER_NAME $CPU $MEM
+
+# ── Step 5: 轮询等待所有 Pod 调度完成 ──
+while [[ $(kubectl get pods -n bench --field-selector=status.phase=Pending \
+           --no-headers 2>/dev/null | wc -l) -gt 0 ]]; do
+  sleep 5
+done
+
+# ── Step 6: 记录实验结束时间 ──
+END_TIME=$(date +%s)
+
+# ── Step 7: 导出 Prometheus 数据 ──
+bash collect/export-prometheus.sh $GROUP $START_TIME $END_TIME $RESULTS_DIR
+
+# ── Step 8: 采集节点资源分布快照 ──
+bash collect/collect-utilization.sh > $RESULTS_DIR/utilization.csv
+
+# ── Step 9: 采集 Pod 分布快照 ──
+bash collect/collect-distribution.sh > $RESULTS_DIR/pod-distribution.csv
+
+# ── Step 10: 写入元数据 ──
+cat > $RESULTS_DIR/metadata.txt <<EOF
+group=$GROUP
+workload=$WORKLOAD
+run_id=$RUN_ID
+start_time=$START_TIME
+end_time=$END_TIME
+duration=$((END_TIME - START_TIME))
+EOF
+```
+
+### 11.5 关键设计决策
+
+1. **每组部署前先执行 teardown** — 确保上一组的调度器完全清除，避免调度冲突和资源竞争
+2. **Prometheus 配置跟随调度器切换** — 通过 `manifests/monitoring/overlays/group-X/` kustomize overlay 自动切换 scrape 目标和 recording rules
+3. **Pod 模板用 `envsubst` 渲染** — `schedulerName`、CPU、MEM 作为环境变量注入，同一模板适配所有组
+4. **导出脚本按组选择 PromQL 查询集** — 因为各调度器指标名不同（`scheduler_pod_scheduling_attempts` vs `volcano_scheduler_schedule_count` 等）
+5. **结果目录结构固定** — `results/{group}/{workload}/run{id}/`，方便后续 Python 脚本自动扫描分析
