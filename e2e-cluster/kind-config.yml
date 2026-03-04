@@ -2,5 +2,12 @@ kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
   - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: ClusterConfiguration
+        apiServer:
+          extraArgs:
+            max-mutating-requests-inflight: "10000"
+            max-requests-inflight: "20000"
   - role: worker
   - role: worker
