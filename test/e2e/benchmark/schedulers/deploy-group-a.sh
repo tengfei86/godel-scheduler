@@ -52,9 +52,11 @@ if (( local_binder_count < 1 )); then
   exit 1
 fi
 
-# ── Step 5: 确保 Prometheus 抓取目标正确 ──
-log_step "Step 5: 验证 Prometheus 目标"
-wait_prometheus_ready 30 || log_warn "Prometheus 未就绪，手动检查"
+# ── Step 5: 切换 Prometheus 配置（kustomize overlay） ──
+log_step "Step 5: 部署组 A 的 Prometheus 配置"
+kubectl apply -k "${PROJECT_ROOT}/manifests/monitoring/overlays/group-a/"
+wait_prometheus_ready 60 || log_warn "Prometheus 未就绪，手动检查"
+verify_prometheus_targets
 
 separator "组 A 部署完成"
 log_info "架构: 共享 Binder (所有 Scheduler 共用 1 个 Binder)"

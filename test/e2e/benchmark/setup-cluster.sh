@@ -38,13 +38,17 @@ deploy_kwok
 log_step "Step 3/5: 创建 ${NODE_COUNT} 个 KWOK 模拟节点"
 create_kwok_nodes "$NODE_COUNT"
 
-# ── Step 4: 部署 Prometheus ──
-log_step "Step 4/5: 部署 Prometheus"
-deploy_prometheus
+# ── Step 4: 提示 Prometheus 安装方式 ──
+log_step "Step 4/5: Prometheus 说明"
+log_info "Prometheus 将在部署调度器时通过 kustomize overlay 自动安装"
+log_info "  kubectl apply -k manifests/monitoring/overlays/group-{a,b,c,d,e}/"
+log_info "  每个 overlay 包含该组对应的 scrape targets + recording rules"
+log_info ""
+log_info "如需提前手动安装（使用 base 配置）："
+log_info "  kubectl apply -k ${MANIFESTS_MONITORING_BASE}"
 
 # ── Step 5: 验证 ──
 log_step "Step 5/5: 验证环境"
-wait_prometheus_ready 60
 show_cluster_status
 
 separator "环境准备完成"

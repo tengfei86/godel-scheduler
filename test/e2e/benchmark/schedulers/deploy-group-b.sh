@@ -61,9 +61,11 @@ if [[ -n "$scheduler_pod" ]]; then
   fi
 fi
 
-# ── Step 5: 确保 Prometheus 抓取目标正确 ──
-log_step "Step 5: 验证 Prometheus 目标"
-wait_prometheus_ready 30 || log_warn "Prometheus 未就绪，手动检查"
+# ── Step 5: 切换 Prometheus 配置（kustomize overlay） ──
+log_step "Step 5: 部署组 B 的 Prometheus 配置"
+kubectl apply -k "${PROJECT_ROOT}/manifests/monitoring/overlays/group-b/"
+wait_prometheus_ready 60 || log_warn "Prometheus 未就绪，手动检查"
+verify_prometheus_targets
 
 separator "组 B 部署完成"
 log_info "架构: 独立 Binder (每个 Scheduler 内嵌独立 Binder)"

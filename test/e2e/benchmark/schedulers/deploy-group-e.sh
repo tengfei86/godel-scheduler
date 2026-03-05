@@ -77,9 +77,11 @@ echo ""
 log_info "Koordinator CRDs:"
 kubectl get crd 2>/dev/null | grep "koordinator\|slo.koordinator" || true
 
-# ── Step 5: 确保 Prometheus 抓取目标正确 ──
-log_step "Step 5: 验证 Prometheus 目标"
-wait_prometheus_ready 30 || log_warn "Prometheus 未就绪，手动检查"
+# ── Step 5: 切换 Prometheus 配置（kustomize overlay） ──
+log_step "Step 5: 部署组 E 的 Prometheus 配置"
+kubectl apply -k "${PROJECT_ROOT}/manifests/monitoring/overlays/group-e/"
+wait_prometheus_ready 60 || log_warn "Prometheus 未就绪，手动检查"
+verify_prometheus_targets
 
 separator "组 E 部署完成"
 log_info "架构: Koordinator Scheduler v${KOORDINATOR_VERSION} (单实例，无 koordlet)"

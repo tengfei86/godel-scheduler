@@ -66,9 +66,11 @@ if kubectl get namespace "${GODEL_NAMESPACE}" &>/dev/null; then
   fi
 fi
 
-# ── Step 5: 确保 Prometheus 抓取目标正确 ──
-log_step "Step 5: 验证 Prometheus 目标"
-wait_prometheus_ready 30 || log_warn "Prometheus 未就绪，手动检查"
+# ── Step 5: 切换 Prometheus 配置（kustomize overlay） ──
+log_step "Step 5: 部署组 C 的 Prometheus 配置"
+kubectl apply -k "${PROJECT_ROOT}/manifests/monitoring/overlays/group-c/"
+wait_prometheus_ready 60 || log_warn "Prometheus 未就绪，手动检查"
+verify_prometheus_targets
 
 separator "组 C 部署完成"
 log_info "架构: kube-scheduler (原生 K8s 单实例调度器)"
