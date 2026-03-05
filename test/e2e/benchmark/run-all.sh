@@ -1,20 +1,22 @@
 #!/bin/bash
-# run-all.sh — 全量实验入口（遍历 A~E × 负载场景 × 3 次重复）
+# run-all.sh — 全量实验入口（遍历 A~E × 规模 × 负载场景 × 3 次重复）
 #
 # 用法:
 #   ./run-all.sh [options]
 #
 # 选项:
 #   --groups "a b"         指定要测试的组 (默认: "a b c d e")
+#   --scales "s1 s2"       指定要测试的规模 (默认: "s2")
 #   --workloads "w1 w2"    指定要测试的负载 (默认: 按组自动选择)
 #   --runs 3               重复次数 (默认: 3)
 #   --skip-deploy          跳过调度器部署（假设已部署）
+#   --setup-nodes          自动创建/验证 KWOK 节点数量
 #   --dry-run              仅打印执行计划，不实际运行
 #
 # 示例:
-#   ./run-all.sh                                    # 全量执行
-#   ./run-all.sh --groups "a b" --workloads "w1 w2" # 仅组 A/B + W1/W2
-#   ./run-all.sh --dry-run                          # 预览执行计划
+#   ./run-all.sh                                                  # 全量执行
+#   ./run-all.sh --groups "a b" --scales "s2 s3" --workloads "w1 w2"
+#   ./run-all.sh --dry-run                                        # 预览执行计划
 
 set -euo pipefail
 
@@ -25,8 +27,10 @@ source "${SCRIPT_DIR}/workloads/workload-matrix.sh"
 
 # ── 默认参数 ──
 GROUPS="a b c d e"
+SCALES="s2"
 RUNS="${EXPERIMENT_REPEATS}"
 SKIP_DEPLOY=false
+SETUP_NODES=false
 DRY_RUN=false
 CUSTOM_WORKLOADS=""
 
@@ -34,9 +38,11 @@ CUSTOM_WORKLOADS=""
 while [[ $# -gt 0 ]]; do
   case $1 in
     --groups)      GROUPS="$2"; shift 2 ;;
+    --scales)      SCALES="$2"; shift 2 ;;
     --workloads)   CUSTOM_WORKLOADS="$2"; shift 2 ;;
     --runs)        RUNS="$2"; shift 2 ;;
     --skip-deploy) SKIP_DEPLOY=true; shift ;;
+    --setup-nodes) SETUP_NODES=true; shift ;;
     --dry-run)     DRY_RUN=true; shift ;;
     *)             log_error "未知参数: $1"; exit 1 ;;
   esac
@@ -64,13 +70,16 @@ get_workloads_for_group() {
 total_experiments=0
 for group in $GROUPS; do
   workloads=$(get_workloads_for_group "$group")
-  for _ in $workloads; do
-    total_experiments=$((total_experiments + RUNS))
+  for _ in $SCALES; do
+    for _ in $workloads; do
+      total_experiments=$((total_experiments + RUNS))
+    done
   done
 done
 
 separator "全量实验计划"
 log_info "组: ${GROUPS}"
+log_info "规模: ${SCALES}"
 log_info "重复: ${RUNS} 次"
 log_info "总实验数: ${total_experiments}"
 echo ""
@@ -80,11 +89,14 @@ exp_index=0
 for group in $GROUPS; do
   workloads=$(get_workloads_for_group "$group")
   echo "  组 ${group} (${GROUP_LABELS[$group]}):"
-  for wl in $workloads; do
-    desc=$(get_workload_param "$wl" "desc")
-    for run in $(seq 1 "$RUNS"); do
-      exp_index=$((exp_index + 1))
-      printf "    [%3d/%3d] %s × %s × run%d\n" "$exp_index" "$total_experiments" "$group" "$wl" "$run"
+  for scale in $SCALES; do
+    echo "    规模 ${scale} (${SCALE_NODES[$scale]} 节点):"
+    for wl in $workloads; do
+      desc=$(get_workload_param "$wl" "desc")
+      for run in $(seq 1 "$RUNS"); do
+        exp_index=$((exp_index + 1))
+        printf "      [%3d/%3d] %s × %s × %s × run%d\n" "$exp_index" "$total_experiments" "$group" "$scale" "$wl" "$run"
+      done
     done
   done
   echo ""
@@ -122,21 +134,27 @@ for group in $GROUPS; do
     sleep 10
   fi
 
-  # 执行该组所有负载场景
+  # 执行该组所有规模 × 负载场景
   workloads=$(get_workloads_for_group "$group")
-  for wl in $workloads; do
-    for run in $(seq 1 "$RUNS"); do
-      exp_index=$((exp_index + 1))
-      separator "[${exp_index}/${total_experiments}] 组=${group} 负载=${wl} Run=#${run}"
+  for scale in $SCALES; do
+    separator "规模 ${scale} (${SCALE_NODES[$scale]} 节点)"
+    for wl in $workloads; do
+      for run in $(seq 1 "$RUNS"); do
+        exp_index=$((exp_index + 1))
+        separator "[${exp_index}/${total_experiments}] 组=${group} 规模=${scale} 负载=${wl} Run=#${run}"
 
-      if bash "${SCRIPT_DIR}/run-experiment.sh" "$group" "$wl" "$run"; then
-        log_info "✓ 实验成功: ${group}/${wl}/run${run}"
-      else
-        log_error "✗ 实验失败: ${group}/${wl}/run${run}"
-        failed_experiments+=("${group}/${wl}/run${run}")
-      fi
+        EXTRA_FLAGS=""
+        [[ "$SETUP_NODES" == "true" ]] && EXTRA_FLAGS="--setup-nodes"
 
-      echo ""
+        if bash "${SCRIPT_DIR}/run-experiment.sh" "$group" "$scale" "$wl" "$run" $EXTRA_FLAGS; then
+          log_info "✓ 实验成功: ${group}/${scale}/${wl}/run${run}"
+        else
+          log_error "✗ 实验失败: ${group}/${scale}/${wl}/run${run}"
+          failed_experiments+=("${group}/${scale}/${wl}/run${run}")
+        fi
+
+        echo ""
+      done
     done
   done
 done

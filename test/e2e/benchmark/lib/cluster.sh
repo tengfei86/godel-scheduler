@@ -85,23 +85,31 @@ deploy_kwok() {
 
 # ── 创建 KWOK 模拟节点 ──
 # 用法: create_kwok_nodes <count>
+# 精确调整节点数到 count：多了先清理再创建，少了补足，相等则跳过。
 create_kwok_nodes() {
   local count="${1:?用法: create_kwok_nodes <count>}"
 
-  log_step "创建 ${count} 个 KWOK 模拟节点 (并行度=${NODE_CREATE_PARALLELISM})"
+  log_step "调整 KWOK 模拟节点到 ${count} 个 (并行度=${NODE_CREATE_PARALLELISM})"
 
   # 先检查当前已有节点数
   local existing
   existing=$(kubectl get nodes -l fake.byted.org/node --no-headers 2>/dev/null | wc -l | tr -d ' ')
-  log_info "当前已有 ${existing} 个 KWOK 节点"
+  log_info "当前已有 ${existing} 个 KWOK 节点，目标 ${count} 个"
 
-  if (( existing >= count )); then
-    log_warn "已有 ${existing} ≥ ${count} 个节点，跳过创建"
+  if (( existing == count )); then
+    log_info "✓ 节点数已匹配，跳过"
     return 0
   fi
 
+  if (( existing > count )); then
+    log_warn "节点过多 (${existing} > ${count})，先清理全部再重建..."
+    cleanup_kwok_nodes
+    sleep 10
+    existing=0
+  fi
+
   local to_create=$((count - existing))
-  log_info "需要额外创建 ${to_create} 个节点..."
+  log_info "需要创建 ${to_create} 个节点..."
 
   seq "$to_create" | xargs -I {} -P "$NODE_CREATE_PARALLELISM" \
     bash -c "kubectl create -f ${NODE_TEMPLATE} 2>/dev/null" || true
