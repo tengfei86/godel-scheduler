@@ -19,6 +19,18 @@ log_error() { echo -e "${RED}[ERROR]${NC} $(date '+%H:%M:%S') $*" >&2; }
 log_step()  { echo -e "${CYAN}[STEP]${NC}  $(date '+%H:%M:%S') $*"; }
 log_debug() { [[ "${DEBUG:-0}" == "1" ]] && echo -e "${PURPLE}[DEBUG]${NC} $(date '+%H:%M:%S') $*" || true; }
 
+# ── API Server 连通性检查 ──
+check_api_server() {
+  local timeout="${1:-10}"
+  log_info "检查 API Server 连通性 (timeout=${timeout}s)..."
+  if ! kubectl cluster-info --request-timeout="${timeout}s" &>/dev/null; then
+    log_error "无法连接 API Server，请确认集群可用"
+    log_error "  检查: kubectl cluster-info"
+    return 1
+  fi
+  log_info "✓ API Server 可用"
+}
+
 # ── 分隔线 ──
 separator() {
   echo ""
