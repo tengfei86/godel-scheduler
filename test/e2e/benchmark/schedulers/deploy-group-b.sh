@@ -20,6 +20,7 @@ bash "${SCRIPT_DIR}/schedulers/teardown.sh"
 
 # ── Step 2: 部署 Gödel（独立 Binder） ──
 log_step "Step 2: 部署 Gödel Scheduler (Embedded Binder)"
+ensure_image_loaded "${GODEL_IMAGE}"
 kubectl apply -k "${MANIFESTS_EMBEDDED}"
 
 # ── Step 3: 等待组件就绪 ──

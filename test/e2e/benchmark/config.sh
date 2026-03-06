@@ -37,6 +37,7 @@ PROMETHEUS_NAMESPACE="monitoring"
 PROMETHEUS_STEP="15s"
 
 # ── 镜像 ──
+GODEL_IMAGE="godel-local:latest"
 PAUSE_IMAGE="registry.k8s.io/pause:3.9"
 
 # ── 调度器配置 ──

@@ -20,6 +20,7 @@ bash "${SCRIPT_DIR}/schedulers/teardown.sh"
 
 # ── Step 2: 部署 Gödel（共享 Binder） ──
 log_step "Step 2: 部署 Gödel Scheduler (Shared Binder)"
+ensure_image_loaded "${GODEL_IMAGE}"
 kubectl apply -k "${MANIFESTS_BASE}"
 
 # ── Step 3: 等待组件就绪 ──
@@ -44,7 +45,7 @@ kubectl get pods -n "${GODEL_NAMESPACE}" -o wide
 echo ""
 
 # 确认 Binder 独立运行
-local_binder_count=$(kubectl get pods -n "${GODEL_NAMESPACE}" -l component=binder --no-headers 2>/dev/null | wc -l | tr -d ' ')
+local_binder_count=$(kubectl get pods -n "${GODEL_NAMESPACE}" -l app=binder --no-headers 2>/dev/null | wc -l | tr -d ' ')
 log_info "Binder Pod 数量: ${local_binder_count} (预期: 1)"
 
 if (( local_binder_count < 1 )); then

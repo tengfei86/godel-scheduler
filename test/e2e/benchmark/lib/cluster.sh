@@ -64,6 +64,24 @@ tune_apiserver() {
   log_info "✓ API Server 参数已调整"
 }
 
+# ── 确保镜像已加载到 kind 集群 ──
+# 用法: ensure_image_loaded <image>
+ensure_image_loaded() {
+  local image="${1:?ensure_image_loaded <image>}"
+  local cluster_name="${2:-$KIND_CLUSTER_NAME}"
+  local node="${cluster_name}-control-plane"
+
+  # 检查 kind node 里是否已有该镜像
+  if docker exec "$node" crictl images -q 2>/dev/null | grep -q "$(docker inspect --format='{{.Id}}' "$image" 2>/dev/null)"; then
+    log_info "镜像 ${image} 已在 kind 集群中"
+    return 0
+  fi
+
+  log_info "加载镜像 ${image} 到 kind 集群 ${cluster_name}..."
+  kind load docker-image "$image" --name "$cluster_name"
+  log_info "✓ 镜像 ${image} 加载完成"
+}
+
 # ── 部署 KWOK 控制器 ──
 deploy_kwok() {
   log_step "部署 KWOK 控制器"
