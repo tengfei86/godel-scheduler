@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # run-experiment.sh — 单次实验标准操作流程 (SOP)
 #
 # 用法:

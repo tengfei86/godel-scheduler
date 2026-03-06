@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # schedulers/deploy-group-e.sh — 部署组 E（Koordinator Scheduler）
 #
 # 配置: Koordinator v1.5.x (单实例)

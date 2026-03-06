@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # schedulers/deploy-group-b.sh — 部署组 B（独立 Binder，论文提出的架构）
 #
 # 配置: --enable-embedded-binder=true + Binder Deployment replicas=0

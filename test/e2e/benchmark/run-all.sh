@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # run-all.sh — 全量实验入口（遍历 A~E × 规模 × 负载场景 × 3 次重复）
 #
 # 用法:

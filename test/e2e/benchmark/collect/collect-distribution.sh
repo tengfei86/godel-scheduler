@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # collect/collect-distribution.sh — 采集 Pod 分布快照
 #
 # 输出 CSV 格式到 stdout:

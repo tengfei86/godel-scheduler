@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # schedulers/deploy-group-a.sh — 部署组 A（共享 Binder，原始 Gödel 架构）
 #
 # 配置: --enable-embedded-binder=false + 独立 Binder Deployment (replicas=1)

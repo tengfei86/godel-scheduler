@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # schedulers/teardown.sh — 通用卸载（按组清理调度器 + 残留资源）
 #
 # 用法:

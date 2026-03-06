@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # workloads/create-pods.sh — 按固定速率批量创建 Pod
 #
 # 用法:

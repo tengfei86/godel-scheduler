@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # setup-cluster.sh — Phase 0: 一键搭建集群 + KWOK 节点 + Prometheus
 #
 # 用法:

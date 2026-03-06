@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # collect/export-prometheus.sh — 从 Prometheus API 导出时间序列 JSON
 #
 # 用法:

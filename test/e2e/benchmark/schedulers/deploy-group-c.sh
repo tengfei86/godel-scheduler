@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # schedulers/deploy-group-c.sh — 部署组 C（kube-scheduler，原生 K8s 调度器）
 #
 # 配置: 禁用 Gödel，使用 kind 自带的 kube-scheduler

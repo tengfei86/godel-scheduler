@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # collect/collect-utilization.sh — 采集节点资源分布快照
 #
 # 输出 CSV 格式到 stdout:

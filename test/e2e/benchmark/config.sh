@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # config.sh — 全局配置（常量定义）
 # 所有脚本通过 source config.sh 加载
 

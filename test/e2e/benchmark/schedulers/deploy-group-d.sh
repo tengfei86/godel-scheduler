@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # schedulers/deploy-group-d.sh — 部署组 D（Volcano Scheduler）
 #
 # 配置: Volcano v1.9.x (单实例)

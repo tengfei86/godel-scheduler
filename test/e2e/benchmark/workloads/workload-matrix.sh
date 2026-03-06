@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # workloads/workload-matrix.sh — W1~W8 负载场景参数定义
 #
 # 被 create-pods.sh 和 run-experiment.sh 调用。
