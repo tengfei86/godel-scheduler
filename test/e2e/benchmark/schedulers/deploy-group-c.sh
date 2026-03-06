@@ -4,7 +4,7 @@
 # 配置: 禁用 Gödel，使用 kind 自带的 kube-scheduler
 # schedulerName: default-scheduler
 
-set -euo pipefail
+set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${SCRIPT_DIR}/config.sh"

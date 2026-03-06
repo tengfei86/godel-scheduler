@@ -2,7 +2,7 @@
 # config.sh — 全局配置（常量定义）
 # 所有脚本通过 source config.sh 加载
 
-set -euo pipefail
+set -eu
 
 # ── 项目根目录 ──
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

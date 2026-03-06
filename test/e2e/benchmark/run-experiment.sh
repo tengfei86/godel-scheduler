@@ -18,7 +18,7 @@
 #   ./run-experiment.sh b s2 w3 2                  # 组B, 1000节点, W3负载, 第2次
 #   ./run-experiment.sh a s3 w1 1 --setup-nodes    # 自动创建 5000 节点
 
-set -euo pipefail
+set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/config.sh"

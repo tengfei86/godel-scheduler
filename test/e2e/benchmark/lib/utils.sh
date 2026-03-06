@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # lib/utils.sh — 通用函数（日志、等待、颜色输出）
 
-set -euo pipefail
+set -eu
 
 # ── 颜色 ──
 RED='\033[0;31m'

@@ -18,7 +18,7 @@
 #   ./run-all.sh --groups "a b" --scales "s2 s3" --workloads "w1 w2"
 #   ./run-all.sh --dry-run                                        # 预览执行计划
 
-set -euo pipefail
+set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/config.sh"

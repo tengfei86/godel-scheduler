@@ -4,7 +4,7 @@
 # 配置: Volcano v1.9.x (单实例)
 # schedulerName: volcano
 
-set -euo pipefail
+set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${SCRIPT_DIR}/config.sh"

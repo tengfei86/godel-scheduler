@@ -5,7 +5,7 @@
 #   ./teardown.sh [group]
 #   group: a|b|c|d|e|all (默认 all)
 
-set -euo pipefail
+set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${SCRIPT_DIR}/config.sh"

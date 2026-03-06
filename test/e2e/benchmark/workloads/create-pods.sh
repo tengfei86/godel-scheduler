@@ -16,7 +16,7 @@
 #   ./create-pods.sh 500 50000 godel-scheduler 100 128
 #   ./create-pods.sh 1000 10000 godel-scheduler 100 128 gang
 
-set -euo pipefail
+set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BENCHMARK_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"

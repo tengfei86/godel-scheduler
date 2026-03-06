@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # lib/cluster.sh — 集群管理（创建/销毁 kind 集群、KWOK 节点管理）
 
-set -euo pipefail
+set -eu
 
 _CLUSTER_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_CLUSTER_LIB_DIR}/utils.sh"

@@ -8,7 +8,7 @@
 # 示例:
 #   ./setup-cluster.sh s3    # 创建 5000 个 KWOK 节点
 
-set -euo pipefail
+set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/config.sh"

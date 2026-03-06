@@ -7,7 +7,7 @@
 # 用法:
 #   ./collect-utilization.sh > utilization.csv
 
-set -euo pipefail
+set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # 不加载 utils.sh 避免 log 输出干扰 CSV;  仅在 stderr 打日志
@@ -77,7 +77,7 @@ echo "$NODES_JSON" | jq -r --argjson pods "$PODS_JSON" '
     mem_alloc=$(echo "$NODES_JSON" | jq -r ".items[] | select(.metadata.name==\"${node_name}\") | .status.allocatable.memory // \"0\"")
 
     # 统计该节点上的 Pod 数量
-    pod_count=$(echo "$PODS_JSON" | jq "[.items[] | select(.spec.nodeName==\"${node_name}\")] | length" 2>/dev/null || echo "0")
+    pod_count=$(echo "$PODS_JSON" | jq "[.items[] | select(.spec.nodeName==\"${node_name}\")] | length" 2>/dev/null)
 
     echo "${node_name},0,${cpu_alloc},0,${mem_alloc},${pod_count}"
   done

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # lib/prometheus.sh — Prometheus 操作（部署、等待就绪、数据导出）
 
-set -euo pipefail
+set -eu
 
 _PROM_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_PROM_LIB_DIR}/utils.sh"

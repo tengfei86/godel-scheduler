@@ -9,7 +9,7 @@
 # 用法:
 #   ./collect-distribution.sh > pod-distribution.csv
 
-set -euo pipefail
+set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 log_stderr() { echo "[collect-distribution] $*" >&2; }

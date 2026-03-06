@@ -10,7 +10,7 @@
 #   D:   Volcano 指标名
 #   E:   Koordinator 指标名
 
-set -euo pipefail
+set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${SCRIPT_DIR}/config.sh"

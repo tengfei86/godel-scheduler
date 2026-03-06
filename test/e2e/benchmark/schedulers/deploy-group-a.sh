@@ -4,7 +4,7 @@
 # 配置: --enable-embedded-binder=false + 独立 Binder Deployment (replicas=1)
 # schedulerName: godel-scheduler
 
-set -euo pipefail
+set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${SCRIPT_DIR}/config.sh"
