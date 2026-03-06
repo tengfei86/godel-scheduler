@@ -28,7 +28,7 @@ wait_prometheus_ready() {
   log_info "等待 Prometheus 可达 (${PROMETHEUS_ADDR})..."
 
   while (( elapsed < timeout )); do
-    if curl -s "${PROMETHEUS_ADDR}/-/ready" 2>/dev/null | grep -q "ready"; then
+    if curl -s "${PROMETHEUS_ADDR}/-/ready" 2>/dev/null | grep -qi "ready"; then
       log_info "✓ Prometheus 就绪"
       return 0
     fi
