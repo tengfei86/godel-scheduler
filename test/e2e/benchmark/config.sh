@@ -5,8 +5,8 @@
 set -eu
 
 # ── 项目根目录 ──
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+_CONFIG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$_CONFIG_DIR/../../.." && pwd)"
 
 # ── kind 集群 ──
 KIND_CLUSTER_NAME="godel-bench"
@@ -86,7 +86,7 @@ WAIT_READY_TIMEOUT=300      # 等待组件就绪超时 (s)
 WAIT_SCHEDULE_TIMEOUT=3600  # 等待所有 Pod 调度完成超时 (s)
 
 # ── 结果输出 ──
-RESULTS_DIR="${SCRIPT_DIR}/results"
+RESULTS_DIR="${_CONFIG_DIR}/results"
 
 # ── Manifests 路径 ──
 MANIFESTS_BASE="${PROJECT_ROOT}/manifests/base"

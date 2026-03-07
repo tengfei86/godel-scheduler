@@ -28,57 +28,47 @@ fi
 # 获取所有 bench namespace 中 Pod 的资源请求
 PODS_JSON=$(kubectl get pods -n bench -o json 2>/dev/null)
 
-# 使用 jq 一次性计算每节点的资源利用率
-echo "$NODES_JSON" | jq -r --argjson pods "$PODS_JSON" '
-  # 构建节点到 Pod 资源请求的映射
-  ($pods.items // [] | group_by(.spec.nodeName) |
-    map({
-      key: (.[0].spec.nodeName // "unscheduled"),
-      value: {
-        cpu_requested: ([.[].spec.containers[].resources.requests.cpu // "0" |
-          if endswith("m") then (rtrimstr("m") | tonumber)
-          else (tonumber * 1000)
-          end] | add),
-        mem_requested: ([.[].spec.containers[].resources.requests.memory // "0" |
-          if endswith("Mi") then (rtrimstr("Mi") | tonumber * 1048576)
-          elif endswith("Gi") then (rtrimstr("Gi") | tonumber * 1073741824)
-          elif endswith("Ki") then (rtrimstr("Ki") | tonumber * 1024)
-          else tonumber
-          end] | add),
-        pod_count: length
-      }
-    }) | from_entries
-  ) as $pod_map |
+# 预聚合: 按节点统计 cpu_requested(m), mem_requested(bytes), pod_count
+POD_AGG=$(echo "$PODS_JSON" | jq -c '
+  [.items // [] | group_by(.spec.nodeName)[] |
+    { key: (.[0].spec.nodeName // "unscheduled"),
+      cpu: ([.[].spec.containers[].resources.requests.cpu // "0" |
+        if endswith("m") then (rtrimstr("m") | tonumber)
+        else (tonumber * 1000) end] | add),
+      mem: ([.[].spec.containers[].resources.requests.memory // "0" |
+        if endswith("Mi") then (rtrimstr("Mi") | tonumber * 1048576)
+        elif endswith("Gi") then (rtrimstr("Gi") | tonumber * 1073741824)
+        elif endswith("Ki") then (rtrimstr("Ki") | tonumber * 1024)
+        else tonumber end] | add),
+      cnt: length }]
+  | from_entries
+' 2>/dev/null || echo '{}')
+
+# 用预聚合结果（很小）join 节点信息
+echo "$NODES_JSON" | jq -r --argjson pm "$POD_AGG" '
   .items[] |
   .metadata.name as $name |
   (.status.allocatable.cpu // "0" |
     if endswith("m") then (rtrimstr("m") | tonumber)
-    else (tonumber * 1000)
-    end
+    else (tonumber * 1000) end
   ) as $cpu_alloc |
   (.status.allocatable.memory // "0" |
     if endswith("Mi") then (rtrimstr("Mi") | tonumber * 1048576)
     elif endswith("Gi") then (rtrimstr("Gi") | tonumber * 1073741824)
     elif endswith("Ki") then (rtrimstr("Ki") | tonumber * 1024)
-    else tonumber
-    end
+    else tonumber end
   ) as $mem_alloc |
-  ($pod_map[$name].cpu_requested // 0) as $cpu_req |
-  ($pod_map[$name].mem_requested // 0) as $mem_req |
-  ($pod_map[$name].pod_count // 0) as $pc |
+  ($pm[$name].cpu // 0) as $cpu_req |
+  ($pm[$name].mem // 0) as $mem_req |
+  ($pm[$name].cnt // 0) as $pc |
   "\($name),\($cpu_req),\($cpu_alloc),\($mem_req),\($mem_alloc),\($pc)"
 ' 2>/dev/null || {
-  # 如果复杂 jq 失败，使用简化版本
-  log_stderr "jq 复杂查询失败，使用简化版"
-
-  # 简化版: 逐节点查询
+  # fallback: 逐节点简化版
+  log_stderr "jq 查询失败，使用逐节点简化版"
   echo "$NODES_JSON" | jq -r '.items[].metadata.name' | while read -r node_name; do
     cpu_alloc=$(echo "$NODES_JSON" | jq -r ".items[] | select(.metadata.name==\"${node_name}\") | .status.allocatable.cpu // \"0\"")
     mem_alloc=$(echo "$NODES_JSON" | jq -r ".items[] | select(.metadata.name==\"${node_name}\") | .status.allocatable.memory // \"0\"")
-
-    # 统计该节点上的 Pod 数量
     pod_count=$(echo "$PODS_JSON" | jq "[.items[] | select(.spec.nodeName==\"${node_name}\")] | length" 2>/dev/null)
-
     echo "${node_name},0,${cpu_alloc},0,${mem_alloc},${pod_count}"
   done
 }
