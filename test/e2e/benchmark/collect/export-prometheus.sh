@@ -41,7 +41,7 @@ declare -A COMMON_QUERIES=(
 declare -A GODEL_SHARED_QUERIES=(
   # 吞吐量
   [scheduling_throughput]='sum(rate(scheduler_pod_scheduling_attempts{result="scheduled"}[1m]))'
-  [bind_throughput_pods]='sum(rate(binder_binding_pod_attempts{result="bound"}[1m]))'
+  [bind_throughput_pods]='sum(rate(binder_binding_pod_attempts{result="success"}[1m]))'
   [bind_throughput_units]='sum(rate(binder_unit_e2e_duration_seconds_count[1m]))'
 
   # 调度延迟
