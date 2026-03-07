@@ -5,7 +5,8 @@
 #   ./export-prometheus.sh <group> <start_ts> <end_ts> <output_dir>
 #
 # 按组选择不同的 PromQL 查询集:
-#   A/B: Gödel 指标名
+#   A:   Gödel Shared Binder 指标名
+#   B:   Gödel Embedded Binder 指标名
 #   C:   kube-scheduler 指标名
 #   D:   Volcano 指标名
 #   E:   Koordinator 指标名
@@ -35,13 +36,47 @@ declare -A COMMON_QUERIES=(
 )
 
 # ═══════════════════════════════════════════════
-# Gödel 查询集（组 A/B）
+# Gödel 查询集（组 A: Shared Binder）
 # ═══════════════════════════════════════════════
-declare -A GODEL_QUERIES=(
+declare -A GODEL_SHARED_QUERIES=(
+  # 吞吐量
+  [scheduling_throughput]='sum(rate(scheduler_pod_scheduling_attempts{result="scheduled"}[1m]))'
+  [bind_throughput_pods]='sum(rate(binder_binding_pod_attempts{result="bound"}[1m]))'
+  [bind_throughput_units]='sum(rate(binder_unit_e2e_duration_seconds_count[1m]))'
+
+  # 调度延迟
+  [scheduling_latency_p50]='histogram_quantile(0.50,sum(rate(scheduler_e2e_scheduling_duration_seconds_bucket[1m]))by(le))'
+  [scheduling_latency_p90]='histogram_quantile(0.90,sum(rate(scheduler_e2e_scheduling_duration_seconds_bucket[1m]))by(le))'
+  [scheduling_latency_p99]='histogram_quantile(0.99,sum(rate(scheduler_e2e_scheduling_duration_seconds_bucket[1m]))by(le))'
+
+  # 绑定延迟
+  [bind_latency_p50]='histogram_quantile(0.50,sum(rate(binder_pod_binding_phase_duration_seconds_bucket{phase="binding"}[1m]))by(le))'
+  [bind_latency_p90]='histogram_quantile(0.90,sum(rate(binder_pod_binding_phase_duration_seconds_bucket{phase="binding"}[1m]))by(le))'
+  [bind_latency_p99]='histogram_quantile(0.99,sum(rate(binder_pod_binding_phase_duration_seconds_bucket{phase="binding"}[1m]))by(le))'
+
+  # 核心算法延迟
+  [algorithm_latency_p90]='histogram_quantile(0.90,sum(rate(scheduler_scheduling_algorithm_duration_seconds_bucket[1m]))by(le))'
+  [algorithm_latency_p99]='histogram_quantile(0.99,sum(rate(scheduler_scheduling_algorithm_duration_seconds_bucket[1m]))by(le))'
+
+  # 成功率
+  [scheduling_success_rate]='(sum(rate(scheduler_pod_scheduling_attempts{result="scheduled"}[5m])) or on() vector(0)) / clamp_min(sum(rate(scheduler_pod_scheduling_attempts[5m])), 1e-9)'
+  [scheduling_error_rate]='(sum(rate(scheduler_pod_scheduling_attempts{result="error"}[5m])) or on() vector(0)) / clamp_min(sum(rate(scheduler_pod_scheduling_attempts[5m])), 1e-9)'
+
+  # Goroutines
+  [goroutines]='sum(scheduler_goroutines) by (work)'
+
+  # 队列等待
+  [queue_wait_p90]='histogram_quantile(0.90,rate(scheduler_pod_pending_in_queue_duration_seconds_bucket[5m]))'
+)
+
+# ═══════════════════════════════════════════════
+# Gödel 查询集（组 B: Embedded Binder）
+# ═══════════════════════════════════════════════
+declare -A GODEL_EMBEDDED_QUERIES=(
   # 吞吐量
   [scheduling_throughput]='sum(rate(scheduler_pod_scheduling_attempts{result="scheduled"}[1m]))'
   [bind_throughput_pods]='sum(rate(binder_embedded_bind_pods_total{result="success"}[1m]))'
-  [bind_throughput_units]='sum(rate(binder_embedded_bind_units_total{result="success"}[1m]))'
+  [bind_throughput_units]='sum(rate(binder_embedded_bind_total{result="success"}[1m]))'
 
   # 调度延迟
   [scheduling_latency_p50]='histogram_quantile(0.50,sum(rate(scheduler_e2e_scheduling_duration_seconds_bucket[1m]))by(le))'
@@ -58,10 +93,10 @@ declare -A GODEL_QUERIES=(
   [algorithm_latency_p99]='histogram_quantile(0.99,sum(rate(scheduler_scheduling_algorithm_duration_seconds_bucket[1m]))by(le))'
 
   # 成功率
-  [scheduling_success_rate]='sum(rate(scheduler_pod_scheduling_attempts{result="scheduled"}[5m]))/sum(rate(scheduler_pod_scheduling_attempts[5m]))'
-  [scheduling_error_rate]='sum(rate(scheduler_pod_scheduling_attempts{result="error"}[5m]))/sum(rate(scheduler_pod_scheduling_attempts[5m]))'
+  [scheduling_success_rate]='(sum(rate(scheduler_pod_scheduling_attempts{result="scheduled"}[5m])) or on() vector(0)) / clamp_min(sum(rate(scheduler_pod_scheduling_attempts[5m])), 1e-9)'
+  [scheduling_error_rate]='(sum(rate(scheduler_pod_scheduling_attempts{result="error"}[5m])) or on() vector(0)) / clamp_min(sum(rate(scheduler_pod_scheduling_attempts[5m])), 1e-9)'
 
-  # Binder 特有
+  # Embedded Binder 特有
   [bind_inflight]='binder_embedded_bind_inflight'
   [bind_retries]='sum(rate(binder_embedded_bind_retries_total[5m]))'
   [dispatcher_fallback]='sum(rate(binder_dispatcher_fallback_total[5m]))'
@@ -136,9 +171,13 @@ export_queries COMMON_QUERIES
 
 # 按组导出
 case "$GROUP" in
-  a|b)
-    log_info "导出 Gödel 查询集 (${#GODEL_QUERIES[@]} 条)..."
-    export_queries GODEL_QUERIES
+  a)
+    log_info "导出 Gödel Shared Binder 查询集 (${#GODEL_SHARED_QUERIES[@]} 条)..."
+    export_queries GODEL_SHARED_QUERIES
+    ;;
+  b)
+    log_info "导出 Gödel Embedded Binder 查询集 (${#GODEL_EMBEDDED_QUERIES[@]} 条)..."
+    export_queries GODEL_EMBEDDED_QUERIES
     ;;
   c)
     log_info "导出 kube-scheduler 查询集 (${#KUBE_QUERIES[@]} 条)..."
