@@ -10,6 +10,23 @@
 #   workload - w1|w2|w3|w4|w5|w6|w7|w8 (负载场景)
 #   run_id   - 1|2|3              (重复次数)
 #
+# 集群规模说明:
+#   s1 -    100 节点  (小规模基线, 1 Scheduler)
+#   s2 -  1,000 节点  (中等规模,   3 Scheduler)
+#   s3 -  5,000 节点  (大规模,     3 Scheduler)
+#   s4 - 10,000 节点  (超大规模,   3 Scheduler)
+#   s5 - 30,000 节点  (极限规模,   3 Scheduler)
+#
+# 负载场景说明:
+#   w1 - 低负载稳态       100 pods/s,  10K pods, cpu:100m/mem:128Mi
+#   w2 - 中负载稳态       500 pods/s,  50K pods, cpu:100m/mem:128Mi
+#   w3 - 高负载稳态     1,000 pods/s, 100K pods, cpu:100m/mem:128Mi
+#   w4 - 极限负载       2,000 pods/s, 200K pods, cpu:100m/mem:128Mi
+#   w5 - 突发洪峰   0→2000→0 pods/s,  50K pods, cpu:100m/mem:128Mi
+#   w6 - Gang 调度   200 groups/s × 5 pods/group, 10K pods
+#   w7 - 异构资源       500 pods/s,  50K pods, 混合规格(30%小+40%中+20%大+10%超大)
+#   w8 - 大规模集群   2,000 pods/s, 800K pods, cpu:100m/mem:128Mi
+#
 # 可选标志:
 #   --setup-nodes   自动创建/验证 KWOK 节点数量（默认假设已就绪）
 #   --skip-collect  跳过 Prometheus 导出和分布快照采集
