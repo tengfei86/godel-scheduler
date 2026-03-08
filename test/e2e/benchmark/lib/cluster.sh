@@ -180,13 +180,54 @@ show_cluster_status() {
 show_node_partition() {
   log_info "节点分区分配 (Node Shuffler):"
   local schedulers
+  # 支持两种命名方式：scheduler / scheduler-0,1,2
   schedulers=$(kubectl get deployment -n "${GODEL_NAMESPACE}" --no-headers 2>/dev/null \
-    | awk '{print $1}' | grep "^scheduler-" || echo "scheduler-0 scheduler-1 scheduler-2")
+    | awk '{print $1}' | grep -E '^(scheduler|scheduler-)' || true)
 
+  if [[ -z "${schedulers}" ]]; then
+    log_warn "未发现 scheduler deployment，跳过节点分区统计"
+    return
+  fi
+
+  local fake_total
+  fake_total=$(kubectl get nodes -l fake.byted.org/node --no-headers 2>/dev/null | wc -l | tr -d ' ')
+
+  # 检查是否有节点被物理分区（DispatcherNodeShuffle 特性门控）
+  local annotated_count
+  annotated_count=$(kubectl get nodes -o json 2>/dev/null | \
+    jq '[.items[] | select(.metadata.annotations["godel.bytedance.com/scheduler-name"] != null)] | length')
+
+  if (( annotated_count == 0 )); then
+    # 逻辑分区模式：NodeShuffle 未启用，所有 scheduler 共享全部节点
+    echo "  模式: 逻辑分区 (DispatcherNodeShuffle 未启用)"
+    for sched in $schedulers; do
+      echo "  ${sched}: ${fake_total} 个节点 (全部可见)"
+    done
+    return
+  fi
+
+  # 物理分区模式：按注解统计每个 scheduler 拥有的节点
+  echo "  模式: 物理分区 (DispatcherNodeShuffle 已启用)"
+  local assigned_total=0
   for sched in $schedulers; do
-    local count
-    count=$(kubectl get nodes -o json 2>/dev/null | \
-      jq "[.items[] | select(.metadata.annotations[\"godel.bytedance.com/scheduler-name\"]==\"${sched}\")] | length")
-    echo "  ${sched}: ${count} 个节点"
+    # 物理分区注解值是 Scheduler CRD 名称（如 godel-scheduler），不是 deployment 名
+    # 尝试用 Scheduler CRD 查找对应的调度器名称
+    local sched_names
+    sched_names=$(kubectl get scheduler --no-headers 2>/dev/null | awk '{print $1}' || true)
+    for sname in ${sched_names:-$sched}; do
+      local count
+      count=$(kubectl get nodes -o json 2>/dev/null | \
+        jq "[.items[] | select(.metadata.annotations[\"godel.bytedance.com/scheduler-name\"]==\"${sname}\")] | length")
+      if (( count > 0 )); then
+        echo "  ${sname}: ${count} 个节点"
+        assigned_total=$((assigned_total + count))
+      fi
+    done
   done
+
+  local unassigned=$((fake_total - assigned_total))
+  if (( unassigned < 0 )); then
+    unassigned=0
+  fi
+  echo "  unassigned: ${unassigned} 个节点"
 }
