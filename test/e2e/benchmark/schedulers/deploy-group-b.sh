@@ -52,7 +52,7 @@ if (( local_binder_count > 0 )); then
 fi
 
 # 验证 Scheduler 中启用了 embedded binder
-local scheduler_pod
+scheduler_pod=""
 scheduler_pod=$(kubectl get pods -n "${GODEL_NAMESPACE}" -l component=scheduler --no-headers 2>/dev/null | head -1 | awk '{print $1}')
 if [[ -n "$scheduler_pod" ]]; then
   if kubectl logs "$scheduler_pod" -n "${GODEL_NAMESPACE}" --tail=20 2>/dev/null | grep -qi "embedded.*binder\|binder.*embedded"; then
