@@ -120,7 +120,7 @@ spec:
 | W7 | 异构资源 | 500 pods/s | 50,000 | 混合（见下） | 无 | 资源碎片化测试 |
 | W8 | 大规模集群 | 2,000 pods/s | 800,000 | cpu:100m, mem:128Mi | 无 | 参照官方 best-practice |
 
-> **说明**：组 D（Volcano）和组 E（Koordinator）执行核心场景 **W1–W4 + W6**，其中 W6（Gang 调度）用于展示 Volcano 的批量调度优势。Pod 模板中 `schedulerName` 根据对比组切换：组 A/B 为 `godel-scheduler`，组 C 为 `default-scheduler`，组 D 为 `volcano`，组 E 为 `koord-scheduler`。
+> Pod 模板中 `schedulerName` 根据对比组切换：组 A/B 为 `godel-scheduler`，组 C 为 `default-scheduler`，组 D 为 `volcano`，组 E 为 `koord-scheduler`。
 
 **W7 异构资源混合比例：**
 - 30% 小规格：cpu:50m, mem:64Mi
@@ -128,7 +128,64 @@ spec:
 - 20% 大规格：cpu:1000m, mem:1Gi
 - 10% 超大规格：cpu:4000m, mem:8Gi
 
-### 3.3 Pod 创建工具
+### 3.3 各组实验场景适用性
+
+#### 3.3.1 负载场景覆盖矩阵（Group × Workload）
+
+| 场景 | A (Shared Binder) | B (Embedded Binder) | C (kube-scheduler) | D (Volcano) | E (Koordinator) | 排除原因 |
+|------|:--:|:--:|:--:|:--:|:--:|------|
+| **W1** 低负载稳态 | ✅ | ✅ | ✅ | ✅ | ✅ | — |
+| **W2** 中负载稳态 | ✅ | ✅ | ✅ | ✅ | ✅ | — |
+| **W3** 高负载稳态 | ✅ | ✅ | ✅ | ✅ | ✅ | — |
+| **W4** 极限负载 | ✅ | ✅ | ✅ | ✅ | ✅ | — |
+| **W5** 突发洪峰 | ✅ | ✅ | ❌ | ❌ | ❌ | Gödel 专有测试：验证 Binder 在突发流量下的队列行为，C/D/E 无对应架构机制 |
+| **W6** Gang 调度 | ✅ | ✅ | ❌ | ✅ | ✅ | C 不支持 PodGroup/Gang 调度语义；D 原生支持，E 通过 PodGroup CRD 支持 |
+| **W7** 异构资源 | ✅ | ✅ | ❌ | ❌ | ❌ | Gödel 专有测试：验证 Binder 在资源碎片化场景下的绑定效率，C/D/E 不参与此对比 |
+| **W8** 大规模集群 | ✅ | ✅ | ❌ | ❌ | ❌ | 800K Pod 极限压力仅用于 A/B 对比（参照 Gödel 官方 best-practice），D/E 在此规模下为单实例瓶颈 |
+
+> **脚本对应**: `run-all.sh` 中 `get_workloads_for_group()` 的映射：A/B → W1–W8，C → W1–W4，D/E → W1–W4 + W6。
+
+#### 3.3.2 实验维度覆盖矩阵（Group × Dimension）
+
+| 实验维度 | A | B | C | D | E | 说明 |
+|----------|:--:|:--:|:--:|:--:|:--:|------|
+| **吞吐量** (T-1~T-4) | ✅ | ✅ | ✅ | ✅ | ✅ | 全组参与，核心横向对比 |
+| **延迟** (L-1~L-6) | ✅ | ✅ | ✅ | ✅ | ✅ | 全组参与；L-2/L-6（绑定延迟分解）仅 A/B |
+| **容错** (F-1~F-3) | ✅ | ✅ | ❌ | ❌ | ❌ | Gödel 专有：验证 Embedded Binder 故障隔离 vs Shared Binder，D/E 架构不同无对应故障模式 |
+| **调度成功率** (S-1~S-4) | ✅ | ✅ | ✅ | ✅ | ✅ | 全组参与；S-4（重试次数）仅 A/B |
+| **资源利用率** (U-1~U-4) | ✅ | ✅ | ❌ | ✅ | ✅ | C 不参与利用率对比（单实例无意义）；D/E 参与 |
+| **资源碎片化** (R-1~R-3) | ✅ | ✅ | ❌ | ✅ | ✅ | 同利用率 |
+| **Pod 分布均衡度** (D-1~D-3) | ✅ | ✅ | ❌ | ✅ | ✅ | D-2（Scheduler 分区 Pod 数）仅 A/B（多实例分区机制） |
+| **稳定性** (ST-1~ST-4) | ✅ | ✅ | ❌ | ✅ | ✅ | 全组参与（除 C）；ST 是长时间运行测试，D/E 需验证持续稳定性 |
+| **水平扩展** (SC-1~SC-3) | ✅ | ✅ | ❌ | ❌ | ❌ | 仅 A/B 参与：C/D/E 均为单实例架构，无 Scheduler 水平扩展能力 |
+| **垂直扩展** (VS-1~VS-2) | ✅ | ✅ | ✅ | ✅ | ✅ | 全组参与：验证不同集群规模下的性能变化 |
+
+#### 3.3.3 Volcano (D) 与 Koordinator (E) 能力边界说明
+
+**Volcano (D)**：
+- **擅长**：Gang/批量调度（W6），原生 PodGroup + Queue 机制，CNCF 生态成熟
+- **约束**：单实例调度器，无水平扩展（SC-*）；极限规模（W8）下受限于单队列吞吐
+- **KWOK 兼容**：KWOK 节点上可正常运行调度器，无 DaemonSet 依赖
+- **指标差异**：使用 `volcano_scheduler_*` 系列指标，需独立的 Prometheus scrape 配置
+
+**Koordinator (E)**：
+- **擅长**：QoS 感知调度、精细化资源管理、干扰检测（真实集群场景）
+- **约束**：`koordlet` DaemonSet 无法在 KWOK 节点上运行，测试以**纯调度器模式**进行（`--set koordlet.enabled=false`），QoS 画像功能不可用
+- **约束**：单实例调度器，无水平扩展（SC-*）
+- **KWOK 兼容**：调度器本身可运行，但节点侧资源画像缺失，资源利用率数据仅反映调度分配层面
+- **指标差异**：使用 `koord_scheduler_*` 系列指标，需独立的 Prometheus scrape 配置
+
+#### 3.3.4 各组完整实验清单汇总
+
+| 组 | 负载场景 | 稳定性测试 | 扩展性测试 | 容错测试 | 预计实验数（×3 重复） |
+|----|----------|-----------|-----------|---------|---------------------|
+| **A** | W1–W8 (8 个) | ST-1~4 | SC-1~4 + VS-1~5 | F1–F5 | ~75 |
+| **B** | W1–W8 (8 个) | ST-1~4 | SC-1~4 + VS-1~5 | F1–F5 | ~75 |
+| **C** | W1–W4 (4 个) | — | VS-1~5 | — | ~27 |
+| **D** | W1–W4 + W6 (5 个) | ST-1~4 | VS-1~5 | — | ~42 |
+| **E** | W1–W4 + W6 (5 个) | ST-1~4 | VS-1~5 | — | ~42 |
+
+### 3.4 Pod 创建工具
 
 使用批量 Pod 创建脚本（参考 `docs/performance/best-practice.md`），确保稳定的创建速率：
 
@@ -531,12 +588,18 @@ Phase 3: 参考基线 — 组 C（kube-scheduler）(1 天)
 
 Phase 4: 行业对标 — 组 D（Volcano）(1.5 天)
 ├── 部署 Volcano Scheduler
-├── 执行 W1–W4 + W6（Gang）+ VS-1~5 + ST-1~4
+├── 执行 W1–W4 + W6（Gang）负载场景
+├── 执行垂直扩展测试 VS-1~5
+├── 执行稳定性测试 ST-1~4
+├── 采集吞吐量/延迟/成功率/利用率/均衡度指标
 └── 导出 Prometheus 快照
 
 Phase 5: 行业对标 — 组 E（Koordinator）(1.5 天)
-├── 部署 Koordinator Scheduler
-├── 执行 W1–W4 + W6 + VS-1~5 + ST-1~4
+├── 部署 Koordinator Scheduler（纯调度器模式，禁用 koordlet）
+├── 执行 W1–W4 + W6 负载场景
+├── 执行垂直扩展测试 VS-1~5
+├── 执行稳定性测试 ST-1~4
+├── 采集吞吐量/延迟/成功率/利用率/均衡度指标
 └── 导出 Prometheus 快照
 
 Phase 6: 数据分析与可视化 (2 天)
@@ -836,8 +899,8 @@ def plot_throughput_timeseries(data_a, data_b, data_c=None, data_d=None, data_e=
 | 组 A 实验 | 全部场景 × 3 次重复 | 2 天 |
 | 组 B 实验 | 全部场景 × 3 次重复 | 2 天 |
 | 组 C 实验 | 核心场景 × 3 次重复 | 1 天 |
-| 组 D 实验（Volcano） | W1–W4 + W6 + VS + ST × 3 次重复 | 1.5 天 |
-| 组 E 实验（Koordinator） | W1–W4 + W6 + VS + ST × 3 次重复 | 1.5 天 |
+| 组 D 实验（Volcano） | W1–W4 + W6 + VS-1~5 + ST-1~4 × 3 次重复 | 1.5 天 |
+| 组 E 实验（Koordinator） | W1–W4 + W6 + VS-1~5 + ST-1~4 × 3 次重复（纯调度器模式） | 1.5 天 |
 | 数据分析 | 清洗、统计、可视化 | 2 天 |
 | 论文撰写 | 实验章节（含图表） | 2 天 |
 | **总计** | | **~13.5 天** |

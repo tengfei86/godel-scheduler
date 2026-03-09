@@ -1,4 +1,4 @@
-apiVersion: scheduling.godel.kubewharf.io/v1alpha1
+apiVersion: scheduling.volcano.sh/v1beta1
 kind: PodGroup
 metadata:
   name: bench-gang-${GROUP_INDEX}
@@ -12,10 +12,7 @@ metadata:
   name: bench-gang-${GROUP_INDEX}-${MEMBER_INDEX}
   namespace: ${NAMESPACE}
   annotations:
-    godel.bytedance.com/pod-state: pending
-    godel.bytedance.com/pod-resource-type: guaranteed
-    godel.bytedance.com/pod-launcher: kubelet
-    scheduling.godel.bytedance.com/pod-group-name: bench-gang-${GROUP_INDEX}
+    scheduling.volcano.sh/group-name: bench-gang-${GROUP_INDEX}
 spec:
   schedulerName: ${SCHEDULER_NAME}
   terminationGracePeriodSeconds: 0

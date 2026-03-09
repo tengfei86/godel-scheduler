@@ -117,10 +117,21 @@ create_gang_pods() {
   local gang_size=5
   local groups=$((total / gang_size))
   local rate_groups=$((RATE / gang_size))  # 每秒创建的 PodGroup 数
-  local template="${TEMPLATE_DIR}/gang-pod.yaml.tpl"
+
+  # 按调度器选择对应的 Gang 模板
+  local template
+  case "$SCHED_NAME" in
+    volcano)
+      template="${TEMPLATE_DIR}/gang-pod-volcano.yaml.tpl" ;;
+    koord-scheduler)
+      template="${TEMPLATE_DIR}/gang-pod-koordinator.yaml.tpl" ;;
+    *)
+      template="${TEMPLATE_DIR}/gang-pod.yaml.tpl" ;;
+  esac
+
   local batch_count=0
 
-  log_info "  Gang 模式: ${groups} groups × ${gang_size} pods/group"
+  log_info "  Gang 模式: ${groups} groups × ${gang_size} pods/group (template: $(basename "$template"))"
 
   for g in $(seq 1 "$groups"); do
     for m in $(seq 1 "$gang_size"); do
