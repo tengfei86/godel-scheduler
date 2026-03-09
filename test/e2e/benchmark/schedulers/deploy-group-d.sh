@@ -34,7 +34,6 @@ kubectl create namespace "${VOLCANO_NAMESPACE}" --dry-run=client -o yaml | kubec
 
 helm install volcano volcano-sh/volcano \
   -n "${VOLCANO_NAMESPACE}" \
-  --version "${VOLCANO_VERSION}" \
   --set scheduler.replicas=1 \
   --set controller.replicas=1 \
   --set scheduler.resources.requests.cpu=4 \
