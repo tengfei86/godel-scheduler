@@ -39,13 +39,15 @@ fi
 log_step "Step 3: 调整 kube-scheduler 参数"
 local_container="${KIND_CLUSTER_NAME}-control-plane"
 
-# 注入 QPS 和 Burst 参数
+# 注入 QPS 和 Burst 参数, 修改 bind-address 允许 Prometheus 抓取
 docker exec "$local_container" bash -c "
   if ! grep -q 'kube-api-qps' /etc/kubernetes/manifests/kube-scheduler.yaml; then
     sed -i '/- kube-scheduler/a\\    - --kube-api-qps=${SCHEDULER_QPS}' /etc/kubernetes/manifests/kube-scheduler.yaml
     sed -i '/- kube-scheduler/a\\    - --kube-api-burst=${SCHEDULER_BURST}' /etc/kubernetes/manifests/kube-scheduler.yaml
     sed -i '/- kube-scheduler/a\\    - --v=${LOG_LEVEL}' /etc/kubernetes/manifests/kube-scheduler.yaml
   fi
+  # 开放 bind-address 使 Prometheus Pod 可以抓取 metrics
+  sed -i 's/--bind-address=127.0.0.1/--bind-address=0.0.0.0/' /etc/kubernetes/manifests/kube-scheduler.yaml
 " 2>/dev/null || log_warn "无法调整 kube-scheduler 参数（可能不影响测试）"
 
 sleep 20

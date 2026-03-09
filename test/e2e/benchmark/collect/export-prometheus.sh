@@ -113,13 +113,36 @@ declare -A GODEL_EMBEDDED_QUERIES=(
 # kube-scheduler 查询集（组 C）
 # ═══════════════════════════════════════════════
 declare -A KUBE_QUERIES=(
-  [scheduling_throughput]='sum(rate(scheduler_pod_scheduling_duration_seconds_count[1m]))'
-  [scheduling_latency_p50]='histogram_quantile(0.50,sum(rate(scheduler_pod_scheduling_duration_seconds_bucket[1m]))by(le))'
-  [scheduling_latency_p90]='histogram_quantile(0.90,sum(rate(scheduler_pod_scheduling_duration_seconds_bucket[1m]))by(le))'
-  [scheduling_latency_p99]='histogram_quantile(0.99,sum(rate(scheduler_pod_scheduling_duration_seconds_bucket[1m]))by(le))'
-  [scheduling_attempts_total]='sum(rate(scheduler_pod_scheduling_attempts_total[1m])) by (result)'
-  [queue_wait_p90]='histogram_quantile(0.90,rate(scheduler_pending_pods_bucket[5m]))'
-  [goroutines]='go_goroutines{job="kube-scheduler"}'
+  # 吞吐量 — scheduler_schedule_attempts_total{result} 是 counter
+  [scheduling_throughput]='sum(rate(scheduler_schedule_attempts_total{result="scheduled"}[1m]))'
+  [scheduling_attempts_by_result]='sum(rate(scheduler_schedule_attempts_total[1m])) by (result)'
+
+  # 调度延迟 — scheduler_scheduling_attempt_duration_seconds (算法耗时)
+  [scheduling_latency_p50]='histogram_quantile(0.50,sum(rate(scheduler_scheduling_attempt_duration_seconds_bucket[1m]))by(le))'
+  [scheduling_latency_p90]='histogram_quantile(0.90,sum(rate(scheduler_scheduling_attempt_duration_seconds_bucket[1m]))by(le))'
+  [scheduling_latency_p99]='histogram_quantile(0.99,sum(rate(scheduler_scheduling_attempt_duration_seconds_bucket[1m]))by(le))'
+
+  # E2E SLI 延迟 — scheduler_pod_scheduling_sli_duration_seconds (K8s 1.28+)
+  [sli_latency_p50]='histogram_quantile(0.50,sum(rate(scheduler_pod_scheduling_sli_duration_seconds_bucket[1m]))by(le))'
+  [sli_latency_p90]='histogram_quantile(0.90,sum(rate(scheduler_pod_scheduling_sli_duration_seconds_bucket[1m]))by(le))'
+  [sli_latency_p99]='histogram_quantile(0.99,sum(rate(scheduler_pod_scheduling_sli_duration_seconds_bucket[1m]))by(le))'
+
+  # 核心算法延迟
+  [algorithm_latency_p90]='histogram_quantile(0.90,sum(rate(scheduler_scheduling_algorithm_duration_seconds_bucket[1m]))by(le))'
+  [algorithm_latency_p99]='histogram_quantile(0.99,sum(rate(scheduler_scheduling_algorithm_duration_seconds_bucket[1m]))by(le))'
+
+  # 成功率
+  [scheduling_success_rate]='(sum(rate(scheduler_schedule_attempts_total{result="scheduled"}[5m])) or on() vector(0)) / clamp_min(sum(rate(scheduler_schedule_attempts_total[5m])), 1e-9)'
+  [scheduling_error_rate]='(sum(rate(scheduler_schedule_attempts_total{result="error"}[5m])) or on() vector(0)) / clamp_min(sum(rate(scheduler_schedule_attempts_total[5m])), 1e-9)'
+
+  # Pending pods (gauge)
+  [pending_pods]='sum(scheduler_pending_pods)'
+
+  # Goroutines
+  [goroutines]='scheduler_goroutines'
+
+  # 队列入队速率
+  [queue_incoming_pods]='sum(rate(scheduler_queue_incoming_pods_total[1m])) by (event)'
 )
 
 # ═══════════════════════════════════════════════
