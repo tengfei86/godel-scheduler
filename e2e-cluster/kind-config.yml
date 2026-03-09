@@ -10,8 +10,23 @@ nodes:
       - |
         kind: ClusterConfiguration
         apiServer:
+          timeoutForControlPlane: 4m0s
           extraArgs:
+            event-ttl: "10m"
             max-mutating-requests-inflight: "10000"
             max-requests-inflight: "20000"
+        controllerManager:
+          extraArgs:
+            allocate-node-cidrs: "true"
+            cluster-cidr: "10.244.0.0/16"
+            kube-api-qps: "10000"
+            kube-api-burst: "10000"
+            concurrent-deployment-syncs: "2000"
+            concurrent-namespace-syncs: "200"
+            concurrent-replicaset-syncs: "4000"
+        scheduler:
+          extraArgs:
+            kube-api-qps: "10000"
+            kube-api-burst: "10000"
   - role: worker
   - role: worker
