@@ -2,11 +2,15 @@
 # setup-cluster.sh — Phase 0: 一键搭建集群 + KWOK 节点 + Prometheus
 #
 # 用法:
-#   ./setup-cluster.sh [scale]
+#   ./setup-cluster.sh [--force-rebuild] [scale]
 #   scale: s1|s2|s3|s4|s5 (默认 s2=1000节点)
 #
+# 选项:
+#   --force-rebuild    销毁已有集群并重新创建
+#
 # 示例:
-#   ./setup-cluster.sh s3    # 创建 5000 个 KWOK 节点
+#   ./setup-cluster.sh s3                # 创建 5000 个 KWOK 节点
+#   ./setup-cluster.sh --force-rebuild    # 强制重建集群
 
 set -eu
 
@@ -16,7 +20,16 @@ source "${SCRIPT_DIR}/lib/utils.sh"
 source "${SCRIPT_DIR}/lib/cluster.sh"
 source "${SCRIPT_DIR}/lib/prometheus.sh"
 
-SCALE="${1:-s2}"
+# ── 参数解析 ──
+FORCE_FLAG=""
+SCALE="s2"
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --force-rebuild) FORCE_FLAG="--force-rebuild"; shift ;;
+    s[1-5])          SCALE="$1"; shift ;;
+    *)               echo "未知参数: $1" >&2; exit 1 ;;
+  esac
+done
 
 # ── 验证依赖 ──
 require_cmd kubectl kind docker jq curl
@@ -28,7 +41,7 @@ log_info "目标规模: ${SCALE} (${NODE_COUNT} 节点)"
 
 # ── Step 1: 创建 kind 集群 ──
 log_step "Step 1/5: 创建 kind 集群"
-create_kind_cluster
+create_kind_cluster $FORCE_FLAG
 
 # ── Step 2: 部署 KWOK ──
 log_step "Step 2/5: 部署 KWOK 控制器"

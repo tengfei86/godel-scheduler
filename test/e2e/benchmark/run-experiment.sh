@@ -32,7 +32,7 @@
 #   --skip-collect  跳过 Prometheus 导出和分布快照采集
 #
 # 示例:
-#   ./run-experiment.sh b s2 w3 2                  # 组B, 1000节点, W3负载, 第2次
+#   ./run-experiment.sh b s2 w2 1                  # 组B, 1000节点, W3负载, 第2次
 #   ./run-experiment.sh a s3 w1 1 --setup-nodes    # 自动创建 5000 节点
 
 set -eu

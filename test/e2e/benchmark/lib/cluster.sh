@@ -7,15 +7,25 @@ _CLUSTER_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_CLUSTER_LIB_DIR}/utils.sh"
 
 # ── 创建 kind 集群 ──
+# 用法: create_kind_cluster [--force-rebuild] [cluster_name] [config]
 create_kind_cluster() {
+  local force=false
+  if [[ "${1:-}" == "--force-rebuild" ]]; then
+    force=true; shift
+  fi
   local cluster_name="${1:-$KIND_CLUSTER_NAME}"
   local config="${2:-$KIND_CONFIG}"
 
   log_step "创建 kind 集群: ${cluster_name}"
 
   if kind get clusters 2>/dev/null | grep -q "^${cluster_name}$"; then
-    log_warn "集群 ${cluster_name} 已存在，跳过创建"
-    return 0
+    if [[ "$force" == "true" ]]; then
+      log_warn "集群 ${cluster_name} 已存在，强制重建：先销毁"
+      destroy_kind_cluster "$cluster_name"
+    else
+      log_warn "集群 ${cluster_name} 已存在，跳过创建（使用 --force-rebuild 强制重建）"
+      return 0
+    fi
   fi
 
   kind create cluster \
