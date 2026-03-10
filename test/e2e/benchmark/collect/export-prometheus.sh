@@ -149,13 +149,37 @@ declare -A KUBE_QUERIES=(
 # Volcano 查询集（组 D）
 # ═══════════════════════════════════════════════
 declare -A VOLCANO_QUERIES=(
-  [scheduling_throughput]='sum(rate(volcano_scheduler_schedule_count{status="success"}[1m]))'
-  [scheduling_latency_p50]='histogram_quantile(0.50,sum(rate(volcano_scheduler_schedule_duration_seconds_bucket[1m]))by(le))'
-  [scheduling_latency_p90]='histogram_quantile(0.90,sum(rate(volcano_scheduler_schedule_duration_seconds_bucket[1m]))by(le))'
-  [scheduling_latency_p99]='histogram_quantile(0.99,sum(rate(volcano_scheduler_schedule_duration_seconds_bucket[1m]))by(le))'
-  [scheduling_error_rate]='sum(rate(volcano_scheduler_schedule_count{status="error"}[5m]))/sum(rate(volcano_scheduler_schedule_count[5m]))'
-  [pending_pods]='volcano_scheduler_unschedule_task_count'
+  # 吞吐量 — Volcano 无直接 schedule_count counter，用 e2e latency histogram count 近似
+  [scheduling_throughput]='sum(rate(volcano_e2e_scheduling_latency_milliseconds_count[1m]))'
+
+  # E2E 调度延迟（原始单位毫秒，转换为秒）
+  [scheduling_latency_p50]='histogram_quantile(0.50,sum(rate(volcano_e2e_scheduling_latency_milliseconds_bucket[1m]))by(le))/1000'
+  [scheduling_latency_p90]='histogram_quantile(0.90,sum(rate(volcano_e2e_scheduling_latency_milliseconds_bucket[1m]))by(le))/1000'
+  [scheduling_latency_p99]='histogram_quantile(0.99,sum(rate(volcano_e2e_scheduling_latency_milliseconds_bucket[1m]))by(le))/1000'
+
+  # Action 级别调度延迟
+  [action_latency_p90]='histogram_quantile(0.90,sum(rate(volcano_action_scheduling_latency_milliseconds_bucket[1m]))by(le,action))/1000'
+  [action_latency_p99]='histogram_quantile(0.99,sum(rate(volcano_action_scheduling_latency_milliseconds_bucket[1m]))by(le,action))/1000'
+
+  # Task 调度延迟
+  [task_latency_p90]='histogram_quantile(0.90,sum(rate(volcano_task_scheduling_latency_milliseconds_bucket[1m]))by(le))/1000'
+  [task_latency_p99]='histogram_quantile(0.99,sum(rate(volcano_task_scheduling_latency_milliseconds_bucket[1m]))by(le))/1000'
+
+  # Plugin 延迟
+  [plugin_latency_p90]='histogram_quantile(0.90,sum(rate(volcano_plugin_scheduling_latency_milliseconds_bucket[1m]))by(le,plugin))/1000'
+
+  # 错误率 — 用不可调度任务数变化率
+  [scheduling_error_rate]='rate(volcano_unschedule_task_count[5m])'
+
+  # Pending（不可调度任务/Job 数）
+  [pending_pods]='volcano_unschedule_task_count'
+  [unschedule_jobs]='volcano_unschedule_job_count'
+
+  # Goroutines
   [goroutines]='go_goroutines{job=~".*volcano.*"}'
+
+  # E2E Job scheduling duration
+  [job_scheduling_duration]='volcano_e2e_job_scheduling_duration'
 )
 
 # ═══════════════════════════════════════════════

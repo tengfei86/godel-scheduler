@@ -40,11 +40,39 @@ log_info "创建 Pod: rate=${RATE}/s, total=${TOTAL}, scheduler=${SCHED_NAME}, t
 # ── 创建 namespace ──
 kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null
 
+# ── Volcano 非 gang 负载: 创建直通 PodGroup (minMember=1) ──
+# gang 插件要求每个 Pod 关联 PodGroup，minMember=1 使其立即满足不阻塞调度
+ensure_volcano_passthrough_pg() {
+  if [[ "$SCHED_NAME" == "volcano" ]]; then
+    log_info "  创建 Volcano 直通 PodGroup: bench-basic-pg (minMember=1)"
+    kubectl apply -f - <<'EOF'
+apiVersion: scheduling.volcano.sh/v1beta1
+kind: PodGroup
+metadata:
+  name: bench-basic-pg
+  namespace: bench
+spec:
+  minMember: 1
+EOF
+  fi
+}
+
+# 根据调度器选择 basic 模板
+select_basic_template() {
+  if [[ "$SCHED_NAME" == "volcano" ]]; then
+    echo "${TEMPLATE_DIR}/basic-pod-volcano.yaml.tpl"
+  else
+    echo "${TEMPLATE_DIR}/basic-pod.yaml.tpl"
+  fi
+}
+
 # ── 生成并应用 Pod ──
 create_basic_pods() {
   local rate=$1 total=$2 cpu=$3 mem=$4
   local batch_count=0
-  local template="${TEMPLATE_DIR}/basic-pod.yaml.tpl"
+  local template
+  template=$(select_basic_template)
+  ensure_volcano_passthrough_pg
 
   for i in $(seq 1 "$total"); do
     export INDEX="$i"
@@ -72,7 +100,9 @@ create_basic_pods() {
 # ── 突发模式 (W5: 0→2000→0) ──
 create_burst_pods() {
   local total=$1 cpu=$2 mem=$3
-  local template="${TEMPLATE_DIR}/basic-pod.yaml.tpl"
+  local template
+  template=$(select_basic_template)
+  ensure_volcano_passthrough_pg
 
   # 阶梯式: 10s@200 → 10s@500 → 10s@1000 → 10s@2000 → 10s@1000 → 10s@500 → 10s@200
   local stages=(200 500 1000 2000 1000 500 200)
@@ -163,7 +193,9 @@ create_gang_pods() {
 # ── 异构资源模式 (W7) ──
 create_heterogeneous_pods() {
   local total=$1
-  local template="${TEMPLATE_DIR}/basic-pod.yaml.tpl"
+  local template
+  template=$(select_basic_template)
+  ensure_volcano_passthrough_pg
   local batch_count=0
 
   # 30% 小(50m/64Mi), 40% 中(200m/256Mi), 20% 大(1000m/1Gi), 10% 超大(4000m/8Gi)

@@ -32,6 +32,9 @@ helm repo update volcano-sh
 # 安装 Volcano
 kubectl create namespace "${VOLCANO_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
 
+# nodeAffinity: 排除 KWOK 假节点，确保 Volcano 组件运行在真实节点上
+VOLCANO_AFFINITY='{"nodeAffinity":{"requiredDuringSchedulingIgnoredDuringExecution":{"nodeSelectorTerms":[{"matchExpressions":[{"key":"fake.byted.org/node","operator":"DoesNotExist"}]}]}}}'
+
 helm install volcano volcano-sh/volcano \
   -n "${VOLCANO_NAMESPACE}" \
   --set scheduler.replicas=1 \
@@ -40,6 +43,7 @@ helm install volcano volcano-sh/volcano \
   --set scheduler.resources.requests.memory=8Gi \
   --set controller.resources.requests.cpu=2 \
   --set controller.resources.requests.memory=4Gi \
+  --set-json "custom.default_affinity=${VOLCANO_AFFINITY}" \
   --wait \
   --timeout 5m \
   2>/dev/null || {
@@ -54,6 +58,7 @@ helm install volcano volcano-sh/volcano \
       --set scheduler.resources.requests.memory=8Gi \
       --set controller.resources.requests.cpu=2 \
       --set controller.resources.requests.memory=4Gi \
+      --set-json "custom.default_affinity=${VOLCANO_AFFINITY}" \
       --wait \
       --timeout 5m
   }
