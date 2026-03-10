@@ -12,7 +12,7 @@ source "${SCRIPT_DIR}/lib/utils.sh"
 source "${SCRIPT_DIR}/lib/cluster.sh"
 source "${SCRIPT_DIR}/lib/prometheus.sh"
 
-KOORDINATOR_VERSION="${KOORDINATOR_VERSION:-1.5.0}"
+KOORDINATOR_VERSION="${KOORDINATOR_VERSION:-1.7.0}"
 
 separator "部署组 E — Koordinator Scheduler"
 
@@ -35,7 +35,6 @@ kubectl create namespace "${KOORDINATOR_NAMESPACE}" --dry-run=client -o yaml | k
 # 注意: KWOK 节点上无法运行 koordlet DaemonSet，因此禁用
 helm install koordinator koordinator-sh/koordinator \
   -n "${KOORDINATOR_NAMESPACE}" \
-  --version "${KOORDINATOR_VERSION}" \
   --set scheduler.replicas=1 \
   --set manager.replicas=1 \
   --set koordlet.enabled=false \
@@ -47,7 +46,6 @@ helm install koordinator koordinator-sh/koordinator \
     log_warn "helm install 失败，尝试 upgrade..."
     helm upgrade koordinator koordinator-sh/koordinator \
       -n "${KOORDINATOR_NAMESPACE}" \
-      --version "${KOORDINATOR_VERSION}" \
       --set scheduler.replicas=1 \
       --set manager.replicas=1 \
       --set koordlet.enabled=false \
