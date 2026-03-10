@@ -87,16 +87,21 @@ data:
       - name: volcano_throughput
         interval: 15s
         rules:
-          # Scheduling throughput (pods/s) — based on e2e histogram count
+          # Scheduling throughput (pods/s) — per-job completion rate
+          # Volcano observes each job twice, divide by 2 to get actual pod rate
           - record: volcano:scheduling_throughput:rate1m
-            expr: sum(rate(volcano_e2e_scheduling_latency_milliseconds_count[1m]))
+            expr: sum(rate(volcano_e2e_job_scheduling_latency_milliseconds_count[1m])) / 2
 
           - record: volcano:scheduling_throughput:rate5m
-            expr: sum(rate(volcano_e2e_scheduling_latency_milliseconds_count[5m]))
+            expr: sum(rate(volcano_e2e_job_scheduling_latency_milliseconds_count[5m])) / 2
+
+          # Session throughput (scheduling-cycles/s)
+          - record: volcano:session_throughput:rate1m
+            expr: sum(rate(volcano_e2e_scheduling_latency_milliseconds_count[1m]))
 
           # Peak throughput
           - record: volcano:scheduling_peak_throughput:30m
-            expr: max_over_time(sum(rate(volcano_e2e_scheduling_latency_milliseconds_count[1m]))[30m:])
+            expr: max_over_time(sum(rate(volcano_e2e_job_scheduling_latency_milliseconds_count[1m]))[30m:])
 
       # ──────────────────────────────────────────────────
       #  Latency (convert ms → seconds)

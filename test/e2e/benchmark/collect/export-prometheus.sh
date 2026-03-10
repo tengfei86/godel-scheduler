@@ -149,8 +149,11 @@ declare -A KUBE_QUERIES=(
 # Volcano 查询集（组 D）
 # ═══════════════════════════════════════════════
 declare -A VOLCANO_QUERIES=(
-  # 吞吐量 — Volcano 无直接 schedule_count counter，用 e2e latency histogram count 近似
-  [scheduling_throughput]='sum(rate(volcano_e2e_scheduling_latency_milliseconds_count[1m]))'
+  # 吞吐量 — per-job(PodGroup) 完成调度的速率
+  # Volcano 每个 job 触发 2 次 Observe，需除以 2 修正
+  [scheduling_throughput]='sum(rate(volcano_e2e_job_scheduling_latency_milliseconds_count[1m])) / 2'
+  # 调度循环吞吐量 (sessions/s)
+  [session_throughput]='sum(rate(volcano_e2e_scheduling_latency_milliseconds_count[1m]))'
 
   # E2E 调度延迟（原始单位毫秒，转换为秒）
   [scheduling_latency_p50]='histogram_quantile(0.50,sum(rate(volcano_e2e_scheduling_latency_milliseconds_bucket[1m]))by(le))/1000'
