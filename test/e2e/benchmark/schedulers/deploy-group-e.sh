@@ -29,31 +29,58 @@ if ! helm repo list 2>/dev/null | grep -q "koordinator-sh"; then
 fi
 helm repo update koordinator-sh
 
-# 安装 Koordinator
-kubectl create namespace "${KOORDINATOR_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+# 安装 Koordinator（使用 --create-namespace 让 Helm 自行管理 namespace）
 
-# 注意: KWOK 节点上无法运行 koordlet DaemonSet，因此禁用
-helm install koordinator koordinator-sh/koordinator \
+# 注意: KWOK 节点上无法运行 koordlet/device-daemon DaemonSet
+# chart 的 nodeAffinity 直接渲染到 affinity: 下，需要多嵌套一层 nodeAffinity
+# 匹配不存在的标签 koordinator-skip，使 DaemonSet 不调度到任何节点
+KOORDINATOR_VALUES=$(mktemp)
+cat > "${KOORDINATOR_VALUES}" <<'EOF'
+koordlet:
+  nodeAffinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: koordinator-skip
+                operator: Exists
+deviceDaemon:
+  nodeAffinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: koordinator-skip
+                operator: Exists
+EOF
+
+INSTALL_OUTPUT=$(helm install koordinator koordinator-sh/koordinator \
   -n "${KOORDINATOR_NAMESPACE}" \
+  --create-namespace \
+  -f "${KOORDINATOR_VALUES}" \
   --set scheduler.replicas=1 \
   --set manager.replicas=1 \
-  --set koordlet.enabled=false \
-  --set scheduler.resources.requests.cpu=4 \
-  --set scheduler.resources.requests.memory=8Gi \
+  --set descheduler.replicas=0 \
+  --set scheduler.resources.requests.cpu=1 \
+  --set scheduler.resources.requests.memory=1Gi \
   --wait \
   --timeout 5m \
-  2>/dev/null || {
-    log_warn "helm install 失败，尝试 upgrade..."
+  2>&1) || {
+    log_warn "helm install 失败，错误信息:"
+    echo "${INSTALL_OUTPUT}"
+    log_warn "尝试 upgrade..."
     helm upgrade koordinator koordinator-sh/koordinator \
       -n "${KOORDINATOR_NAMESPACE}" \
+      -f "${KOORDINATOR_VALUES}" \
       --set scheduler.replicas=1 \
       --set manager.replicas=1 \
-      --set koordlet.enabled=false \
-      --set scheduler.resources.requests.cpu=4 \
-      --set scheduler.resources.requests.memory=8Gi \
+      --set descheduler.replicas=0 \
+      --set scheduler.resources.requests.cpu=1 \
+      --set scheduler.resources.requests.memory=1Gi \
       --wait \
       --timeout 5m
   }
+rm -f "${KOORDINATOR_VALUES}"
 
 # ── Step 3: 等待组件就绪 ──
 log_step "Step 3: 等待组件就绪"
