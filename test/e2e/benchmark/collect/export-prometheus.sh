@@ -189,12 +189,39 @@ declare -A VOLCANO_QUERIES=(
 # Koordinator 查询集（组 E）
 # ═══════════════════════════════════════════════
 declare -A KOORDINATOR_QUERIES=(
+  # 吞吐量
   [scheduling_throughput]='sum(rate(scheduler_pod_scheduling_duration_seconds_count{job=~".*koord.*"}[1m]))'
+  [scheduling_attempts]='sum(rate(scheduler_schedule_attempts_total{job=~".*koord.*"}[1m])) by (result)'
+
+  # E2E 调度延迟
   [scheduling_latency_p50]='histogram_quantile(0.50,sum(rate(scheduler_pod_scheduling_duration_seconds_bucket{job=~".*koord.*"}[1m]))by(le))'
   [scheduling_latency_p90]='histogram_quantile(0.90,sum(rate(scheduler_pod_scheduling_duration_seconds_bucket{job=~".*koord.*"}[1m]))by(le))'
   [scheduling_latency_p99]='histogram_quantile(0.99,sum(rate(scheduler_pod_scheduling_duration_seconds_bucket{job=~".*koord.*"}[1m]))by(le))'
-  [scheduling_attempts]='sum(rate(scheduler_pod_scheduling_attempts_total{job=~".*koord.*"}[1m])) by (result)'
+
+  # 核心算法延迟
+  [algorithm_latency_p90]='histogram_quantile(0.90,sum(rate(scheduler_scheduling_algorithm_duration_seconds_bucket{job=~".*koord.*"}[1m]))by(le))'
+  [algorithm_latency_p99]='histogram_quantile(0.99,sum(rate(scheduler_scheduling_algorithm_duration_seconds_bucket{job=~".*koord.*"}[1m]))by(le))'
+
+  # 调度尝试延迟 (含 binding)
+  [attempt_latency_p90]='histogram_quantile(0.90,sum(rate(scheduler_scheduling_attempt_duration_seconds_bucket{job=~".*koord.*"}[1m]))by(le))'
+  [attempt_latency_p99]='histogram_quantile(0.99,sum(rate(scheduler_scheduling_attempt_duration_seconds_bucket{job=~".*koord.*"}[1m]))by(le))'
+
+  # 扩展点延迟
+  [extension_point_latency_p99]='histogram_quantile(0.99,sum(rate(scheduler_framework_extension_point_duration_seconds_bucket{job=~".*koord.*"}[1m]))by(le,extension_point))'
+
+  # 节点评估数
+  [evaluated_nodes_avg]='sum(rate(scheduler_pod_scheduling_evaluated_nodes_sum{job=~".*koord.*"}[1m]))/sum(rate(scheduler_pod_scheduling_evaluated_nodes_count{job=~".*koord.*"}[1m]))'
+  [feasible_nodes_avg]='sum(rate(scheduler_pod_scheduling_feasible_nodes_sum{job=~".*koord.*"}[1m]))/sum(rate(scheduler_pod_scheduling_feasible_nodes_count{job=~".*koord.*"}[1m]))'
+
+  # 队列
+  [queue_incoming_pods]='sum(rate(scheduler_queue_incoming_pods_total{job=~".*koord.*"}[1m])) by (event)'
+
+  # Goroutines & Pending
   [goroutines]='go_goroutines{job=~".*koord.*"}'
+  [pending_pods]='scheduler_pending_pods{job=~".*koord.*"}'
+
+  # 抢占
+  [preemption_attempts]='sum(rate(scheduler_preemption_attempts_total{job=~".*koord.*"}[1m]))'
 )
 
 # ═══════════════════════════════════════════════

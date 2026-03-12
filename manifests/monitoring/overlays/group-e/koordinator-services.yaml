@@ -15,7 +15,7 @@ metadata:
 spec:
   clusterIP: None
   selector:
-    app: koord-scheduler
+    koord-app: koord-scheduler
   ports:
     - name: metrics
       port: 10251
@@ -33,7 +33,7 @@ metadata:
 spec:
   clusterIP: None
   selector:
-    app: koord-manager
+    koord-app: koord-manager
   ports:
     - name: metrics
       port: 9316

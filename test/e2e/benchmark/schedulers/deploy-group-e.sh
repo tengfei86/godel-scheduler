@@ -31,9 +31,11 @@ helm repo update koordinator-sh
 
 # 安装 Koordinator（使用 --create-namespace 让 Helm 自行管理 namespace）
 
-# 注意: KWOK 节点上无法运行 koordlet/device-daemon DaemonSet
-# chart 的 nodeAffinity 直接渲染到 affinity: 下，需要多嵌套一层 nodeAffinity
-# 匹配不存在的标签 koordinator-skip，使 DaemonSet 不调度到任何节点
+# 注意: KWOK 节点上无法运行容器，但 K8s 会把 Pod 调度上去
+# - koordlet/device-daemon: 通过匹配不存在的标签完全禁用
+# - scheduler/manager: 通过排除 fake 节点标签确保运行在真实节点上
+# chart 的 DaemonSet 模板里 nodeAffinity 直接渲染到 affinity: 下，需要多嵌套一层
+# chart 的 Deployment 模板里 nodeAffinity 正确渲染到 affinity.nodeAffinity: 下
 KOORDINATOR_VALUES=$(mktemp)
 cat > "${KOORDINATOR_VALUES}" <<'EOF'
 koordlet:
@@ -52,6 +54,20 @@ deviceDaemon:
           - matchExpressions:
               - key: koordinator-skip
                 operator: Exists
+scheduler:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: fake.byted.org/node
+              operator: DoesNotExist
+manager:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: fake.byted.org/node
+              operator: DoesNotExist
 EOF
 
 INSTALL_OUTPUT=$(helm install koordinator koordinator-sh/koordinator \
@@ -86,10 +102,10 @@ rm -f "${KOORDINATOR_VALUES}"
 log_step "Step 3: 等待组件就绪"
 sleep 10
 
-kubectl wait --for=condition=Ready pod -l app=koord-scheduler \
+kubectl wait --for=condition=Ready pod -l koord-app=koord-scheduler \
   -n "${KOORDINATOR_NAMESPACE}" --timeout="${WAIT_READY_TIMEOUT}s" 2>/dev/null || true
 
-kubectl wait --for=condition=Ready pod -l app=koord-manager \
+kubectl wait --for=condition=Ready pod -l koord-app=koord-manager \
   -n "${KOORDINATOR_NAMESPACE}" --timeout="${WAIT_READY_TIMEOUT}s" 2>/dev/null || true
 
 # ── Step 4: 验证 ──
@@ -105,6 +121,8 @@ kubectl get crd 2>/dev/null | grep "koordinator\|slo.koordinator" || true
 # ── Step 5: 切换 Prometheus 配置（kustomize overlay） ──
 log_step "Step 5: 部署组 E 的 Prometheus 配置"
 kubectl apply -k "${PROJECT_ROOT}/manifests/monitoring/overlays/group-e/"
+kubectl rollout restart deployment prometheus -n "${PROMETHEUS_NAMESPACE}"
+kubectl rollout status deployment prometheus -n "${PROMETHEUS_NAMESPACE}" --timeout=60s
 wait_prometheus_ready 60 || log_warn "Prometheus 未就绪，手动检查"
 verify_prometheus_targets
 
