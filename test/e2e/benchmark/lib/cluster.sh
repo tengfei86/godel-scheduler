@@ -92,6 +92,43 @@ ensure_image_loaded() {
   log_info "✓ 镜像 ${image} 加载完成"
 }
 
+# ── 让 kindnet 忽略 KWOK 假节点 ──
+patch_kindnet_for_kwok() {
+  log_info "Patch kindnet DaemonSet: 排除 KWOK 节点..."
+
+  # 如果已经有 nodeAffinity 排除 fake 节点，跳过
+  if kubectl get ds kindnet -n kube-system -o json 2>/dev/null | \
+    jq -e '.spec.template.spec.affinity.nodeAffinity' &>/dev/null; then
+    log_info "kindnet 已配置 nodeAffinity，跳过"
+    return 0
+  fi
+
+  kubectl patch ds kindnet -n kube-system --type=merge -p '{
+    "spec": {
+      "template": {
+        "spec": {
+          "affinity": {
+            "nodeAffinity": {
+              "requiredDuringSchedulingIgnoredDuringExecution": {
+                "nodeSelectorTerms": [{
+                  "matchExpressions": [{
+                    "key": "fake.byted.org/node",
+                    "operator": "DoesNotExist"
+                  }]
+                }]
+              }
+            }
+          }
+        }
+      }
+    }
+  }'
+
+  log_info "等待 kindnet 滚动更新..."
+  kubectl rollout status ds/kindnet -n kube-system --timeout=60s 2>/dev/null || true
+  log_info "✓ kindnet 已配置为忽略 KWOK 节点"
+}
+
 # ── 部署 KWOK 控制器 ──
 deploy_kwok() {
   log_step "部署 KWOK 控制器"
@@ -108,6 +145,31 @@ deploy_kwok() {
     return 1
   fi
 
+  # 确保 KWOK 控制器只调度到真实节点，而非 KWOK 假节点
+  log_info "Patch kwok-controller: 排除 KWOK 假节点..."
+  kubectl patch deployment kwok-controller -n kube-system --type=merge -p '{
+    "spec": {
+      "template": {
+        "spec": {
+          "affinity": {
+            "nodeAffinity": {
+              "requiredDuringSchedulingIgnoredDuringExecution": {
+                "nodeSelectorTerms": [{
+                  "matchExpressions": [{
+                    "key": "fake.byted.org/node",
+                    "operator": "DoesNotExist"
+                  }]
+                }]
+              }
+            }
+          }
+        }
+      }
+    }
+  }'
+
+  log_info "等待 kwok-controller 就绪..."
+  kubectl rollout status deployment/kwok-controller -n kube-system --timeout=120s 2>/dev/null || true
   log_info "✓ KWOK 控制器部署完成"
 }
 
