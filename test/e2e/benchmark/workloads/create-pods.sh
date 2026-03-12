@@ -159,22 +159,31 @@ create_gang_pods() {
       template="${TEMPLATE_DIR}/gang-pod.yaml.tpl" ;;
   esac
 
+  # 从模板中分离 PodGroup 和 Pod 部分，避免并发创建同一 PodGroup 导致 AlreadyExists 错误
+  local pg_template pod_template
+  pg_template=$(awk '/^---/{exit} {print}' "$template")
+  pod_template=$(awk 'p{print} /^---/{p=1}' "$template")
+
   local batch_count=0
 
   log_info "  Gang 模式: ${groups} groups × ${gang_size} pods/group (template: $(basename "$template"))"
 
   for g in $(seq 1 "$groups"); do
-    for m in $(seq 1 "$gang_size"); do
-      export GROUP_INDEX="$g"
-      export MEMBER_INDEX="$m"
-      export GANG_SIZE="$gang_size"
-      export NAMESPACE="$NAMESPACE"
-      export SCHEDULER_NAME="$SCHED_NAME"
-      export CPU="$cpu"
-      export MEM="$mem"
-      export PAUSE_IMAGE="${PAUSE_IMAGE}"
+    export GROUP_INDEX="$g"
+    export GANG_SIZE="$gang_size"
+    export NAMESPACE="$NAMESPACE"
+    export SCHEDULER_NAME="$SCHED_NAME"
+    export CPU="$cpu"
+    export MEM="$mem"
+    export PAUSE_IMAGE="${PAUSE_IMAGE}"
 
-      envsubst < "$template" | kubectl apply -f - &
+    # 先同步创建 PodGroup（每组一次）
+    echo "$pg_template" | envsubst | kubectl apply -f - 2>/dev/null
+
+    # 再并行创建所有成员 Pod
+    for m in $(seq 1 "$gang_size"); do
+      export MEMBER_INDEX="$m"
+      echo "$pod_template" | envsubst | kubectl apply -f - &
     done
 
     batch_count=$((batch_count + 1))
