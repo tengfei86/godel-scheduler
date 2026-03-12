@@ -86,6 +86,8 @@ kubectl get crd 2>/dev/null | grep "volcano\|scheduling.volcano" || true
 # ── Step 5: 切换 Prometheus 配置（kustomize overlay） ──
 log_step "Step 5: 部署组 D 的 Prometheus 配置"
 kubectl apply -k "${PROJECT_ROOT}/manifests/monitoring/overlays/group-d/"
+kubectl rollout restart deployment prometheus -n "${PROMETHEUS_NAMESPACE}"
+kubectl rollout status deployment prometheus -n "${PROMETHEUS_NAMESPACE}" --timeout=60s
 wait_prometheus_ready 60 || log_warn "Prometheus 未就绪，手动检查"
 verify_prometheus_targets
 
