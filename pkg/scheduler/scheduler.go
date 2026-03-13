@@ -233,14 +233,11 @@ func (sched *Scheduler) GetCache() godelcache.SchedulerCache {
 
 // Run begins watching and scheduling. It waits for cache to be synced, then starts scheduling and blocked until the context is done.
 func (sched *Scheduler) Run(ctx context.Context) {
-	// Start embedded binder if configured.
+	// Embedded binder lifecycle is managed by server.go (Start before Run,
+	// Stop via context cancellation). Only register a deferred Stop here
+	// so the binder shuts down gracefully when Run returns.
 	if sched.embeddedBinder != nil {
-		if err := sched.embeddedBinder.Start(ctx); err != nil {
-			klog.ErrorS(err, "Failed to start embedded binder", "scheduler", sched.Name)
-		} else {
-			klog.V(2).InfoS("Embedded binder started", "scheduler", sched.Name)
-			defer sched.embeddedBinder.Stop()
-		}
+		defer sched.embeddedBinder.Stop()
 	}
 
 	// run scheduler maintainer to maintain scheduler status in CRD
