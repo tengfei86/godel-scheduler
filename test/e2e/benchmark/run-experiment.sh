@@ -148,18 +148,31 @@ sleep "$COOLDOWN_SECONDS"
 # Step 4: 验证调度器就绪
 # ═══════════════════════════════════════════════
 log_step "Step 4/11: 验证调度器就绪"
+verify_scheduler_ready() {
+  local ns="$1" label="$2" desc="$3"
+  local running
+  running=$(kubectl get pods -n "$ns" -l "$label" --no-headers 2>/dev/null | grep -c "Running" || true)
+  if (( running == 0 )); then
+    log_error "${desc} 未部署或未就绪 (namespace=${ns})"
+    log_error "请先运行: bash schedulers/deploy-group-${GROUP}.sh"
+    exit 1
+  fi
+  kubectl get pods -n "$ns" --no-headers 2>/dev/null
+  log_info "✓ ${desc} 就绪 (${running} Running)"
+}
+
 case "$GROUP" in
   a|b)
-    kubectl get pods -n "${GODEL_NAMESPACE}" --no-headers 2>/dev/null
+    verify_scheduler_ready "${GODEL_NAMESPACE}" "component=scheduler" "Gödel Scheduler"
     ;;
   c)
-    kubectl get pods -n kube-system -l component=kube-scheduler --no-headers 2>/dev/null
+    verify_scheduler_ready "kube-system" "component=kube-scheduler" "kube-scheduler"
     ;;
   d)
-    kubectl get pods -n "${VOLCANO_NAMESPACE}" --no-headers 2>/dev/null
+    verify_scheduler_ready "${VOLCANO_NAMESPACE}" "app=volcano-scheduler" "Volcano Scheduler"
     ;;
   e)
-    kubectl get pods -n "${KOORDINATOR_NAMESPACE}" --no-headers 2>/dev/null
+    verify_scheduler_ready "${KOORDINATOR_NAMESPACE}" "koord-app=koord-scheduler" "Koordinator Scheduler"
     ;;
 esac
 
