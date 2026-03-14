@@ -26,6 +26,7 @@ source "${SCRIPT_DIR}/lib/utils.sh"
 source "${SCRIPT_DIR}/workloads/workload-matrix.sh"
 
 # ── 默认参数 ──
+# 注意: 不使用 Bash 内建特殊变量名 GROUPS，避免被当前用户组 ID 覆盖。
 TARGET_GROUPS="a b c d e"
 SCALES="s2"
 RUNS="${EXPERIMENT_REPEATS}"
@@ -35,6 +36,7 @@ DRY_RUN=false
 CUSTOM_WORKLOADS=""
 
 # ── 参数解析 ──
+# --groups 会写入 TARGET_GROUPS（而不是 GROUPS）以规避 Bash 特殊变量冲突。
 while [[ $# -gt 0 ]]; do
   case $1 in
     --groups)      TARGET_GROUPS="$2"; shift 2 ;;
