@@ -26,7 +26,7 @@ source "${SCRIPT_DIR}/lib/utils.sh"
 source "${SCRIPT_DIR}/workloads/workload-matrix.sh"
 
 # ── 默认参数 ──
-GROUPS="a b c d e"
+TARGET_GROUPS="a b c d e"
 SCALES="s2"
 RUNS="${EXPERIMENT_REPEATS}"
 SKIP_DEPLOY=false
@@ -37,7 +37,7 @@ CUSTOM_WORKLOADS=""
 # ── 参数解析 ──
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --groups)      GROUPS="$2"; shift 2 ;;
+    --groups)      TARGET_GROUPS="$2"; shift 2 ;;
     --scales)      SCALES="$2"; shift 2 ;;
     --workloads)   CUSTOM_WORKLOADS="$2"; shift 2 ;;
     --runs)        RUNS="$2"; shift 2 ;;
@@ -66,9 +66,42 @@ get_workloads_for_group() {
   esac
 }
 
+get_group_label() {
+  local group="$1"
+  local label="${GROUP_LABELS[$group]-}"
+  if [[ -z "$label" ]]; then
+    log_error "未知实验组: ${group} (可选: a b c d e)"
+    exit 1
+  fi
+  echo "$label"
+}
+
+get_scale_nodes() {
+  local scale="$1"
+  local nodes="${SCALE_NODES[$scale]-}"
+  if [[ -z "$nodes" ]]; then
+    log_error "未知集群规模: ${scale} (可选: s1 s2 s3 s4 s5)"
+    exit 1
+  fi
+  echo "$nodes"
+}
+
+validate_inputs() {
+  local group
+  local scale
+  for group in $TARGET_GROUPS; do
+    get_group_label "$group" >/dev/null
+  done
+  for scale in $SCALES; do
+    get_scale_nodes "$scale" >/dev/null
+  done
+}
+
+validate_inputs
+
 # ── 计算总实验数 ──
 total_experiments=0
-for group in $GROUPS; do
+for group in $TARGET_GROUPS; do
   workloads=$(get_workloads_for_group "$group")
   for _ in $SCALES; do
     for _ in $workloads; do
@@ -78,7 +111,7 @@ for group in $GROUPS; do
 done
 
 separator "全量实验计划"
-log_info "组: ${GROUPS}"
+log_info "组: ${TARGET_GROUPS}"
 log_info "规模: ${SCALES}"
 log_info "重复: ${RUNS} 次"
 log_info "总实验数: ${total_experiments}"
@@ -86,11 +119,11 @@ echo ""
 
 # ── 打印执行计划 ──
 exp_index=0
-for group in $GROUPS; do
+for group in $TARGET_GROUPS; do
   workloads=$(get_workloads_for_group "$group")
-  echo "  组 ${group} (${GROUP_LABELS[$group]}):"
+  echo "  组 ${group} ($(get_group_label "$group")):"
   for scale in $SCALES; do
-    echo "    规模 ${scale} (${SCALE_NODES[$scale]} 节点):"
+    echo "    规模 ${scale} ($(get_scale_nodes "$scale") 节点):"
     for wl in $workloads; do
       desc=$(get_workload_param "$wl" "desc")
       for run in $(seq 1 "$RUNS"); do
@@ -121,8 +154,8 @@ OVERALL_START=$(date +%s)
 exp_index=0
 failed_experiments=()
 
-for group in $GROUPS; do
-  separator "部署组 ${group} (${GROUP_LABELS[$group]})"
+for group in $TARGET_GROUPS; do
+  separator "部署组 ${group} ($(get_group_label "$group"))"
 
   # 部署调度器
   if [[ "$SKIP_DEPLOY" != "true" ]]; then
@@ -137,7 +170,7 @@ for group in $GROUPS; do
   # 执行该组所有规模 × 负载场景
   workloads=$(get_workloads_for_group "$group")
   for scale in $SCALES; do
-    separator "规模 ${scale} (${SCALE_NODES[$scale]} 节点)"
+    separator "规模 ${scale} ($(get_scale_nodes "$scale") 节点)"
     for wl in $workloads; do
       for run in $(seq 1 "$RUNS"); do
         exp_index=$((exp_index + 1))
