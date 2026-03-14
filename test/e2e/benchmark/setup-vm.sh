@@ -8,6 +8,7 @@
 #
 # 安装清单:
 #   - 基础工具: git, jq, curl, wget, make, gcc, unzip, bash-completion
+#   - 终端工具: tmux, htop, tree, sysstat
 #   - Docker CE (最新稳定版)
 #   - Go 1.21.13
 #   - kubectl (v1.29.x)
@@ -289,6 +290,7 @@ echo ""
 echo "  已安装:"
 echo "    Docker   : $(docker --version 2>/dev/null | awk '{print $3}' | tr -d ',')"
 echo "    Go       : $(go version 2>/dev/null | awk '{print $3}')"
+echo "    tmux     : $(tmux -V 2>/dev/null | awk '{print $2}')"
 echo "    kubectl  : ${KUBECTL_VERSION}"
 echo "    kind     : $(kind version 2>/dev/null)"
 echo "    Helm     : $(helm version --short 2>/dev/null)"
