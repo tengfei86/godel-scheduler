@@ -171,6 +171,8 @@ declare -A VOLCANO_QUERIES=(
   # Plugin 延迟
   [plugin_latency_p90]='histogram_quantile(0.90,sum(rate(volcano_plugin_scheduling_latency_milliseconds_bucket[1m]))by(le,plugin))/1000'
 
+  # 成功率 — Volcano 无 Pod 级 result 标签，用 Job 调度完成数 / (完成数 + 不可调度数) 近似
+  [scheduling_success_rate]='(sum(rate(volcano_e2e_job_scheduling_latency_milliseconds_count[5m])) / 2 or on() vector(0)) / clamp_min(sum(rate(volcano_e2e_job_scheduling_latency_milliseconds_count[5m])) / 2 + rate(volcano_unschedule_task_count[5m]), 1e-9)'
   # 错误率 — 用不可调度任务数变化率
   [scheduling_error_rate]='rate(volcano_unschedule_task_count[5m])'
 
@@ -219,6 +221,10 @@ declare -A KOORDINATOR_QUERIES=(
   # Goroutines & Pending
   [goroutines]='go_goroutines{job=~".*koord.*"}'
   [pending_pods]='scheduler_pending_pods{job=~".*koord.*"}'
+
+  # 成功率
+  [scheduling_success_rate]='(sum(rate(scheduler_schedule_attempts_total{result="scheduled",job=~".*koord.*"}[5m])) or on() vector(0)) / clamp_min(sum(rate(scheduler_schedule_attempts_total{job=~".*koord.*"}[5m])), 1e-9)'
+  [scheduling_error_rate]='(sum(rate(scheduler_schedule_attempts_total{result="error",job=~".*koord.*"}[5m])) or on() vector(0)) / clamp_min(sum(rate(scheduler_schedule_attempts_total{job=~".*koord.*"}[5m])), 1e-9)'
 
   # 抢占
   [preemption_attempts]='sum(rate(scheduler_preemption_attempts_total{job=~".*koord.*"}[1m]))'
