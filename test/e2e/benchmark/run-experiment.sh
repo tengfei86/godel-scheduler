@@ -149,9 +149,16 @@ sleep "$COOLDOWN_SECONDS"
 # ═══════════════════════════════════════════════
 log_step "Step 4/11: 验证调度器就绪"
 verify_scheduler_ready() {
-  local ns="$1" label="$2" desc="$3"
+  local ns="$1" label="$2" desc="$3" name_prefix_regex="${4:-}"
   local running
-  running=$(kubectl get pods -n "$ns" -l "$label" --no-headers 2>/dev/null | grep -c "Running" || true)
+  running=$(kubectl get pods -n "$ns" -l "$label" --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l | tr -d ' ')
+
+  # 某些部署里调度器 Pod 可能缺少预期 label，这里按 Pod 名前缀做兜底，避免误报未部署。
+  if (( running == 0 )) && [[ -n "$name_prefix_regex" ]]; then
+    running=$(kubectl get pods -n "$ns" --field-selector=status.phase=Running --no-headers 2>/dev/null \
+      | awk '{print $1}' | grep -Ec "$name_prefix_regex" || true)
+  fi
+
   if (( running == 0 )); then
     log_error "${desc} 未部署或未就绪 (namespace=${ns})"
     log_error "请先运行: bash schedulers/deploy-group-${GROUP}.sh"
@@ -163,16 +170,16 @@ verify_scheduler_ready() {
 
 case "$GROUP" in
   a|b)
-    verify_scheduler_ready "${GODEL_NAMESPACE}" "component=scheduler" "Gödel Scheduler"
+    verify_scheduler_ready "${GODEL_NAMESPACE}" "app=godel-scheduler" "Gödel Scheduler" '^scheduler(-|$)'
     ;;
   c)
-    verify_scheduler_ready "kube-system" "component=kube-scheduler" "kube-scheduler"
+    verify_scheduler_ready "kube-system" "component=kube-scheduler" "kube-scheduler" '^kube-scheduler(-|$)'
     ;;
   d)
-    verify_scheduler_ready "${VOLCANO_NAMESPACE}" "app=volcano-scheduler" "Volcano Scheduler"
+    verify_scheduler_ready "${VOLCANO_NAMESPACE}" "app=volcano-scheduler" "Volcano Scheduler" '^volcano-scheduler(-|$)'
     ;;
   e)
-    verify_scheduler_ready "${KOORDINATOR_NAMESPACE}" "koord-app=koord-scheduler" "Koordinator Scheduler"
+    verify_scheduler_ready "${KOORDINATOR_NAMESPACE}" "koord-app=koord-scheduler" "Koordinator Scheduler" '^koord-scheduler(-|$)'
     ;;
 esac
 
