@@ -199,12 +199,15 @@ OVERALL_DURATION=$((OVERALL_END - OVERALL_START))
 
 # ── 汇总报告 ──
 separator "全量实验完成"
+success_count=$((total_experiments - ${#failed_experiments[@]}))
+fail_count=${#failed_experiments[@]}
+
 log_info "总耗时: $(format_duration $OVERALL_DURATION)"
 log_info "实验总数: ${total_experiments}"
-log_info "成功数: $((total_experiments - ${#failed_experiments[@]}))"
-log_info "失败数: ${#failed_experiments[@]}"
+log_info "成功数: ${success_count}"
+log_info "失败数: ${fail_count}"
 
-if (( ${#failed_experiments[@]} > 0 )); then
+if (( fail_count > 0 )); then
   log_warn "失败的实验:"
   for f in "${failed_experiments[@]}"; do
     echo "  - ${f}"
@@ -213,4 +216,116 @@ fi
 
 log_info ""
 log_info "结果目录: ${RESULTS_DIR}/"
+
+# ── 生成 Markdown 报告 ──
+REPORT_TIME=$(date '+%Y-%m-%d_%H%M%S')
+REPORT_FILE="${RESULTS_DIR}/report_${REPORT_TIME}.md"
+
+{
+  echo "# 实验报告"
+  echo ""
+  echo "- **生成时间**: $(date '+%Y-%m-%d %H:%M:%S')"
+  echo "- **总耗时**: $(format_duration $OVERALL_DURATION)"
+  echo "- **集群**: ${KIND_CLUSTER_NAME}"
+  echo "- **实验总数**: ${total_experiments}"
+  echo "- **成功**: ${success_count}"
+  echo "- **失败**: ${fail_count}"
+  echo ""
+
+  echo "## 实验配置"
+  echo ""
+  echo "| 参数 | 值 |"
+  echo "|------|------|"
+  echo "| 实验组 | ${TARGET_GROUPS} |"
+  echo "| 集群规模 | ${SCALES} |"
+  echo "| 重复次数 | ${RUNS} |"
+  echo "| 调度器 QPS | ${SCHEDULER_QPS} |"
+  echo "| 调度器 Burst | ${SCHEDULER_BURST} |"
+  echo "| 资源 requests | ${BENCH_SCHED_REQ_CPU} CPU / ${BENCH_SCHED_REQ_MEM} MEM |"
+  echo "| 资源 limits | ${BENCH_SCHED_LIM_CPU} CPU / ${BENCH_SCHED_LIM_MEM} MEM |"
+  echo ""
+
+  echo "## 实验明细"
+  echo ""
+  echo "| # | 组 | 规模 | 负载 | Run | 状态 |"
+  echo "|---|---|------|------|-----|------|"
+
+  detail_index=0
+  for group in $TARGET_GROUPS; do
+    workloads=$(get_workloads_for_group "$group")
+    for scale in $SCALES; do
+      for wl in $workloads; do
+        for run in $(seq 1 "$RUNS"); do
+          detail_index=$((detail_index + 1))
+          exp_key="${group}/${scale}/${wl}/run${run}"
+          status="✅ 成功"
+          for f in "${failed_experiments[@]}"; do
+            if [[ "$f" == "$exp_key" ]]; then
+              status="❌ 失败"
+              break
+            fi
+          done
+          printf "| %d | %s (%s) | %s | %s | %d | %s |\n" \
+            "$detail_index" "$group" "$(get_group_label "$group")" "$scale" "$wl" "$run" "$status"
+        done
+      done
+    done
+  done
+
+  echo ""
+
+  if (( fail_count > 0 )); then
+    echo "## 失败列表"
+    echo ""
+    for f in "${failed_experiments[@]}"; do
+      echo "- \`${f}\`"
+    done
+    echo ""
+  fi
+
+  echo "## 结果目录"
+  echo ""
+  echo '```'
+  find "${RESULTS_DIR}" -mindepth 1 -maxdepth 3 -type d | sort | sed "s|${RESULTS_DIR}/||"
+  echo '```'
+  echo ""
+  echo "---"
+  echo "*由 run-all.sh 自动生成*"
+} > "$REPORT_FILE"
+
+log_info "报告已生成: ${REPORT_FILE}"
+
+# ── Git 提交并推送到 dev-binder ──
+log_step "提交结果到 dev-binder 分支"
+(
+  cd "${PROJECT_ROOT}"
+
+  # 确保在 dev-binder 分支
+  current_branch=$(git rev-parse --abbrev-ref HEAD)
+  if [[ "$current_branch" != "dev-binder" ]]; then
+    if git show-ref --verify --quiet refs/heads/dev-binder; then
+      git checkout dev-binder
+    else
+      git checkout -b dev-binder
+    fi
+  fi
+
+  git add test/e2e/benchmark/results/
+  git add "$REPORT_FILE"
+
+  commit_msg="benchmark: 实验报告 ${REPORT_TIME} (${success_count}/${total_experiments} passed)"
+  if git diff --cached --quiet; then
+    log_info "无新变更需要提交"
+  else
+    git commit -m "$commit_msg"
+    git push origin dev-binder
+    log_info "✓ 已推送到 origin/dev-binder"
+  fi
+
+  # 如果之前不在 dev-binder，切回原分支
+  if [[ "$current_branch" != "dev-binder" ]]; then
+    git checkout "$current_branch"
+  fi
+)
+
 log_info "下一步: 运行数据分析脚本生成图表"
