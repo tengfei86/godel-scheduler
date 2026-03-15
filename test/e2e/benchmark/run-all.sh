@@ -62,7 +62,7 @@ get_workloads_for_group() {
   fi
   case "$group" in
     a|b) echo "w1 w2 w3 w4 w5 w6 w7 w8" ;;
-    c)   echo "w1 w2 w3 w4" ;;
+    c)   echo "w1 w2 w3 w4 w5" ;;
     d|e) echo "w1 w2 w3 w4 w6" ;;
     *)   echo "w1 w2 w3 w4" ;;
   esac
