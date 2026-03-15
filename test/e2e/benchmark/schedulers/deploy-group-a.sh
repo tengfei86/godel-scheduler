@@ -68,7 +68,7 @@ fi
 log_step "Step 5: 部署组 A 的 Prometheus 配置"
 kubectl apply -k "${PROJECT_ROOT}/manifests/monitoring/overlays/group-a/"
 kubectl rollout restart deployment prometheus -n "${PROMETHEUS_NAMESPACE}"
-kubectl rollout status deployment prometheus -n "${PROMETHEUS_NAMESPACE}" --timeout=60s
+kubectl rollout status deployment prometheus -n "${PROMETHEUS_NAMESPACE}" --timeout=600s
 wait_prometheus_ready 60 || log_warn "Prometheus 未就绪，手动检查"
 verify_prometheus_targets
 
