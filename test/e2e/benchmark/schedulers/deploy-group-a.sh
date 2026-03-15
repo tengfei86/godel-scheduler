@@ -23,6 +23,17 @@ log_step "Step 2: 部署 Gödel Scheduler (Shared Binder)"
 ensure_image_loaded "${GODEL_IMAGE}"
 kubectl apply -k "${MANIFESTS_BASE}"
 
+# 对齐各组件资源，确保与其他调度器组公平对比
+for deploy in binder dispatcher scheduler controller-manager; do
+  if kubectl get deployment "$deploy" -n "${GODEL_NAMESPACE}" >/dev/null 2>&1; then
+    kubectl set resources deployment/"$deploy" \
+      -n "${GODEL_NAMESPACE}" \
+      --containers='*' \
+      --requests="cpu=${BENCH_SCHED_REQ_CPU},memory=${BENCH_SCHED_REQ_MEM}" \
+      --limits="cpu=${BENCH_SCHED_LIM_CPU},memory=${BENCH_SCHED_LIM_MEM}" >/dev/null
+  fi
+done
+
 # ── Step 3: 等待组件就绪 ──
 log_step "Step 3: 等待组件就绪"
 sleep 10

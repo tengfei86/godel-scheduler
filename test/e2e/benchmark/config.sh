@@ -45,6 +45,16 @@ GODEL_NAMESPACE="godel-system"
 VOLCANO_NAMESPACE="volcano-system"
 KOORDINATOR_NAMESPACE="koordinator-system"
 
+# ── 调度器资源基线（用于跨组公平对比） ──
+# 默认公平组: requests(1CPU/2G), limits(2CPU/4G)
+# 极限组建议通过环境变量覆盖，例如:
+#   export BENCH_SCHED_REQ_CPU=2 BENCH_SCHED_REQ_MEM=4G
+#   export BENCH_SCHED_LIM_CPU=4 BENCH_SCHED_LIM_MEM=8G
+BENCH_SCHED_REQ_CPU="${BENCH_SCHED_REQ_CPU:-1}"
+BENCH_SCHED_REQ_MEM="${BENCH_SCHED_REQ_MEM:-2G}"
+BENCH_SCHED_LIM_CPU="${BENCH_SCHED_LIM_CPU:-2}"
+BENCH_SCHED_LIM_MEM="${BENCH_SCHED_LIM_MEM:-4G}"
+
 # ── 组标识 → schedulerName 映射 ──
 declare -A SCHEDULER_NAMES=(
   [a]="godel-scheduler"

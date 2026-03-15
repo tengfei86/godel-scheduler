@@ -49,11 +49,11 @@ docker exec "$local_container" bash -c "
     sed -i '/- kube-scheduler/a\\    - --v=${LOG_LEVEL}' /etc/kubernetes/manifests/kube-scheduler.yaml
   fi
 
-  # 统一 kube-scheduler static pod 的资源配额: requests(1CPU/2G), limits(2CPU/4G)
+  # 统一 kube-scheduler static pod 的资源配额（来自 config.sh）
   if grep -q '^[[:space:]]*resources:' \"\$sched_manifest\"; then
     sed -i '/^[[:space:]]*resources:/,/^[[:space:]]*livenessProbe:/d' \"\$sched_manifest\"
   fi
-  sed -i '/^[[:space:]]*livenessProbe:/i\\    resources:\\n      requests:\\n        cpu: "1"\\n        memory: 2G\\n      limits:\\n        cpu: "2"\\n        memory: 4G' \"\$sched_manifest\"
+  sed -i '/^[[:space:]]*livenessProbe:/i\\    resources:\\n      requests:\\n        cpu: \"${BENCH_SCHED_REQ_CPU}\"\\n        memory: ${BENCH_SCHED_REQ_MEM}\\n      limits:\\n        cpu: \"${BENCH_SCHED_LIM_CPU}\"\\n        memory: ${BENCH_SCHED_LIM_MEM}' \"\$sched_manifest\"
 
   # 开放 bind-address 使 Prometheus Pod 可以抓取 metrics
   sed -i 's/--bind-address=127.0.0.1/--bind-address=0.0.0.0/' /etc/kubernetes/manifests/kube-scheduler.yaml

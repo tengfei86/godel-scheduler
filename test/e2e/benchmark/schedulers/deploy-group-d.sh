@@ -39,14 +39,14 @@ helm install volcano volcano-sh/volcano \
   -n "${VOLCANO_NAMESPACE}" \
   --set scheduler.replicas=1 \
   --set controller.replicas=1 \
-  --set scheduler.resources.requests.cpu=1 \
-  --set scheduler.resources.requests.memory=2G \
-  --set scheduler.resources.limits.cpu=2 \
-  --set scheduler.resources.limits.memory=4G \
-  --set controller.resources.requests.cpu=1 \
-  --set controller.resources.requests.memory=2G \
-  --set controller.resources.limits.cpu=2 \
-  --set controller.resources.limits.memory=4G \
+  --set scheduler.resources.requests.cpu=${BENCH_SCHED_REQ_CPU} \
+  --set scheduler.resources.requests.memory=${BENCH_SCHED_REQ_MEM} \
+  --set scheduler.resources.limits.cpu=${BENCH_SCHED_LIM_CPU} \
+  --set scheduler.resources.limits.memory=${BENCH_SCHED_LIM_MEM} \
+  --set controller.resources.requests.cpu=${BENCH_SCHED_REQ_CPU} \
+  --set controller.resources.requests.memory=${BENCH_SCHED_REQ_MEM} \
+  --set controller.resources.limits.cpu=${BENCH_SCHED_LIM_CPU} \
+  --set controller.resources.limits.memory=${BENCH_SCHED_LIM_MEM} \
   --set-json "custom.default_affinity=${VOLCANO_AFFINITY}" \
   --wait \
   --timeout 5m \
@@ -58,14 +58,14 @@ helm install volcano volcano-sh/volcano \
       --version "${VOLCANO_VERSION}" \
       --set scheduler.replicas=1 \
       --set controller.replicas=1 \
-      --set scheduler.resources.requests.cpu=1 \
-      --set scheduler.resources.requests.memory=2G \
-      --set scheduler.resources.limits.cpu=2 \
-      --set scheduler.resources.limits.memory=4G \
-      --set controller.resources.requests.cpu=1 \
-      --set controller.resources.requests.memory=2G \
-      --set controller.resources.limits.cpu=2 \
-      --set controller.resources.limits.memory=4G \
+      --set scheduler.resources.requests.cpu=${BENCH_SCHED_REQ_CPU} \
+      --set scheduler.resources.requests.memory=${BENCH_SCHED_REQ_MEM} \
+      --set scheduler.resources.limits.cpu=${BENCH_SCHED_LIM_CPU} \
+      --set scheduler.resources.limits.memory=${BENCH_SCHED_LIM_MEM} \
+      --set controller.resources.requests.cpu=${BENCH_SCHED_REQ_CPU} \
+      --set controller.resources.requests.memory=${BENCH_SCHED_REQ_MEM} \
+      --set controller.resources.limits.cpu=${BENCH_SCHED_LIM_CPU} \
+      --set controller.resources.limits.memory=${BENCH_SCHED_LIM_MEM} \
       --set-json "custom.default_affinity=${VOLCANO_AFFINITY}" \
       --wait \
       --timeout 5m
