@@ -31,6 +31,12 @@ Please refer to [Contribution](CONTRIBUTING.md).
 
 
 ```bash
+# Change prefix from 'Ctrl+B' to 'Ctrl+A'
+set-option -g prefix C-a
+# set shell
+set -g default-shell /bin/bash
+bind h split-window -h -c "#{pane_current_path}"
+bind v split-window -v -c "#{pane_current_path}"
 set -g mouse on
 setw -g mode-keys vi
 
