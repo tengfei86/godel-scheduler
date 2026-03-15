@@ -41,19 +41,22 @@ local_container="${KIND_CLUSTER_NAME}-control-plane"
 
 # 注入 QPS 和 Burst 参数，修改 bind-address 并统一资源配额（用于公平对比）
 if ! docker exec "$local_container" bash -c "
+  set -eu
   sched_manifest=/etc/kubernetes/manifests/kube-scheduler.yaml
 
-  if ! grep -q 'kube-api-qps' /etc/kubernetes/manifests/kube-scheduler.yaml; then
-    sed -i '/- kube-scheduler/a\\    - --kube-api-qps=${SCHEDULER_QPS}' /etc/kubernetes/manifests/kube-scheduler.yaml
-    sed -i '/- kube-scheduler/a\\    - --kube-api-burst=${SCHEDULER_BURST}' /etc/kubernetes/manifests/kube-scheduler.yaml
-    sed -i '/- kube-scheduler/a\\    - --v=${LOG_LEVEL}' /etc/kubernetes/manifests/kube-scheduler.yaml
+  # 先保证两种常见 kubeconfig 路径都存在，避免 static pod 重启瞬间因缺文件失败。
+  # scheduler.conf 与 kube-scheduler.conf 任一存在时，补齐另一份。
+  if [[ -f /etc/kubernetes/kube-scheduler.conf && ! -f /etc/kubernetes/scheduler.conf ]]; then
+    cp -Lf /etc/kubernetes/kube-scheduler.conf /etc/kubernetes/scheduler.conf
   fi
 
-  # 先保证 kubeadm 官方 kubeconfig 路径存在，避免 kube-scheduler 启动报错。
-  # 注意：这里必须写入“真实文件”，避免 hostPath(type=File) 对软链接兼容问题。
-  if [[ ! -f /etc/kubernetes/scheduler.conf ]]; then
+  if [[ -f /etc/kubernetes/scheduler.conf && ! -f /etc/kubernetes/kube-scheduler.conf ]]; then
+    cp -Lf /etc/kubernetes/scheduler.conf /etc/kubernetes/kube-scheduler.conf
+  fi
+
+  if [[ ! -f /etc/kubernetes/scheduler.conf || ! -f /etc/kubernetes/kube-scheduler.conf ]]; then
     src_conf=""
-    for c in /etc/kubernetes/kube-scheduler.conf /etc/kubernetes/admin.conf /etc/kubernetes/super-admin.conf; do
+    for c in /etc/kubernetes/scheduler.conf /etc/kubernetes/kube-scheduler.conf /etc/kubernetes/admin.conf /etc/kubernetes/super-admin.conf; do
       if [[ -f "\$c" ]]; then
         src_conf="\$c"
         break
@@ -61,14 +64,15 @@ if ! docker exec "$local_container" bash -c "
     done
 
     if [[ -z "\$src_conf" ]]; then
-      src_conf=$(find /etc/kubernetes -maxdepth 2 -type f -name '*scheduler*.conf' 2>/dev/null | head -1 || true)
+      src_conf=\$(find /etc/kubernetes -maxdepth 2 -type f -name '*scheduler*.conf' 2>/dev/null | head -1 || true)
     fi
 
     if [[ -n "\$src_conf" ]]; then
-      cp -Lf "\$src_conf" /etc/kubernetes/scheduler.conf
-      chmod 600 /etc/kubernetes/scheduler.conf || true
+      [[ -f /etc/kubernetes/scheduler.conf ]] || cp -Lf "\$src_conf" /etc/kubernetes/scheduler.conf
+      [[ -f /etc/kubernetes/kube-scheduler.conf ]] || cp -Lf "\$src_conf" /etc/kubernetes/kube-scheduler.conf
+      chmod 600 /etc/kubernetes/scheduler.conf /etc/kubernetes/kube-scheduler.conf 2>/dev/null || true
     else
-      echo '[group-c] 缺少 /etc/kubernetes/scheduler.conf 且无可用回退文件' >&2
+      echo '[group-c] 缺少 scheduler kubeconfig 文件且无可用回退文件' >&2
       ls -l /etc/kubernetes/*.conf 2>/dev/null || true
       exit 1
     fi
@@ -77,12 +81,42 @@ if ! docker exec "$local_container" bash -c "
   # 诊断输出：确认 kubeconfig 文件存在。
   ls -l /etc/kubernetes/scheduler.conf /etc/kubernetes/kube-scheduler.conf 2>/dev/null || true
 
-  # 统一 kube-scheduler static pod 的资源配额（来自 config.sh）
-  if grep -q '^[[:space:]]*resources:' \"\$sched_manifest\"; then
-    sed -i '/^[[:space:]]*resources:/,/^[[:space:]]*livenessProbe:/d' \"\$sched_manifest\"
+  if ! grep -q 'kube-api-qps' /etc/kubernetes/manifests/kube-scheduler.yaml; then
+    sed -i '/- kube-scheduler/a\\    - --kube-api-qps=${SCHEDULER_QPS}' /etc/kubernetes/manifests/kube-scheduler.yaml
+    sed -i '/- kube-scheduler/a\\    - --kube-api-burst=${SCHEDULER_BURST}' /etc/kubernetes/manifests/kube-scheduler.yaml
+    sed -i '/- kube-scheduler/a\\    - --v=${LOG_LEVEL}' /etc/kubernetes/manifests/kube-scheduler.yaml
   fi
-  sed -i '/^[[:space:]]*livenessProbe:/i\\    resources:\\n      requests:\\n        cpu: \"${BENCH_SCHED_REQ_CPU}\"\\n        memory: ${BENCH_SCHED_REQ_MEM}\\n      limits:\\n        cpu: \"${BENCH_SCHED_LIM_CPU}\"\\n        memory: ${BENCH_SCHED_LIM_MEM}' \"\$sched_manifest\"
 
+
+  # 守护检查：如果 manifest 缺少 volumeMounts，说明已被改坏，直接报错。
+  if ! grep -q '^[[:space:]]*volumeMounts:' "\$sched_manifest"; then
+    echo '[group-c] kube-scheduler manifest 缺少 volumeMounts，可能已被历史脚本改坏。' >&2
+    echo '[group-c] 请执行: kind delete cluster --name ${KIND_CLUSTER_NAME} && bash test/e2e/benchmark/setup-cluster.sh --force-rebuild' >&2
+    exit 1
+  fi
+
+  # 安全地替换 resources 块（仅替换 resources 及其子行，不会误删 volumeMounts 等）
+  awk -v req_cpu='${BENCH_SCHED_REQ_CPU}' -v req_mem='${BENCH_SCHED_REQ_MEM}' \\
+      -v lim_cpu='${BENCH_SCHED_LIM_CPU}' -v lim_mem='${BENCH_SCHED_LIM_MEM}' '
+    /^[[:space:]]*resources:/ {
+      indent = match(\$0, /[^ ]/) - 1
+      printf \"%*sresources:\\n\", indent, \"\"
+      printf \"%*s  requests:\\n\", indent, \"\"
+      printf \"%*s    cpu: \\\"%s\\\"\\n\", indent, \"\", req_cpu
+      printf \"%*s    memory: %s\\n\", indent, \"\", req_mem
+      printf \"%*s  limits:\\n\", indent, \"\"
+      printf \"%*s    cpu: \\\"%s\\\"\\n\", indent, \"\", lim_cpu
+      printf \"%*s    memory: %s\\n\", indent, \"\", lim_mem
+      in_res = 1; res_indent = indent; next
+    }
+    in_res {
+      cur_indent = match(\$0, /[^ ]/) - 1
+      if (\$0 ~ /^[[:space:]]*\$/) next
+      if (cur_indent <= res_indent) { in_res = 0; print; next }
+      next
+    }
+    { print }
+  ' "\$sched_manifest" > "\${sched_manifest}.tmp" && mv "\${sched_manifest}.tmp" "\$sched_manifest"
   # 开放 bind-address 使 Prometheus Pod 可以抓取 metrics
   sed -i 's/--bind-address=127.0.0.1/--bind-address=0.0.0.0/' /etc/kubernetes/manifests/kube-scheduler.yaml
 "; then
@@ -112,7 +146,7 @@ fi
 log_step "Step 5: 部署组 C 的 Prometheus 配置"
 kubectl apply -k "${PROJECT_ROOT}/manifests/monitoring/overlays/group-c/"
 kubectl rollout restart deployment prometheus -n "${PROMETHEUS_NAMESPACE}"
-kubectl rollout status deployment prometheus -n "${PROMETHEUS_NAMESPACE}" --timeout=60s
+kubectl rollout status deployment prometheus -n "${PROMETHEUS_NAMESPACE}" --timeout=600s
 wait_prometheus_ready 60 || log_warn "Prometheus 未就绪，手动检查"
 verify_prometheus_targets
 
