@@ -12,6 +12,16 @@
 #   mem             - 内存请求 (Mi, 默认 128)
 #   workload_type   - basic|burst|gang|heterogeneous (默认 basic)
 #
+# 负载场景说明:
+#   w1 - 低负载稳态       100 pods/s,  10K pods, cpu:100m/mem:128Mi
+#   w2 - 中负载稳态       500 pods/s,  50K pods, cpu:100m/mem:128Mi
+#   w3 - 高负载稳态     1,000 pods/s, 100K pods, cpu:100m/mem:128Mi
+#   w4 - 极限负载       2,000 pods/s, 200K pods, cpu:100m/mem:128Mi
+#   w5 - 突发洪峰   0→2000→0 pods/s,  50K pods, cpu:100m/mem:128Mi
+#   w6 - Gang 调度   200 groups/s × 5 pods/group, 10K pods
+#   w7 - 异构资源       500 pods/s,  50K pods, 混合规格(30%小+40%中+20%大+10%超大)
+#   w8 - 大规模集群   2,000 pods/s, 800K pods, cpu:100m/mem:128Mi
+#
 # 示例:
 #   ./create-pods.sh 500 50000 godel-scheduler 100 128
 #   ./create-pods.sh 1000 10000 godel-scheduler 100 128 gang
@@ -66,35 +76,108 @@ select_basic_template() {
   fi
 }
 
+# ── 速率控制核心函数 ──
+# 将 batch_size 个 Pod YAML 拼接为多文档，单次 kubectl apply 提交
+# 若 batch_size > MAX_PER_APPLY，则拆成多个并行 kubectl apply
+MAX_PER_APPLY=500
+
+# 精确 sleep: 补偿到 1 秒（需要 GNU date 或 macOS perl）
+sleep_remaining() {
+  local start_ns=$1
+  local end_ns
+  end_ns=$(date +%s%N 2>/dev/null || perl -MTime::HiRes=time -e 'printf "%d\n",time()*1e9')
+  local elapsed_ms=$(( (end_ns - start_ns) / 1000000 ))
+  local remain_ms=$(( 1000 - elapsed_ms ))
+  if (( remain_ms > 10 )); then
+    sleep "$(awk "BEGIN{printf \"%.3f\", $remain_ms/1000}")"
+  fi
+}
+
+# 渲染单个 Pod YAML（纯文本替换，避免 fork envsubst）
+render_basic_pod() {
+  local idx=$1 ns=$2 sched=$3 cpu=$4 mem=$5 image=$6 tpl=$7
+  sed -e "s|\${INDEX}|${idx}|g" \
+      -e "s|\${NAMESPACE}|${ns}|g" \
+      -e "s|\${SCHEDULER_NAME}|${sched}|g" \
+      -e "s|\${CPU}|${cpu}|g" \
+      -e "s|\${MEM}|${mem}|g" \
+      -e "s|\${PAUSE_IMAGE}|${image}|g" "$tpl"
+}
+
+# 批量提交一个 YAML 文件（可能包含多个文档）
+apply_batch_file() {
+  kubectl apply -f "$1" 2>/dev/null
+}
+
 # ── 生成并应用 Pod ──
 create_basic_pods() {
   local rate=$1 total=$2 cpu=$3 mem=$4
-  local batch_count=0
   local template
   template=$(select_basic_template)
   ensure_volcano_passthrough_pg
 
-  for i in $(seq 1 "$total"); do
-    export INDEX="$i"
-    export NAMESPACE="$NAMESPACE"
-    export SCHEDULER_NAME="$SCHED_NAME"
-    export CPU="$cpu"
-    export MEM="$mem"
-    export PAUSE_IMAGE="${PAUSE_IMAGE}"
+  local batch_idx=0
+  local global_idx=0
+  local tmpdir
+  tmpdir=$(mktemp -d)
+  trap "rm -rf '$tmpdir'" RETURN
 
-    envsubst < "$template" | kubectl apply -f - &
+  local batch_file="${tmpdir}/batch.yaml"
 
-    batch_count=$((batch_count + 1))
-    if (( batch_count >= rate )); then
-      wait
-      batch_count=0
-      sleep 1
-      if (( i % (rate * 10) == 0 )); then
-        log_info "  进度: ${i}/${total} ($(( i * 100 / total ))%)"
-      fi
+  while (( global_idx < total )); do
+    local tick_start
+    tick_start=$(date +%s%N 2>/dev/null || perl -MTime::HiRes=time -e 'printf "%d\n",time()*1e9')
+
+    # 本秒要创建的 Pod 数量
+    local this_batch=$rate
+    if (( global_idx + this_batch > total )); then
+      this_batch=$((total - global_idx))
     fi
+
+    # 拼接 YAML 到临时文件
+    > "$batch_file"
+    local sub_files=()
+    local sub_idx=0
+    local sub_count=0
+
+    for i in $(seq 1 "$this_batch"); do
+      global_idx=$((global_idx + 1))
+      if (( sub_count > 0 )); then
+        echo "---" >> "${tmpdir}/sub_${sub_idx}.yaml"
+      fi
+      render_basic_pod "$global_idx" "$NAMESPACE" "$SCHED_NAME" "$cpu" "$mem" "$PAUSE_IMAGE" "$template" \
+        >> "${tmpdir}/sub_${sub_idx}.yaml"
+      sub_count=$((sub_count + 1))
+
+      if (( sub_count >= MAX_PER_APPLY )); then
+        sub_files+=("${tmpdir}/sub_${sub_idx}.yaml")
+        sub_idx=$((sub_idx + 1))
+        sub_count=0
+      fi
+    done
+
+    # 最后一个不满 MAX_PER_APPLY 的子文件
+    if (( sub_count > 0 )); then
+      sub_files+=("${tmpdir}/sub_${sub_idx}.yaml")
+    fi
+
+    # 并行提交所有子文件
+    for f in "${sub_files[@]}"; do
+      apply_batch_file "$f" &
+    done
+    wait
+
+    # 清理子文件
+    rm -f "${tmpdir}"/sub_*.yaml
+
+    batch_idx=$((batch_idx + 1))
+    if (( batch_idx % 10 == 0 )); then
+      log_info "  进度: ${global_idx}/${total} ($((global_idx * 100 / total))%)"
+    fi
+
+    # 补偿 sleep 到 1 秒
+    sleep_remaining "$tick_start"
   done
-  wait
 }
 
 # ── 突发模式 (W5: 0→2000→0) ──
@@ -107,38 +190,50 @@ create_burst_pods() {
   # 阶梯式: 10s@200 → 10s@500 → 10s@1000 → 10s@2000 → 10s@1000 → 10s@500 → 10s@200
   local stages=(200 500 1000 2000 1000 500 200)
   local stage_duration=10
-  local idx=0
+  local global_idx=0
+
+  local tmpdir
+  tmpdir=$(mktemp -d)
+  trap "rm -rf '$tmpdir'" RETURN
 
   for stage_rate in "${stages[@]}"; do
     log_info "  阶段: ${stage_rate} pods/s × ${stage_duration}s"
-    local stage_total=$((stage_rate * stage_duration))
-    local batch_count=0
 
-    for j in $(seq 1 "$stage_total"); do
-      idx=$((idx + 1))
-      if (( idx > total )); then
-        break 2
+    for sec in $(seq 1 "$stage_duration"); do
+      if (( global_idx >= total )); then break 2; fi
+
+      local tick_start
+      tick_start=$(date +%s%N 2>/dev/null || perl -MTime::HiRes=time -e 'printf "%d\n",time()*1e9')
+
+      local this_batch=$stage_rate
+      if (( global_idx + this_batch > total )); then
+        this_batch=$((total - global_idx))
       fi
 
-      export INDEX="$idx"
-      export NAMESPACE="$NAMESPACE"
-      export SCHEDULER_NAME="$SCHED_NAME"
-      export CPU="$cpu"
-      export MEM="$mem"
-      export PAUSE_IMAGE="${PAUSE_IMAGE}"
+      # 拼接 + 分片提交
+      local sub_idx=0 sub_count=0 sub_files=()
+      for i in $(seq 1 "$this_batch"); do
+        global_idx=$((global_idx + 1))
+        if (( sub_count > 0 )); then
+          echo "---" >> "${tmpdir}/sub_${sub_idx}.yaml"
+        fi
+        render_basic_pod "$global_idx" "$NAMESPACE" "$SCHED_NAME" "$cpu" "$mem" "$PAUSE_IMAGE" "$template" \
+          >> "${tmpdir}/sub_${sub_idx}.yaml"
+        sub_count=$((sub_count + 1))
+        if (( sub_count >= MAX_PER_APPLY )); then
+          sub_files+=("${tmpdir}/sub_${sub_idx}.yaml")
+          sub_idx=$((sub_idx + 1)); sub_count=0
+        fi
+      done
+      if (( sub_count > 0 )); then sub_files+=("${tmpdir}/sub_${sub_idx}.yaml"); fi
 
-      envsubst < "$template" | kubectl apply -f - &
+      for f in "${sub_files[@]}"; do apply_batch_file "$f" & done
+      wait
+      rm -f "${tmpdir}"/sub_*.yaml
 
-      batch_count=$((batch_count + 1))
-      if (( batch_count >= stage_rate )); then
-        wait
-        batch_count=0
-        sleep 1
-      fi
+      sleep_remaining "$tick_start"
     done
-    wait
   done
-  wait
 }
 
 # ── Gang 调度模式 (W6) ──
@@ -146,7 +241,8 @@ create_gang_pods() {
   local total=$1 cpu=$2 mem=$3
   local gang_size=5
   local groups=$((total / gang_size))
-  local rate_groups=$((RATE / gang_size))  # 每秒创建的 PodGroup 数
+  local rate_groups=$((RATE / gang_size))
+  (( rate_groups < 1 )) && rate_groups=1
 
   # 按调度器选择对应的 Gang 模板
   local template
@@ -159,44 +255,70 @@ create_gang_pods() {
       template="${TEMPLATE_DIR}/gang-pod.yaml.tpl" ;;
   esac
 
-  # 从模板中分离 PodGroup 和 Pod 部分，避免并发创建同一 PodGroup 导致 AlreadyExists 错误
+  # 从模板中分离 PodGroup 和 Pod 部分
   local pg_template pod_template
   pg_template=$(awk '/^---/{exit} {print}' "$template")
   pod_template=$(awk 'p{print} /^---/{p=1}' "$template")
 
-  local batch_count=0
+  log_info "  Gang 模式: ${groups} groups × ${gang_size} pods/group, ${rate_groups} groups/s"
 
-  log_info "  Gang 模式: ${groups} groups × ${gang_size} pods/group (template: $(basename "$template"))"
+  local tmpdir
+  tmpdir=$(mktemp -d)
+  trap "rm -rf '$tmpdir'" RETURN
 
-  for g in $(seq 1 "$groups"); do
-    export GROUP_INDEX="$g"
-    export GANG_SIZE="$gang_size"
-    export NAMESPACE="$NAMESPACE"
-    export SCHEDULER_NAME="$SCHED_NAME"
-    export CPU="$cpu"
-    export MEM="$mem"
-    export PAUSE_IMAGE="${PAUSE_IMAGE}"
+  local group_idx=0
 
-    # 先同步创建 PodGroup（每组一次）
-    echo "$pg_template" | envsubst | kubectl apply -f - 2>/dev/null
+  while (( group_idx < groups )); do
+    local tick_start
+    tick_start=$(date +%s%N 2>/dev/null || perl -MTime::HiRes=time -e 'printf "%d\n",time()*1e9')
 
-    # 再并行创建所有成员 Pod
-    for m in $(seq 1 "$gang_size"); do
-      export MEMBER_INDEX="$m"
-      echo "$pod_template" | envsubst | kubectl apply -f - &
+    local this_batch=$rate_groups
+    if (( group_idx + this_batch > groups )); then
+      this_batch=$((groups - group_idx))
+    fi
+
+    # 拼接本秒所有 PodGroup + Pod 到单个 YAML
+    > "${tmpdir}/gang_batch.yaml"
+    for g_offset in $(seq 1 "$this_batch"); do
+      group_idx=$((group_idx + 1))
+      # PodGroup
+      echo "$pg_template" | sed \
+        -e "s|\${GROUP_INDEX}|${group_idx}|g" \
+        -e "s|\${GANG_SIZE}|${gang_size}|g" \
+        -e "s|\${NAMESPACE}|${NAMESPACE}|g" \
+        -e "s|\${SCHEDULER_NAME}|${SCHED_NAME}|g" \
+        >> "${tmpdir}/gang_batch.yaml"
+      echo "---" >> "${tmpdir}/gang_batch.yaml"
+      # Member Pods
+      for m in $(seq 1 "$gang_size"); do
+        echo "$pod_template" | sed \
+          -e "s|\${GROUP_INDEX}|${group_idx}|g" \
+          -e "s|\${MEMBER_INDEX}|${m}|g" \
+          -e "s|\${GANG_SIZE}|${gang_size}|g" \
+          -e "s|\${NAMESPACE}|${NAMESPACE}|g" \
+          -e "s|\${SCHEDULER_NAME}|${SCHED_NAME}|g" \
+          -e "s|\${CPU}|${cpu}|g" \
+          -e "s|\${MEM}|${mem}|g" \
+          -e "s|\${PAUSE_IMAGE}|${PAUSE_IMAGE}|g" \
+          >> "${tmpdir}/gang_batch.yaml"
+        if (( m < gang_size )); then
+          echo "---" >> "${tmpdir}/gang_batch.yaml"
+        fi
+      done
+      if (( g_offset < this_batch )); then
+        echo "---" >> "${tmpdir}/gang_batch.yaml"
+      fi
     done
 
-    batch_count=$((batch_count + 1))
-    if (( batch_count >= rate_groups )); then
-      wait
-      batch_count=0
-      sleep 1
-      if (( g % (rate_groups * 10) == 0 )); then
-        log_info "  进度: ${g}/${groups} groups"
-      fi
+    apply_batch_file "${tmpdir}/gang_batch.yaml"
+    rm -f "${tmpdir}/gang_batch.yaml"
+
+    if (( group_idx % (rate_groups * 10) == 0 )); then
+      log_info "  进度: ${group_idx}/${groups} groups"
     fi
+
+    sleep_remaining "$tick_start"
   done
-  wait
 }
 
 # ── 异构资源模式 (W7) ──
@@ -205,42 +327,63 @@ create_heterogeneous_pods() {
   local template
   template=$(select_basic_template)
   ensure_volcano_passthrough_pg
-  local batch_count=0
 
-  # 30% 小(50m/64Mi), 40% 中(200m/256Mi), 20% 大(1000m/1Gi), 10% 超大(4000m/8Gi)
-  for i in $(seq 1 "$total"); do
-    local rand=$((RANDOM % 100))
-    local cpu mem
-    if (( rand < 30 )); then
-      cpu=50; mem=64
-    elif (( rand < 70 )); then
-      cpu=200; mem=256
-    elif (( rand < 90 )); then
-      cpu=1000; mem=1024
-    else
-      cpu=4000; mem=8192
+  local tmpdir
+  tmpdir=$(mktemp -d)
+  trap "rm -rf '$tmpdir'" RETURN
+
+  local global_idx=0
+
+  while (( global_idx < total )); do
+    local tick_start
+    tick_start=$(date +%s%N 2>/dev/null || perl -MTime::HiRes=time -e 'printf "%d\n",time()*1e9')
+
+    local this_batch=$RATE
+    if (( global_idx + this_batch > total )); then
+      this_batch=$((total - global_idx))
     fi
 
-    export INDEX="$i"
-    export NAMESPACE="$NAMESPACE"
-    export SCHEDULER_NAME="$SCHED_NAME"
-    export CPU="$cpu"
-    export MEM="$mem"
-    export PAUSE_IMAGE="${PAUSE_IMAGE}"
+    # 拼接 + 分片提交
+    local sub_idx=0 sub_count=0 sub_files=()
+    for i in $(seq 1 "$this_batch"); do
+      global_idx=$((global_idx + 1))
 
-    envsubst < "$template" | kubectl apply -f - &
-
-    batch_count=$((batch_count + 1))
-    if (( batch_count >= RATE )); then
-      wait
-      batch_count=0
-      sleep 1
-      if (( i % (RATE * 10) == 0 )); then
-        log_info "  进度: ${i}/${total} ($(( i * 100 / total ))%)"
+      # 30% 小(50m/64Mi), 40% 中(200m/256Mi), 20% 大(1000m/1Gi), 10% 超大(4000m/8Gi)
+      local rand=$((RANDOM % 100))
+      local cpu mem
+      if (( rand < 30 )); then
+        cpu=50; mem=64
+      elif (( rand < 70 )); then
+        cpu=200; mem=256
+      elif (( rand < 90 )); then
+        cpu=1000; mem=1024
+      else
+        cpu=4000; mem=8192
       fi
+
+      if (( sub_count > 0 )); then
+        echo "---" >> "${tmpdir}/sub_${sub_idx}.yaml"
+      fi
+      render_basic_pod "$global_idx" "$NAMESPACE" "$SCHED_NAME" "$cpu" "$mem" "$PAUSE_IMAGE" "$template" \
+        >> "${tmpdir}/sub_${sub_idx}.yaml"
+      sub_count=$((sub_count + 1))
+      if (( sub_count >= MAX_PER_APPLY )); then
+        sub_files+=("${tmpdir}/sub_${sub_idx}.yaml")
+        sub_idx=$((sub_idx + 1)); sub_count=0
+      fi
+    done
+    if (( sub_count > 0 )); then sub_files+=("${tmpdir}/sub_${sub_idx}.yaml"); fi
+
+    for f in "${sub_files[@]}"; do apply_batch_file "$f" & done
+    wait
+    rm -f "${tmpdir}"/sub_*.yaml
+
+    if (( global_idx % (RATE * 10) == 0 )); then
+      log_info "  进度: ${global_idx}/${total} ($((global_idx * 100 / total))%)"
     fi
+
+    sleep_remaining "$tick_start"
   done
-  wait
 }
 
 # ── 根据类型分发 ──
