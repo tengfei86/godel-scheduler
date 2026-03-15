@@ -40,7 +40,7 @@ log_step "Step 3: 调整 kube-scheduler 参数"
 local_container="${KIND_CLUSTER_NAME}-control-plane"
 
 # 注入 QPS 和 Burst 参数，修改 bind-address 并统一资源配额（用于公平对比）
-docker exec "$local_container" bash -c "
+if ! docker exec "$local_container" bash -c "
   sched_manifest=/etc/kubernetes/manifests/kube-scheduler.yaml
 
   if ! grep -q 'kube-api-qps' /etc/kubernetes/manifests/kube-scheduler.yaml; then
@@ -49,9 +49,16 @@ docker exec "$local_container" bash -c "
     sed -i '/- kube-scheduler/a\\    - --v=${LOG_LEVEL}' /etc/kubernetes/manifests/kube-scheduler.yaml
   fi
 
-  # 某些环境使用 /etc/kubernetes/kube-scheduler.conf，避免路径不一致导致 kube-scheduler 启动失败。
-  if [[ ! -f /etc/kubernetes/scheduler.conf && -f /etc/kubernetes/kube-scheduler.conf ]]; then
-    sed -i 's#/etc/kubernetes/scheduler.conf#/etc/kubernetes/kube-scheduler.conf#g' "\$sched_manifest"
+  # 先保证 kubeadm 官方 kubeconfig 路径存在，避免 kube-scheduler 启动报错。
+  if [[ ! -f /etc/kubernetes/scheduler.conf ]]; then
+    if [[ -f /etc/kubernetes/kube-scheduler.conf ]]; then
+      ln -sf /etc/kubernetes/kube-scheduler.conf /etc/kubernetes/scheduler.conf
+    elif [[ -f /etc/kubernetes/admin.conf ]]; then
+      cp -f /etc/kubernetes/admin.conf /etc/kubernetes/scheduler.conf
+    else
+      echo '[group-c] 缺少 /etc/kubernetes/scheduler.conf 且无可用回退文件' >&2
+      exit 1
+    fi
   fi
 
   # 统一 kube-scheduler static pod 的资源配额（来自 config.sh）
@@ -62,7 +69,10 @@ docker exec "$local_container" bash -c "
 
   # 开放 bind-address 使 Prometheus Pod 可以抓取 metrics
   sed -i 's/--bind-address=127.0.0.1/--bind-address=0.0.0.0/' /etc/kubernetes/manifests/kube-scheduler.yaml
-" 2>/dev/null || log_warn "无法调整 kube-scheduler 参数（可能不影响测试）"
+"; then
+  log_error "调整 kube-scheduler 参数失败，请检查 control-plane 容器日志"
+  exit 1
+fi
 
 sleep 20
 log_info "等待 kube-scheduler 重启完成..."
