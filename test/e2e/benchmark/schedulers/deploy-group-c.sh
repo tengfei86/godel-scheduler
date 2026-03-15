@@ -50,16 +50,32 @@ if ! docker exec "$local_container" bash -c "
   fi
 
   # 先保证 kubeadm 官方 kubeconfig 路径存在，避免 kube-scheduler 启动报错。
+  # 注意：这里必须写入“真实文件”，避免 hostPath(type=File) 对软链接兼容问题。
   if [[ ! -f /etc/kubernetes/scheduler.conf ]]; then
-    if [[ -f /etc/kubernetes/kube-scheduler.conf ]]; then
-      ln -sf /etc/kubernetes/kube-scheduler.conf /etc/kubernetes/scheduler.conf
-    elif [[ -f /etc/kubernetes/admin.conf ]]; then
-      cp -f /etc/kubernetes/admin.conf /etc/kubernetes/scheduler.conf
+    src_conf=""
+    for c in /etc/kubernetes/kube-scheduler.conf /etc/kubernetes/admin.conf /etc/kubernetes/super-admin.conf; do
+      if [[ -f "\$c" ]]; then
+        src_conf="\$c"
+        break
+      fi
+    done
+
+    if [[ -z "\$src_conf" ]]; then
+      src_conf=$(find /etc/kubernetes -maxdepth 2 -type f -name '*scheduler*.conf' 2>/dev/null | head -1 || true)
+    fi
+
+    if [[ -n "\$src_conf" ]]; then
+      cp -Lf "\$src_conf" /etc/kubernetes/scheduler.conf
+      chmod 600 /etc/kubernetes/scheduler.conf || true
     else
       echo '[group-c] 缺少 /etc/kubernetes/scheduler.conf 且无可用回退文件' >&2
+      ls -l /etc/kubernetes/*.conf 2>/dev/null || true
       exit 1
     fi
   fi
+
+  # 诊断输出：确认 kubeconfig 文件存在。
+  ls -l /etc/kubernetes/scheduler.conf /etc/kubernetes/kube-scheduler.conf 2>/dev/null || true
 
   # 统一 kube-scheduler static pod 的资源配额（来自 config.sh）
   if grep -q '^[[:space:]]*resources:' \"\$sched_manifest\"; then
