@@ -49,6 +49,11 @@ docker exec "$local_container" bash -c "
     sed -i '/- kube-scheduler/a\\    - --v=${LOG_LEVEL}' /etc/kubernetes/manifests/kube-scheduler.yaml
   fi
 
+  # 某些环境使用 /etc/kubernetes/kube-scheduler.conf，避免路径不一致导致 kube-scheduler 启动失败。
+  if [[ ! -f /etc/kubernetes/scheduler.conf && -f /etc/kubernetes/kube-scheduler.conf ]]; then
+    sed -i 's#/etc/kubernetes/scheduler.conf#/etc/kubernetes/kube-scheduler.conf#g' "\$sched_manifest"
+  fi
+
   # 统一 kube-scheduler static pod 的资源配额（来自 config.sh）
   if grep -q '^[[:space:]]*resources:' \"\$sched_manifest\"; then
     sed -i '/^[[:space:]]*resources:/,/^[[:space:]]*livenessProbe:/d' \"\$sched_manifest\"
