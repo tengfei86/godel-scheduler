@@ -96,7 +96,13 @@ INSTALL_OUTPUT=$(helm upgrade --install koordinator koordinator-sh/koordinator \
   --set manager.replicas=1 \
   --set descheduler.replicas=0 \
   --set scheduler.resources.requests.cpu=1 \
-  --set scheduler.resources.requests.memory=1Gi \
+  --set scheduler.resources.requests.memory=2G \
+  --set scheduler.resources.limits.cpu=2 \
+  --set scheduler.resources.limits.memory=4G \
+  --set manager.resources.requests.cpu=1 \
+  --set manager.resources.requests.memory=2G \
+  --set manager.resources.limits.cpu=2 \
+  --set manager.resources.limits.memory=4G \
   --wait \
   --timeout 5m \
   2>&1) || {
