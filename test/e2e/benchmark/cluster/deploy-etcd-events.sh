@@ -17,8 +17,18 @@ CONTROL_PLANE="${CLUSTER_NAME}-control-plane"
 
 echo "[INFO] 在 ${CONTROL_PLANE} 中部署事件专用 etcd..."
 
+# ── 自动检测当前节点已有的 etcd 镜像版本 ──
+ETCD_IMAGE=$(docker exec "$CONTROL_PLANE" ctr -n k8s.io images list -q 2>/dev/null \
+  | grep "registry.k8s.io/etcd:" | head -1 || true)
+if [[ -z "$ETCD_IMAGE" ]]; then
+  ETCD_IMAGE="registry.k8s.io/etcd:3.6.6-0"
+  echo "[WARN] 未检测到已有 etcd 镜像，使用默认: ${ETCD_IMAGE}"
+else
+  echo "[INFO] 检测到 etcd 镜像: ${ETCD_IMAGE}"
+fi
+
 # ── Step 1: 部署 etcd-events static pod ──
-docker exec "$CONTROL_PLANE" bash -c "cat > /etc/kubernetes/manifests/etcd-events.yaml" <<'MANIFEST'
+docker exec "$CONTROL_PLANE" bash -c "cat > /etc/kubernetes/manifests/etcd-events.yaml" <<MANIFEST
 apiVersion: v1
 kind: Pod
 metadata:
@@ -32,7 +42,7 @@ spec:
   priorityClassName: system-node-critical
   containers:
     - name: etcd-events
-      image: registry.k8s.io/etcd:3.5.12-0
+      image: ${ETCD_IMAGE}
       command:
         - etcd
         - --data-dir=/var/lib/etcd-events
