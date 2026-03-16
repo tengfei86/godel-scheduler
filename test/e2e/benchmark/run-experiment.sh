@@ -138,6 +138,26 @@ fi
 log_step "Step 2/11: 清理上一轮测试环境"
 cleanup_bench "$BENCH_NAMESPACE"
 
+# ── etcd 压缩：防止 "database space exceeded" ──
+log_info "  压缩 etcd 历史版本..."
+ETCD_POD=$(kubectl get pods -n kube-system -l component=etcd -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+if [[ -n "$ETCD_POD" ]]; then
+  ETCD_EXEC="kubectl exec -n kube-system ${ETCD_POD} -- etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key"
+  CURRENT_REV=$(eval $ETCD_EXEC endpoint status --write-out=json 2>/dev/null \
+    | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['Status']['header']['revision'])" 2>/dev/null || true)
+  if [[ -n "$CURRENT_REV" ]]; then
+    eval $ETCD_EXEC compact "$CURRENT_REV" 2>/dev/null || true
+    eval $ETCD_EXEC defrag 2>/dev/null || true
+    DB_SIZE=$(eval $ETCD_EXEC endpoint status --write-out=json 2>/dev/null \
+      | python3 -c "import sys,json; s=json.load(sys.stdin)[0]['Status']; print(f\"DB={s['dbSize']//1048576}MB InUse={s['dbSizeInUse']//1048576}MB\")" 2>/dev/null || echo "unknown")
+    log_info "  ✓ etcd 压缩完成 (${DB_SIZE})"
+  else
+    log_warn "  跳过 etcd 压缩（无法获取 revision）"
+  fi
+else
+  log_warn "  跳过 etcd 压缩（未找到 etcd Pod）"
+fi
+
 # ═══════════════════════════════════════════════
 # Step 3: 等待系统冷却
 # ═══════════════════════════════════════════════
