@@ -1,906 +1,956 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"math"
 	"math/rand"
-	"regexp"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 )
 
-// ═══════════════════════════════════════════════════════
-// 1. YAML 渲染正确性测试
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+// 1. Pod 构造测试
+// ═══════════════════════════════════════════════════════════════════
 
-func TestRenderBasicPod_GodelScheduler(t *testing.T) {
-	var buf bytes.Buffer
-	renderBasicPod(&buf, 42, "bench", "godel-scheduler", 100, 128, "registry.k8s.io/pause:3.9")
-	yaml := buf.String()
+func TestBuildBasicPod_GodelScheduler(t *testing.T) {
+	flagScheduler = "godel-scheduler"
+	flagNamespace = "bench"
+	flagImage = "registry.k8s.io/pause:3.9"
+	flagCPU = 100
+	flagMem = 128
 
-	checks := []struct {
-		name    string
-		pattern string
+	pod := buildBasicPod(42)
+
+	if pod.Name != "bench-pod-42" {
+		t.Errorf("name = %q, want bench-pod-42", pod.Name)
+	}
+	if pod.Namespace != "bench" {
+		t.Errorf("namespace = %q, want bench", pod.Namespace)
+	}
+	if pod.Spec.SchedulerName != "godel-scheduler" {
+		t.Errorf("schedulerName = %q, want godel-scheduler", pod.Spec.SchedulerName)
+	}
+	if *pod.Spec.TerminationGracePeriodSeconds != 0 {
+		t.Errorf("terminationGracePeriodSeconds = %d, want 0", *pod.Spec.TerminationGracePeriodSeconds)
+	}
+
+	// 验证 Gödel 注解
+	expectedAnnotations := map[string]string{
+		"godel.bytedance.com/pod-state":         "pending",
+		"godel.bytedance.com/pod-resource-type": "guaranteed",
+		"godel.bytedance.com/pod-launcher":      "kubelet",
+	}
+	for k, want := range expectedAnnotations {
+		if got := pod.Annotations[k]; got != want {
+			t.Errorf("annotation[%s] = %q, want %q", k, got, want)
+		}
+	}
+
+	// 验证资源
+	container := pod.Spec.Containers[0]
+	if container.Name != "app" {
+		t.Errorf("container name = %q, want app", container.Name)
+	}
+	if container.Image != "registry.k8s.io/pause:3.9" {
+		t.Errorf("image = %q, want registry.k8s.io/pause:3.9", container.Image)
+	}
+	cpuReq := container.Resources.Requests.Cpu().String()
+	if cpuReq != "100m" {
+		t.Errorf("cpu request = %s, want 100m", cpuReq)
+	}
+	memReq := container.Resources.Requests.Memory().String()
+	if memReq != "128Mi" {
+		t.Errorf("mem request = %s, want 128Mi", memReq)
+	}
+}
+
+func TestBuildBasicPod_Volcano(t *testing.T) {
+	flagScheduler = "volcano"
+	flagNamespace = "bench"
+	flagImage = "registry.k8s.io/pause:3.9"
+	flagCPU = 200
+	flagMem = 256
+
+	pod := buildBasicPod(1)
+
+	if pod.Spec.SchedulerName != "volcano" {
+		t.Errorf("schedulerName = %q, want volcano", pod.Spec.SchedulerName)
+	}
+	if got := pod.Annotations["scheduling.volcano.sh/group-name"]; got != "bench-basic-pg" {
+		t.Errorf("volcano annotation = %q, want bench-basic-pg", got)
+	}
+
+	cpuReq := pod.Spec.Containers[0].Resources.Requests.Cpu().String()
+	if cpuReq != "200m" {
+		t.Errorf("cpu = %s, want 200m", cpuReq)
+	}
+}
+
+func TestBuildBasicPod_DefaultScheduler(t *testing.T) {
+	flagScheduler = "default-scheduler"
+	flagNamespace = "test-ns"
+	flagCPU = 50
+	flagMem = 64
+
+	pod := buildBasicPod(99)
+
+	if pod.Spec.SchedulerName != "default-scheduler" {
+		t.Errorf("schedulerName = %q, want default-scheduler", pod.Spec.SchedulerName)
+	}
+	// default-scheduler 不应有特殊注解
+	if len(pod.Annotations) != 0 {
+		t.Errorf("annotations should be empty for default-scheduler, got %v", pod.Annotations)
+	}
+}
+
+func TestBuildBasicPod_KoordScheduler(t *testing.T) {
+	flagScheduler = "koord-scheduler"
+	flagNamespace = "bench"
+	flagCPU = 100
+	flagMem = 128
+
+	pod := buildBasicPod(1)
+
+	if pod.Spec.SchedulerName != "koord-scheduler" {
+		t.Errorf("schedulerName = %q, want koord-scheduler", pod.Spec.SchedulerName)
+	}
+	// koord-scheduler basic 模式不应有特殊注解
+	if len(pod.Annotations) != 0 {
+		t.Errorf("annotations should be empty for koord-scheduler basic, got %v", pod.Annotations)
+	}
+}
+
+func TestBuildHeteroPod(t *testing.T) {
+	flagScheduler = "godel-scheduler"
+	flagNamespace = "bench"
+	flagImage = "registry.k8s.io/pause:3.9"
+	flagCPU = 100
+	flagMem = 128
+
+	pod := buildHeteroPod(7, 4000, 8192)
+
+	if pod.Name != "bench-pod-7" {
+		t.Errorf("name = %q, want bench-pod-7", pod.Name)
+	}
+	// 异构 Pod 应该使用传入的 CPU/MEM 而非全局 flagCPU/flagMem
+	cpuReq := pod.Spec.Containers[0].Resources.Requests.Cpu().String()
+	if cpuReq != "4" {
+		t.Errorf("cpu = %s, want 4 (4000m)", cpuReq)
+	}
+	memReq := pod.Spec.Containers[0].Resources.Requests.Memory().String()
+	if memReq != "8Gi" {
+		t.Errorf("mem = %s, want 8Gi (8192Mi)", memReq)
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 2. Gang Pod 构造测试
+// ═══════════════════════════════════════════════════════════════════
+
+func TestBuildGangPod_Godel(t *testing.T) {
+	flagScheduler = "godel-scheduler"
+	flagNamespace = "bench"
+	flagImage = "registry.k8s.io/pause:3.9"
+	flagCPU = 100
+	flagMem = 128
+
+	pod := buildGangPod(3, 2)
+
+	if pod.Name != "bench-gang-3-2" {
+		t.Errorf("name = %q, want bench-gang-3-2", pod.Name)
+	}
+	if got := pod.Annotations["scheduling.godel.bytedance.com/pod-group-name"]; got != "bench-gang-3" {
+		t.Errorf("pod-group-name = %q, want bench-gang-3", got)
+	}
+	if got := pod.Annotations["godel.bytedance.com/pod-state"]; got != "pending" {
+		t.Errorf("pod-state = %q, want pending", got)
+	}
+}
+
+func TestBuildGangPod_Volcano(t *testing.T) {
+	flagScheduler = "volcano"
+	flagNamespace = "bench"
+	flagImage = "registry.k8s.io/pause:3.9"
+	flagCPU = 100
+	flagMem = 128
+
+	pod := buildGangPod(5, 1)
+
+	if pod.Name != "bench-gang-5-1" {
+		t.Errorf("name = %q, want bench-gang-5-1", pod.Name)
+	}
+	if got := pod.Annotations["scheduling.volcano.sh/group-name"]; got != "bench-gang-5" {
+		t.Errorf("group-name = %q, want bench-gang-5", got)
+	}
+}
+
+func TestBuildGangPod_Koord(t *testing.T) {
+	flagScheduler = "koord-scheduler"
+	flagNamespace = "bench"
+	flagImage = "registry.k8s.io/pause:3.9"
+	flagCPU = 100
+	flagMem = 128
+
+	pod := buildGangPod(10, 3)
+
+	if pod.Name != "bench-gang-10-3" {
+		t.Errorf("name = %q, want bench-gang-10-3", pod.Name)
+	}
+	if got := pod.Labels["pod-group.scheduling.sigs.k8s.io"]; got != "bench-gang-10" {
+		t.Errorf("label = %q, want bench-gang-10", got)
+	}
+	// Koord 不应有 annotations
+	if len(pod.Annotations) != 0 {
+		t.Errorf("koord gang pod should not have annotations, got %v", pod.Annotations)
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 3. makeResources 测试
+// ═══════════════════════════════════════════════════════════════════
+
+func TestMakeResources(t *testing.T) {
+	tests := []struct {
+		cpu, mem int
+		wantCPU  string
+		wantMem  string
 	}{
-		{"doc separator", `(?m)^---$`},
-		{"apiVersion", `apiVersion: v1`},
-		{"kind", `kind: Pod`},
-		{"name", `name: bench-pod-42`},
-		{"namespace", `namespace: bench`},
-		{"godel pod-state", `godel.bytedance.com/pod-state: pending`},
-		{"godel resource-type", `godel.bytedance.com/pod-resource-type: guaranteed`},
-		{"godel launcher", `godel.bytedance.com/pod-launcher: kubelet`},
-		{"schedulerName", `schedulerName: godel-scheduler`},
-		{"terminationGrace", `terminationGracePeriodSeconds: 0`},
-		{"image", `image: registry.k8s.io/pause:3.9`},
-		{"cpu request", `cpu: "100m"`},
-		{"mem request", `memory: "128Mi"`},
+		{100, 128, "100m", "128Mi"},
+		{1000, 1024, "1", "1Gi"},
+		{50, 64, "50m", "64Mi"},
+		{4000, 8192, "4", "8Gi"},
 	}
-
-	for _, c := range checks {
-		t.Run(c.name, func(t *testing.T) {
-			if !regexp.MustCompile(c.pattern).MatchString(yaml) {
-				t.Errorf("pattern %q not found in YAML:\n%s", c.pattern, yaml)
-			}
-		})
-	}
-}
-
-func TestRenderVolcanoPod(t *testing.T) {
-	var buf bytes.Buffer
-	renderVolcanoPod(&buf, 7, "bench", "volcano", 200, 256, "pause:3.9")
-	yaml := buf.String()
-
-	checks := []struct {
-		name    string
-		pattern string
-	}{
-		{"doc separator", `(?m)^---$`},
-		{"name", `name: bench-pod-7`},
-		{"volcano annotation", `scheduling.volcano.sh/group-name: bench-basic-pg`},
-		{"schedulerName", `schedulerName: volcano`},
-		{"cpu", `cpu: "200m"`},
-		{"mem", `memory: "256Mi"`},
-	}
-
-	for _, c := range checks {
-		t.Run(c.name, func(t *testing.T) {
-			if !regexp.MustCompile(c.pattern).MatchString(yaml) {
-				t.Errorf("pattern %q not found in YAML:\n%s", c.pattern, yaml)
-			}
-		})
-	}
-
-	// 不应包含 godel 注解
-	if strings.Contains(yaml, "godel.bytedance.com") {
-		t.Error("Volcano pod should not contain godel annotations")
-	}
-}
-
-func TestRenderBasicPod_MultipleDocsHaveSeparators(t *testing.T) {
-	var buf bytes.Buffer
-	for i := 1; i <= 5; i++ {
-		renderBasicPod(&buf, i, "test-ns", "default-scheduler", 50, 64, "pause:3.9")
-	}
-
-	yaml := buf.String()
-	docs := strings.Split(yaml, "---\n")
-
-	// 第一个 split 结果是 "---" 之前的空字符串
-	// 每个 renderBasicPod 自带 --- 前缀，所以 5 个 Pod 产生 5 个 ---
-	nonEmpty := 0
-	for _, d := range docs {
-		if strings.TrimSpace(d) != "" {
-			nonEmpty++
+	for _, tt := range tests {
+		res := makeResources(tt.cpu, tt.mem)
+		gotCPU := res.Requests.Cpu().String()
+		gotMem := res.Requests.Memory().String()
+		if gotCPU != tt.wantCPU {
+			t.Errorf("makeResources(%d, _).cpu = %s, want %s", tt.cpu, gotCPU, tt.wantCPU)
 		}
-	}
-	if nonEmpty != 5 {
-		t.Errorf("expected 5 YAML documents, got %d. Full output:\n%s", nonEmpty, yaml)
-	}
-
-	// 验证 Pod 名称连续
-	for i := 1; i <= 5; i++ {
-		name := fmt.Sprintf("name: bench-pod-%d", i)
-		if !strings.Contains(yaml, name) {
-			t.Errorf("missing pod name: %s", name)
+		if gotMem != tt.wantMem {
+			t.Errorf("makeResources(_, %d).mem = %s, want %s", tt.mem, gotMem, tt.wantMem)
+		}
+		// Limits 应等于 Requests
+		limCPU := res.Limits.Cpu().String()
+		limMem := res.Limits.Memory().String()
+		if limCPU != gotCPU {
+			t.Errorf("limits.cpu = %s != requests.cpu = %s", limCPU, gotCPU)
+		}
+		if limMem != gotMem {
+			t.Errorf("limits.mem = %s != requests.mem = %s", limMem, gotMem)
 		}
 	}
 }
 
-// ═══════════════════════════════════════════════════════
-// 2. Gang YAML 渲染测试
-// ═══════════════════════════════════════════════════════
-
-func TestRenderGangGroup_Godel(t *testing.T) {
-	origScheduler := scheduler
-	scheduler = "godel-scheduler"
-	defer func() { scheduler = origScheduler }()
-
-	var buf bytes.Buffer
-	renderGangGroup(&buf, 3, 5, "bench", "godel-scheduler", 100, 128, "pause:3.9")
-	yaml := buf.String()
-
-	// 应有 1 个 PodGroup + 5 个 Pod = 6 个 YAML 文档
-	separators := strings.Count(yaml, "---\n")
-	// PodGroup 以 ---\n 开头, 每个 Pod 以 ---\n 开头 = 6 个
-	if separators < 6 {
-		t.Errorf("expected >= 6 document separators, got %d", separators)
-	}
-
-	// PodGroup 验证
-	if !strings.Contains(yaml, "kind: PodGroup") {
-		t.Error("missing PodGroup")
-	}
-	if !strings.Contains(yaml, "name: bench-gang-3") {
-		t.Error("wrong PodGroup name")
-	}
-	if !strings.Contains(yaml, "minMember: 5") {
-		t.Error("wrong minMember")
-	}
-	if !strings.Contains(yaml, "scheduling.godel.kubewharf.io/v1alpha1") {
-		t.Error("wrong PodGroup apiVersion for godel")
-	}
-
-	// 5 个 member Pod
-	for m := 1; m <= 5; m++ {
-		name := fmt.Sprintf("name: bench-gang-3-%d", m)
-		if !strings.Contains(yaml, name) {
-			t.Errorf("missing gang member: %s", name)
-		}
-	}
-
-	// godel 特有注解
-	if !strings.Contains(yaml, "scheduling.godel.bytedance.com/pod-group-name: bench-gang-3") {
-		t.Error("missing godel pod-group-name annotation")
-	}
-}
-
-func TestRenderGangGroup_Volcano(t *testing.T) {
-	origScheduler := scheduler
-	scheduler = "volcano"
-	defer func() { scheduler = origScheduler }()
-
-	var buf bytes.Buffer
-	renderGangGroup(&buf, 1, 3, "bench", "volcano", 100, 128, "pause:3.9")
-	yaml := buf.String()
-
-	if !strings.Contains(yaml, "scheduling.volcano.sh/v1beta1") {
-		t.Error("wrong PodGroup apiVersion for volcano")
-	}
-	if !strings.Contains(yaml, "scheduling.volcano.sh/group-name: bench-gang-1") {
-		t.Error("missing volcano group-name annotation on member pod")
-	}
-	for m := 1; m <= 3; m++ {
-		name := fmt.Sprintf("name: bench-gang-1-%d", m)
-		if !strings.Contains(yaml, name) {
-			t.Errorf("missing volcano gang member: %s", name)
-		}
-	}
-}
-
-func TestRenderGangGroup_Koordinator(t *testing.T) {
-	origScheduler := scheduler
-	scheduler = "koord-scheduler"
-	defer func() { scheduler = origScheduler }()
-
-	var buf bytes.Buffer
-	renderGangGroup(&buf, 2, 4, "bench", "koord-scheduler", 200, 256, "pause:3.9")
-	yaml := buf.String()
-
-	if !strings.Contains(yaml, "scheduling.sigs.k8s.io/v1alpha1") {
-		t.Error("wrong PodGroup apiVersion for koordinator")
-	}
-	if !strings.Contains(yaml, "scheduleTimeoutSeconds: 300") {
-		t.Error("missing scheduleTimeoutSeconds for koordinator")
-	}
-	if !strings.Contains(yaml, "pod-group.scheduling.sigs.k8s.io: bench-gang-2") {
-		t.Error("missing koordinator pod-group label on member pod")
-	}
-}
-
-// ═══════════════════════════════════════════════════════
-// 3. 令牌桶速率控制器测试
-// ═══════════════════════════════════════════════════════
-
-func TestRateLimiter_BasicAccuracy(t *testing.T) {
-	// 测试速率: 1000 tokens/s，持续 2 秒，应得到约 2000 个 token
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	rl := newRateLimiter(1000)
-	totalGot := 0
-
-	for {
-		got, err := rl.waitForSlot(ctx, 100)
-		if err != nil {
-			break
-		}
-		totalGot += got
-	}
-
-	// 允许 ±15% 误差（考虑 goroutine 调度延迟）
-	expectedMin := 1700
-	expectedMax := 2300
-	if totalGot < expectedMin || totalGot > expectedMax {
-		t.Errorf("rate 1000/s for 2s: expected %d~%d tokens, got %d", expectedMin, expectedMax, totalGot)
-	}
-}
-
-func TestRateLimiter_LowRate(t *testing.T) {
-	// 低速率: 10 tokens/s，持续 1 秒
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	rl := newRateLimiter(10)
-	totalGot := 0
-
-	for {
-		got, err := rl.waitForSlot(ctx, 5)
-		if err != nil {
-			break
-		}
-		totalGot += got
-	}
-
-	// 10/s × 1s = 10, 允许 ±30%（短时间窗口误差较大）
-	if totalGot < 7 || totalGot > 14 {
-		t.Errorf("rate 10/s for 1s: expected 7~14 tokens, got %d", totalGot)
-	}
-}
-
-func TestRateLimiter_HighRate(t *testing.T) {
-	// 高速率: 5000 tokens/s，持续 1 秒
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	rl := newRateLimiter(5000)
-	totalGot := 0
-
-	for {
-		got, err := rl.waitForSlot(ctx, 500)
-		if err != nil {
-			break
-		}
-		totalGot += got
-	}
-
-	// 5000/s × 1s = 5000, 允许 ±10%
-	if totalGot < 4500 || totalGot > 5500 {
-		t.Errorf("rate 5000/s for 1s: expected 4500~5500 tokens, got %d", totalGot)
-	}
-}
-
-func TestRateLimiter_ChangeRate(t *testing.T) {
-	// 先 500/s 持续 1 秒，再切到 1000/s 持续 1 秒
-	ctx, cancel := context.WithTimeout(context.Background(), 2100*time.Millisecond)
-	defer cancel()
-
-	rl := newRateLimiter(500)
-	totalGot := 0
-	phase1End := time.Now().Add(1 * time.Second)
-
-	// Phase 1: 500/s
-	for time.Now().Before(phase1End) {
-		got, err := rl.waitForSlot(ctx, 50)
-		if err != nil {
-			break
-		}
-		totalGot += got
-	}
-	phase1Got := totalGot
-
-	// Phase 2: 1000/s
-	rl.changeRate(1000)
-	for {
-		got, err := rl.waitForSlot(ctx, 100)
-		if err != nil {
-			break
-		}
-		totalGot += got
-	}
-	phase2Got := totalGot - phase1Got
-
-	// Phase 1 应该约 500，Phase 2 约 1000（+追赶）
-	if phase1Got < 350 || phase1Got > 700 {
-		t.Errorf("phase1 (500/s × 1s): expected 350~700, got %d", phase1Got)
-	}
-	// phase2 可能更多（因为追赶机制）
-	if phase2Got < 700 {
-		t.Errorf("phase2 (1000/s × 1s): expected >= 700, got %d", phase2Got)
-	}
-}
-
-func TestRateLimiter_CancelContext(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	rl := newRateLimiter(100)
-
-	// 先消耗所有初始 budget
-	rl.waitForSlot(ctx, 1)
-
-	// 立刻取消
-	cancel()
-	_, err := rl.waitForSlot(ctx, 10)
-	if err == nil {
-		t.Error("expected error from cancelled context, got nil")
-	}
-}
-
-// 测速率稳定性：在 3 秒内采样每秒实际获得的 token 数，
-// 检查标准差 / 均值 (CV) < 阈值
-func TestRateLimiter_Stability(t *testing.T) {
-	targetRate := 2000
-	duration := 3 * time.Second
-	ctx, cancel := context.WithTimeout(context.Background(), duration)
-	defer cancel()
-
-	rl := newRateLimiter(targetRate)
-
-	// 每 100ms 采样一次
-	type sample struct {
-		ts    time.Time
-		count int
-	}
-	samples := make([]sample, 0, 100)
-	windowStart := time.Now()
-	windowCount := 0
-
-	for {
-		got, err := rl.waitForSlot(ctx, 200)
-		if err != nil {
-			break
-		}
-		windowCount += got
-		now := time.Now()
-		if now.Sub(windowStart) >= 500*time.Millisecond {
-			samples = append(samples, sample{ts: now, count: windowCount})
-			windowStart = now
-			windowCount = 0
-		}
-	}
-
-	if len(samples) < 4 {
-		t.Fatalf("not enough samples: %d", len(samples))
-	}
-
-	// 计算每 500ms 窗口的速率 (pods/s)
-	rates := make([]float64, len(samples))
-	for i, s := range samples {
-		rates[i] = float64(s.count) * 2.0 // 500ms window → 乘2 得到 /s
-	}
-
-	mean, stddev := meanStddev(rates)
-	cv := stddev / mean
-
-	t.Logf("rate samples: %v", rates)
-	t.Logf("mean=%.0f stddev=%.0f CV=%.3f", mean, stddev, cv)
-
-	// CV < 0.30（30%）对于纯 CPU 令牌桶来说应该很宽松
-	if cv > 0.30 {
-		t.Errorf("rate stability too low: CV=%.3f > 0.30 (mean=%.0f, stddev=%.0f)", cv, mean, stddev)
-	}
-}
-
-func meanStddev(data []float64) (float64, float64) {
-	n := float64(len(data))
-	sum := 0.0
-	for _, v := range data {
-		sum += v
-	}
-	mean := sum / n
-
-	variance := 0.0
-	for _, v := range data {
-		d := v - mean
-		variance += d * d
-	}
-	variance /= n
-	return mean, math.Sqrt(variance)
-}
-
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
 // 4. 异构资源分布测试
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
 
 func TestRandomHeteroSpec_Distribution(t *testing.T) {
 	rng := rand.New(rand.NewSource(12345))
+	counts := make(map[int]int)
 	n := 100000
 
-	counts := map[int]int{} // cpu → count
 	for i := 0; i < n; i++ {
 		spec := randomHeteroSpec(rng)
 		counts[spec.cpu]++
 	}
 
-	// 期望比例: 30% 小(50), 40% 中(200), 20% 大(1000), 10% 超大(4000)
-	expectations := []struct {
-		cpu      int
-		expected float64
-		label    string
-	}{
-		{50, 0.30, "小(50m)"},
-		{200, 0.40, "中(200m)"},
-		{1000, 0.20, "大(1000m)"},
-		{4000, 0.10, "超大(4000m)"},
+	expected := map[int]float64{
+		50:   0.30,
+		200:  0.40,
+		1000: 0.20,
+		4000: 0.10,
 	}
 
-	for _, e := range expectations {
-		actual := float64(counts[e.cpu]) / float64(n)
-		deviation := math.Abs(actual - e.expected)
-		t.Logf("%s: expected %.2f, actual %.4f, deviation %.4f", e.label, e.expected, actual, deviation)
-		// 允许 2% 绝对误差
-		if deviation > 0.02 {
-			t.Errorf("%s: deviation %.4f > 0.02 (expected %.2f, got %.4f)", e.label, deviation, e.expected, actual)
+	for cpu, wantPct := range expected {
+		gotPct := float64(counts[cpu]) / float64(n)
+		diff := math.Abs(gotPct - wantPct)
+		if diff > 0.01 { // 1% 容差
+			t.Errorf("cpu=%d: got %.3f, want %.3f (diff %.3f > 0.01)", cpu, gotPct, wantPct, diff)
 		}
 	}
 }
 
-func TestRandomHeteroSpec_MemConsistency(t *testing.T) {
+func TestRandomHeteroSpec_AllSpecs(t *testing.T) {
 	rng := rand.New(rand.NewSource(99))
-	// 验证 cpu/mem 配对一致
-	expected := map[int]int{50: 64, 200: 256, 1000: 1024, 4000: 8192}
+	seen := make(map[int]bool)
 
 	for i := 0; i < 1000; i++ {
 		spec := randomHeteroSpec(rng)
-		if exp, ok := expected[spec.cpu]; ok {
-			if spec.mem != exp {
-				t.Fatalf("cpu=%d should pair with mem=%d, got mem=%d", spec.cpu, exp, spec.mem)
+		seen[spec.cpu] = true
+	}
+
+	for _, hs := range heteroSpecs {
+		if !seen[hs.spec.cpu] {
+			t.Errorf("cpu=%d 从未出现", hs.spec.cpu)
+		}
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 5. parseStages 测试
+// ═══════════════════════════════════════════════════════════════════
+
+func TestParseStages(t *testing.T) {
+	tests := []struct {
+		input string
+		want  []int
+	}{
+		{"200,500,1000", []int{200, 500, 1000}},
+		{"100", []int{100}},
+		{"  200 , 500 , 1000 ", []int{200, 500, 1000}},
+		{"200,0,500", []int{200, 500}},                           // 0 被过滤
+		{"", []int{200, 500, 1000, 2000, 1000, 500, 200}},        // 默认值
+		{"abc,xyz", []int{200, 500, 1000, 2000, 1000, 500, 200}}, // 非法输入走默认
+	}
+
+	for _, tt := range tests {
+		got := parseStages(tt.input)
+		if len(got) != len(tt.want) {
+			t.Errorf("parseStages(%q) len = %d, want %d", tt.input, len(got), len(tt.want))
+			continue
+		}
+		for i, v := range got {
+			if v != tt.want[i] {
+				t.Errorf("parseStages(%q)[%d] = %d, want %d", tt.input, i, v, tt.want[i])
 			}
-		} else {
-			t.Fatalf("unexpected cpu value: %d", spec.cpu)
 		}
 	}
 }
 
-// ═══════════════════════════════════════════════════════
-// 5. parseStages 工具函数测试
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+// 6. 速率控制器测试
+// ═══════════════════════════════════════════════════════════════════
 
-func TestParseStages_Normal(t *testing.T) {
-	stages := parseStages("200,500,1000,2000,1000,500,200")
-	expected := []int{200, 500, 1000, 2000, 1000, 500, 200}
-
-	if len(stages) != len(expected) {
-		t.Fatalf("expected %d stages, got %d", len(expected), len(stages))
-	}
-	for i, v := range stages {
-		if v != expected[i] {
-			t.Errorf("stage[%d]: expected %d, got %d", i, expected[i], v)
-		}
-	}
-}
-
-func TestParseStages_WithSpaces(t *testing.T) {
-	stages := parseStages(" 100 , 200 , 300 ")
-	if len(stages) != 3 || stages[0] != 100 || stages[1] != 200 || stages[2] != 300 {
-		t.Errorf("expected [100,200,300], got %v", stages)
-	}
-}
-
-func TestParseStages_Empty(t *testing.T) {
-	stages := parseStages("")
-	if len(stages) == 0 {
-		t.Error("empty input should return default stages")
-	}
-	// 应返回默认值
-	if stages[0] != 200 {
-		t.Errorf("default stages[0] should be 200, got %d", stages[0])
-	}
-}
-
-func TestParseStages_InvalidValues(t *testing.T) {
-	stages := parseStages("abc,0,-5,100")
-	// 仅 100 是有效的 (>0)
-	if len(stages) != 1 || stages[0] != 100 {
-		t.Errorf("expected [100], got %v", stages)
-	}
-}
-
-func TestParseStages_SingleValue(t *testing.T) {
-	stages := parseStages("500")
-	if len(stages) != 1 || stages[0] != 500 {
-		t.Errorf("expected [500], got %v", stages)
-	}
-}
-
-// ═══════════════════════════════════════════════════════
-// 6. 端到端 Pipeline 测试（dry-run 模式）
-// ═══════════════════════════════════════════════════════
-
-// mockApplyWorker 模拟 apply，仅统计收到的 batch 数量和 Pod 数
-func mockApplyWorker(ch <-chan yamlBatch, submitted *atomic.Int64, wg *sync.WaitGroup) {
-	defer wg.Done()
-	for batch := range ch {
-		submitted.Add(int64(batch.size))
-	}
-}
-
-func TestPipeline_BasicCompleteness(t *testing.T) {
-	// 模拟 basic 模式: 500/s, 100 pods total, batch=50
-	ch := make(chan yamlBatch, 16)
-	var submitted atomic.Int64
-	var wg sync.WaitGroup
-
-	// 启动 mock workers
-	for i := 0; i < 4; i++ {
-		wg.Add(1)
-		go mockApplyWorker(ch, &submitted, &wg)
-	}
-
+func TestRateLimiter_BasicRate(t *testing.T) {
 	ctx := context.Background()
-	render := renderBasicPod
-	rl := newRateLimiter(5000) // 使用高速率使测试快速完成
-	remaining := 100
-	totalPods := 100
-	batchSize := 50
+	rl := newRateLimiter(1000) // 1000/s
 
-	for remaining > 0 {
-		want := batchSize
-		if want > remaining {
-			want = remaining
-		}
-		got, err := rl.waitForSlot(ctx, want)
-		if err != nil {
+	start := time.Now()
+	count := 0
+	for i := 0; i < 500; i++ {
+		if err := rl.waitForSlot(ctx); err != nil {
 			t.Fatal(err)
 		}
+		count++
+	}
+	elapsed := time.Since(start)
 
-		var buf bytes.Buffer
-		for i := 0; i < got; i++ {
-			podIdx := totalPods - remaining + i + 1
-			render(&buf, podIdx, "bench", "godel-scheduler", 100, 128, "pause:3.9")
-		}
-		remaining -= got
-		ch <- yamlBatch{data: buf.Bytes(), size: got}
+	// 500 tokens @ 1000/s ≈ 0.5s (允许 0.3-0.8s 的波动)
+	if elapsed < 300*time.Millisecond {
+		t.Errorf("太快: %v (500 tokens @ 1000/s 应需 ~500ms)", elapsed)
+	}
+	if elapsed > 800*time.Millisecond {
+		t.Errorf("太慢: %v (500 tokens @ 1000/s 应需 ~500ms)", elapsed)
+	}
+	if count != 500 {
+		t.Errorf("count = %d, want 500", count)
+	}
+}
+
+func TestRateLimiter_ContextCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	rl := newRateLimiter(1) // 极慢速率
+
+	// 消耗初始 token
+	_ = rl.waitForSlot(ctx)
+
+	// 取消 context 后应立即返回
+	cancel()
+	err := rl.waitForSlot(ctx)
+	if err == nil {
+		t.Error("expected error after context cancel")
+	}
+}
+
+func TestRateLimiter_ChangeRate(t *testing.T) {
+	ctx := context.Background()
+	rl := newRateLimiter(100) // 初始 100/s
+
+	// 消耗一些 token
+	for i := 0; i < 10; i++ {
+		_ = rl.waitForSlot(ctx)
 	}
 
+	// 提高到 10000/s
+	rl.changeRate(10000)
+
+	start := time.Now()
+	for i := 0; i < 100; i++ {
+		if err := rl.waitForSlot(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	elapsed := time.Since(start)
+
+	// 100 tokens @ 10000/s 应该非常快 (< 100ms)
+	if elapsed > 200*time.Millisecond {
+		t.Errorf("changeRate 后太慢: %v", elapsed)
+	}
+}
+
+func TestRateLimiter_Concurrent(t *testing.T) {
+	ctx := context.Background()
+	rl := newRateLimiter(2000)
+
+	var total atomic.Int64
+	var wg sync.WaitGroup
+
+	// 用 10 个 goroutine 并发请求
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 100; j++ {
+				if err := rl.waitForSlot(ctx); err != nil {
+					return
+				}
+				total.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+
+	if got := total.Load(); got != 1000 {
+		t.Errorf("concurrent total = %d, want 1000", got)
+	}
+}
+
+func TestRateLimiter_Accuracy(t *testing.T) {
+	// 测试在 1 秒内速率是否准确
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	targetRate := 500
+	rl := newRateLimiter(targetRate)
+
+	count := 0
+	for {
+		if err := rl.waitForSlot(ctx); err != nil {
+			break
+		}
+		count++
+	}
+
+	// 允许 ±15% 误差 (425-575)
+	lo := int(float64(targetRate) * 0.85)
+	hi := int(float64(targetRate) * 1.15)
+	if count < lo || count > hi {
+		t.Errorf("1s 内获取 %d tokens, 目标 %d (允许 %d-%d)", count, targetRate, lo, hi)
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 7. Worker 池 + fake client 测试
+// ═══════════════════════════════════════════════════════════════════
+
+func TestCreateWorker_DryRun(t *testing.T) {
+	origDryRun := flagDryRun
+	defer func() { flagDryRun = origDryRun }()
+	flagDryRun = true
+
+	ctx := context.Background()
+	ch := make(chan podTask, 10)
+	var submitted, errors atomic.Int64
+	var wg sync.WaitGroup
+
+	client := fake.NewSimpleClientset()
+	wg.Add(1)
+	go createWorker(ctx, client, ch, &submitted, &errors, &wg)
+
+	for i := 0; i < 10; i++ {
+		ch <- podTask{pod: &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("pod-%d", i), Namespace: "bench"},
+		}}
+	}
 	close(ch)
 	wg.Wait()
 
-	if submitted.Load() != int64(totalPods) {
-		t.Errorf("expected %d submitted pods, got %d", totalPods, submitted.Load())
+	if got := submitted.Load(); got != 10 {
+		t.Errorf("dry-run submitted = %d, want 10", got)
+	}
+	if got := errors.Load(); got != 0 {
+		t.Errorf("dry-run errors = %d, want 0", got)
 	}
 }
 
-func TestPipeline_GangCompleteness(t *testing.T) {
-	origScheduler := scheduler
-	scheduler = "godel-scheduler"
-	defer func() { scheduler = origScheduler }()
-
-	ch := make(chan yamlBatch, 16)
-	var submitted atomic.Int64
-	var wg sync.WaitGroup
-
-	for i := 0; i < 4; i++ {
-		wg.Add(1)
-		go mockApplyWorker(ch, &submitted, &wg)
-	}
+func TestCreateWorker_FakeClient(t *testing.T) {
+	origDryRun := flagDryRun
+	defer func() { flagDryRun = origDryRun }()
+	flagDryRun = false
 
 	ctx := context.Background()
-	rl := newRateLimiter(10000)
+	client := fake.NewSimpleClientset()
 
-	totalPods := 50
-	gSize := 5
-	totalGroups := totalPods / gSize
-	groupBatch := 2
-	remaining := totalGroups
+	ch := make(chan podTask, 20)
+	var submitted, errors atomic.Int64
+	var wg sync.WaitGroup
 
-	for remaining > 0 {
-		want := groupBatch
-		if want > remaining {
-			want = remaining
-		}
-		got, err := rl.waitForSlot(ctx, want)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		var buf bytes.Buffer
-		for g := 0; g < got; g++ {
-			groupIdx := totalGroups - remaining + g + 1
-			renderGangGroup(&buf, groupIdx, gSize, "bench", "godel-scheduler", 100, 128, "pause:3.9")
-		}
-		remaining -= got
-		ch <- yamlBatch{data: buf.Bytes(), size: got * gSize}
+	// 启动 2 个 workers
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go createWorker(ctx, client, ch, &submitted, &errors, &wg)
 	}
 
+	flagNamespace = "test-ns"
+	flagScheduler = "godel-scheduler"
+	flagImage = "pause:latest"
+	flagCPU = 100
+	flagMem = 128
+
+	for i := 0; i < 20; i++ {
+		ch <- podTask{pod: buildBasicPod(i + 1)}
+	}
 	close(ch)
 	wg.Wait()
 
-	if submitted.Load() != int64(totalPods) {
-		t.Errorf("expected %d submitted pods, got %d", totalPods, submitted.Load())
+	if got := submitted.Load(); got != 20 {
+		t.Errorf("submitted = %d, want 20", got)
+	}
+	if got := errors.Load(); got != 0 {
+		t.Errorf("errors = %d, want 0", got)
+	}
+
+	// 验证 fake client 实际创建了 Pod
+	pods, err := client.CoreV1().Pods("test-ns").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pods.Items) != 20 {
+		t.Errorf("created pods = %d, want 20", len(pods.Items))
 	}
 }
 
-// ═══════════════════════════════════════════════════════
-// 7. YAML 格式完整性测试
-// ═══════════════════════════════════════════════════════
+func TestCreateWorker_WithErrors(t *testing.T) {
+	origDryRun := flagDryRun
+	defer func() { flagDryRun = origDryRun }()
+	flagDryRun = false
 
-func TestYAML_ValidMultiDoc(t *testing.T) {
-	// 生成 100 个 Pod 的 YAML，验证每个文档结构完整
-	var buf bytes.Buffer
-	for i := 1; i <= 100; i++ {
-		renderBasicPod(&buf, i, "bench", "godel-scheduler", 100, 128, "pause:3.9")
+	ctx := context.Background()
+	client := fake.NewSimpleClientset()
+
+	// 让前 5 次创建全部失败（包括重试）
+	callCount := atomic.Int64{}
+	client.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		n := callCount.Add(1)
+		// 前 10 次调用失败 (5 个 pod × 2 次重试 = 10 次调用)
+		if n <= 10 {
+			return true, nil, fmt.Errorf("simulated API error")
+		}
+		return false, nil, nil // 交给默认 handler
+	})
+
+	ch := make(chan podTask, 20)
+	var submitted, errors atomic.Int64
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go createWorker(ctx, client, ch, &submitted, &errors, &wg)
+
+	flagNamespace = "err-ns"
+	flagScheduler = "default-scheduler"
+	flagImage = "pause:latest"
+	flagCPU = 100
+	flagMem = 128
+
+	for i := 0; i < 10; i++ {
+		ch <- podTask{pod: buildBasicPod(i + 1)}
+	}
+	close(ch)
+	wg.Wait()
+
+	if got := errors.Load(); got != 5 {
+		t.Errorf("errors = %d, want 5", got)
+	}
+	if got := submitted.Load(); got != 5 {
+		t.Errorf("submitted = %d, want 5", got)
+	}
+}
+
+func TestCreateWorker_ContextCancel(t *testing.T) {
+	origDryRun := flagDryRun
+	defer func() { flagDryRun = origDryRun }()
+	flagDryRun = false
+
+	ctx, cancel := context.WithCancel(context.Background())
+	client := fake.NewSimpleClientset()
+
+	ch := make(chan podTask, 100)
+	var submitted, errors atomic.Int64
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go createWorker(ctx, client, ch, &submitted, &errors, &wg)
+
+	flagNamespace = "cancel-ns"
+	flagScheduler = "default-scheduler"
+	flagImage = "pause:latest"
+	flagCPU = 100
+	flagMem = 128
+
+	// 发送几个然后取消
+	for i := 0; i < 5; i++ {
+		ch <- podTask{pod: buildBasicPod(i + 1)}
+	}
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	close(ch)
+	wg.Wait()
+
+	// Worker 应该在 cancel 后停止
+	// 不检查精确数量，只要不 panic 不死锁即可
+	t.Logf("submitted=%d, errors=%d after cancel", submitted.Load(), errors.Load())
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 8. 端到端 Pipeline 测试 (runBasic with fake client)
+// ═══════════════════════════════════════════════════════════════════
+
+func TestRunBasic_FakeClient(t *testing.T) {
+	origRate := flagRate
+	origTotal := flagTotal
+	origWorkers := flagWorkers
+	origScheduler := flagScheduler
+	origNamespace := flagNamespace
+	origImage := flagImage
+	origCPU := flagCPU
+	origMem := flagMem
+	origDryRun := flagDryRun
+	defer func() {
+		flagRate = origRate
+		flagTotal = origTotal
+		flagWorkers = origWorkers
+		flagScheduler = origScheduler
+		flagNamespace = origNamespace
+		flagImage = origImage
+		flagCPU = origCPU
+		flagMem = origMem
+		flagDryRun = origDryRun
+	}()
+
+	flagRate = 10000 // 尽可能快
+	flagTotal = 100
+	flagWorkers = 4
+	flagScheduler = "godel-scheduler"
+	flagNamespace = "pipeline-ns"
+	flagImage = "pause:latest"
+	flagCPU = 100
+	flagMem = 128
+	flagDryRun = false
+
+	client := fake.NewSimpleClientset()
+	ctx := context.Background()
+
+	runBasic(ctx, client)
+
+	pods, err := client.CoreV1().Pods("pipeline-ns").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pods.Items) != 100 {
+		t.Errorf("created pods = %d, want 100", len(pods.Items))
+	}
+}
+
+func TestRunGang_FakeClient(t *testing.T) {
+	origRate := flagRate
+	origTotal := flagTotal
+	origWorkers := flagWorkers
+	origScheduler := flagScheduler
+	origNamespace := flagNamespace
+	origImage := flagImage
+	origCPU := flagCPU
+	origMem := flagMem
+	origGangSize := flagGangSize
+	origDryRun := flagDryRun
+	defer func() {
+		flagRate = origRate
+		flagTotal = origTotal
+		flagWorkers = origWorkers
+		flagScheduler = origScheduler
+		flagNamespace = origNamespace
+		flagImage = origImage
+		flagCPU = origCPU
+		flagMem = origMem
+		flagGangSize = origGangSize
+		flagDryRun = origDryRun
+	}()
+
+	flagRate = 10000
+	flagTotal = 50 // 50 pods = 10 groups × 5
+	flagWorkers = 4
+	flagScheduler = "godel-scheduler"
+	flagNamespace = "gang-ns"
+	flagImage = "pause:latest"
+	flagCPU = 100
+	flagMem = 128
+	flagGangSize = 5
+	flagDryRun = false
+
+	client := fake.NewSimpleClientset()
+	ctx := context.Background()
+
+	runGang(ctx, client)
+
+	pods, err := client.CoreV1().Pods("gang-ns").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pods.Items) != 50 {
+		t.Errorf("gang pods = %d, want 50", len(pods.Items))
 	}
 
-	yaml := buf.String()
-
-	// 每个文档都应以 "---" 开头并包含完整的 Pod 定义
-	docs := splitYAMLDocs(yaml)
-	if len(docs) != 100 {
-		t.Fatalf("expected 100 documents, got %d", len(docs))
+	// 验证有 10 个不同的 group
+	groups := make(map[string]int)
+	for _, p := range pods.Items {
+		pgName := p.Annotations["scheduling.godel.bytedance.com/pod-group-name"]
+		groups[pgName]++
 	}
-
-	for i, doc := range docs {
-		if !strings.Contains(doc, "apiVersion: v1") {
-			t.Errorf("doc %d missing apiVersion", i+1)
-		}
-		if !strings.Contains(doc, "kind: Pod") {
-			t.Errorf("doc %d missing kind", i+1)
-		}
-		expectedName := fmt.Sprintf("name: bench-pod-%d", i+1)
-		if !strings.Contains(doc, expectedName) {
-			t.Errorf("doc %d: expected %q, not found", i+1, expectedName)
+	if len(groups) != 10 {
+		t.Errorf("unique groups = %d, want 10", len(groups))
+	}
+	for pg, count := range groups {
+		if count != 5 {
+			t.Errorf("group %s has %d members, want 5", pg, count)
 		}
 	}
 }
 
-func TestYAML_GangMultiDoc(t *testing.T) {
-	origScheduler := scheduler
-	scheduler = "godel-scheduler"
-	defer func() { scheduler = origScheduler }()
+func TestRunHeterogeneous_FakeClient(t *testing.T) {
+	origRate := flagRate
+	origTotal := flagTotal
+	origWorkers := flagWorkers
+	origScheduler := flagScheduler
+	origNamespace := flagNamespace
+	origImage := flagImage
+	origCPU := flagCPU
+	origMem := flagMem
+	origDryRun := flagDryRun
+	defer func() {
+		flagRate = origRate
+		flagTotal = origTotal
+		flagWorkers = origWorkers
+		flagScheduler = origScheduler
+		flagNamespace = origNamespace
+		flagImage = origImage
+		flagCPU = origCPU
+		flagMem = origMem
+		flagDryRun = origDryRun
+	}()
 
-	var buf bytes.Buffer
-	renderGangGroup(&buf, 1, 5, "bench", "godel-scheduler", 100, 128, "pause:3.9")
-	yaml := buf.String()
+	flagRate = 10000
+	flagTotal = 200
+	flagWorkers = 4
+	flagScheduler = "godel-scheduler"
+	flagNamespace = "hetero-ns"
+	flagImage = "pause:latest"
+	flagCPU = 100
+	flagMem = 128
+	flagDryRun = false
 
-	docs := splitYAMLDocs(yaml)
-	// 1 PodGroup + 5 Pods = 6 documents
-	if len(docs) != 6 {
-		t.Fatalf("expected 6 documents (1 PodGroup + 5 Pods), got %d.\nYAML:\n%s", len(docs), yaml)
+	client := fake.NewSimpleClientset()
+	ctx := context.Background()
+
+	runHeterogeneous(ctx, client)
+
+	pods, err := client.CoreV1().Pods("hetero-ns").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pods.Items) != 200 {
+		t.Errorf("hetero pods = %d, want 200", len(pods.Items))
 	}
 
-	// 第一个是 PodGroup
-	if !strings.Contains(docs[0], "kind: PodGroup") {
-		t.Error("first document should be PodGroup")
+	// 验证有多种不同的 CPU 规格
+	cpuSet := make(map[string]bool)
+	for _, p := range pods.Items {
+		cpu := p.Spec.Containers[0].Resources.Requests.Cpu().String()
+		cpuSet[cpu] = true
 	}
-
-	// 后 5 个是 Pod
-	for i := 1; i <= 5; i++ {
-		if !strings.Contains(docs[i], "kind: Pod") {
-			t.Errorf("doc %d should be a Pod", i+1)
-		}
+	if len(cpuSet) < 3 {
+		t.Errorf("只出现 %d 种 CPU 规格, 期望至少 3 种 (异构)", len(cpuSet))
 	}
 }
 
-func TestYAML_NoDuplicateNames(t *testing.T) {
-	var buf bytes.Buffer
-	for i := 1; i <= 1000; i++ {
-		renderBasicPod(&buf, i, "bench", "godel-scheduler", 100, 128, "pause:3.9")
+// ═══════════════════════════════════════════════════════════════════
+// 9. addSchedulerAnnotations 测试
+// ═══════════════════════════════════════════════════════════════════
+
+func TestAddSchedulerAnnotations(t *testing.T) {
+	tests := []struct {
+		scheduler       string
+		wantAnnotations map[string]string
+	}{
+		{
+			"godel-scheduler",
+			map[string]string{
+				"godel.bytedance.com/pod-state":         "pending",
+				"godel.bytedance.com/pod-resource-type": "guaranteed",
+				"godel.bytedance.com/pod-launcher":      "kubelet",
+			},
+		},
+		{
+			"volcano",
+			map[string]string{
+				"scheduling.volcano.sh/group-name": "bench-basic-pg",
+			},
+		},
+		{
+			"default-scheduler",
+			nil,
+		},
+		{
+			"koord-scheduler",
+			nil,
+		},
 	}
 
-	yaml := buf.String()
-	nameRe := regexp.MustCompile(`name: bench-pod-(\d+)`)
-	matches := nameRe.FindAllStringSubmatch(yaml, -1)
+	for _, tt := range tests {
+		t.Run(tt.scheduler, func(t *testing.T) {
+			flagScheduler = tt.scheduler
+			pod := &corev1.Pod{}
+			addSchedulerAnnotations(pod)
 
-	seen := map[string]bool{}
-	for _, m := range matches {
-		if seen[m[1]] {
-			t.Errorf("duplicate pod name: bench-pod-%s", m[1])
-		}
-		seen[m[1]] = true
-	}
-
-	if len(seen) != 1000 {
-		t.Errorf("expected 1000 unique names, got %d", len(seen))
+			if tt.wantAnnotations == nil {
+				if len(pod.Annotations) != 0 {
+					t.Errorf("want no annotations, got %v", pod.Annotations)
+				}
+				return
+			}
+			for k, want := range tt.wantAnnotations {
+				if got := pod.Annotations[k]; got != want {
+					t.Errorf("annotation[%s] = %q, want %q", k, got, want)
+				}
+			}
+		})
 	}
 }
 
-// ═══════════════════════════════════════════════════════
-// 8. 渲染性能基准测试
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+// 10. int64Ptr 测试
+// ═══════════════════════════════════════════════════════════════════
 
-func BenchmarkRenderBasicPod(b *testing.B) {
-	var buf bytes.Buffer
-	buf.Grow(b.N * 350)
+func TestInt64Ptr(t *testing.T) {
+	p := int64Ptr(42)
+	if *p != 42 {
+		t.Errorf("*int64Ptr(42) = %d, want 42", *p)
+	}
+	p2 := int64Ptr(0)
+	if *p2 != 0 {
+		t.Errorf("*int64Ptr(0) = %d, want 0", *p2)
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 11. ensureNamespace 测试
+// ═══════════════════════════════════════════════════════════════════
+
+func TestEnsureNamespace(t *testing.T) {
+	flagNamespace = "test-ensure-ns"
+	client := fake.NewSimpleClientset()
+	ctx := context.Background()
+
+	// 首次创建
+	ensureNamespace(ctx, client)
+	ns, err := client.CoreV1().Namespaces().Get(ctx, "test-ensure-ns", metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ns.Name != "test-ensure-ns" {
+		t.Errorf("ns name = %q, want test-ensure-ns", ns.Name)
+	}
+
+	// 重复调用不应 panic
+	ensureNamespace(ctx, client)
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Benchmarks
+// ═══════════════════════════════════════════════════════════════════
+
+func BenchmarkBuildBasicPod(b *testing.B) {
+	flagScheduler = "godel-scheduler"
+	flagNamespace = "bench"
+	flagImage = "registry.k8s.io/pause:3.9"
+	flagCPU = 100
+	flagMem = 128
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		buf.Reset()
-		renderBasicPod(&buf, i, "bench", "godel-scheduler", 100, 128, "pause:3.9")
+		buildBasicPod(i)
 	}
 }
 
-func BenchmarkRenderGangGroup(b *testing.B) {
-	origScheduler := scheduler
-	scheduler = "godel-scheduler"
-	defer func() { scheduler = origScheduler }()
+func BenchmarkBuildGangPod(b *testing.B) {
+	flagScheduler = "godel-scheduler"
+	flagNamespace = "bench"
+	flagImage = "registry.k8s.io/pause:3.9"
+	flagCPU = 100
+	flagMem = 128
 
-	var buf bytes.Buffer
-	buf.Grow(b.N * 2000)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		buf.Reset()
-		renderGangGroup(&buf, i, 5, "bench", "godel-scheduler", 100, 128, "pause:3.9")
+		buildGangPod(i, 1)
+	}
+}
+
+func BenchmarkMakeResources(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		makeResources(100, 128)
+	}
+}
+
+func BenchmarkRandomHeteroSpec(b *testing.B) {
+	rng := rand.New(rand.NewSource(42))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		randomHeteroSpec(rng)
 	}
 }
 
 func BenchmarkRateLimiter_WaitForSlot(b *testing.B) {
 	ctx := context.Background()
-	rl := newRateLimiter(1000000) // 极高速率，不产生实际等待
+	rl := newRateLimiter(1000000) // 极高速率，测试函数开销
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		rl.waitForSlot(ctx, 1)
+		_ = rl.waitForSlot(ctx)
 	}
 }
 
-func BenchmarkRender1000Pods(b *testing.B) {
-	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
-		var buf bytes.Buffer
-		buf.Grow(1000 * 350)
-		for i := 0; i < 1000; i++ {
-			renderBasicPod(&buf, i, "bench", "godel-scheduler", 100, 128, "pause:3.9")
-		}
-	}
-}
+func BenchmarkCreateWorker_DryRun(b *testing.B) {
+	origDryRun := flagDryRun
+	defer func() { flagDryRun = origDryRun }()
+	flagDryRun = true
 
-// ═══════════════════════════════════════════════════════
-// 9. selectRenderer 测试
-// ═══════════════════════════════════════════════════════
-
-func TestSelectRenderer_Godel(t *testing.T) {
-	origScheduler := scheduler
-	scheduler = "godel-scheduler"
-	defer func() { scheduler = origScheduler }()
-
-	r := selectRenderer()
-	var buf bytes.Buffer
-	r(&buf, 1, "bench", "godel-scheduler", 100, 128, "pause:3.9")
-
-	if !strings.Contains(buf.String(), "godel.bytedance.com/pod-state") {
-		t.Error("godel renderer should include godel annotations")
-	}
-}
-
-func TestSelectRenderer_Volcano(t *testing.T) {
-	origScheduler := scheduler
-	scheduler = "volcano"
-	defer func() { scheduler = origScheduler }()
-
-	r := selectRenderer()
-	var buf bytes.Buffer
-	r(&buf, 1, "bench", "volcano", 100, 128, "pause:3.9")
-
-	if !strings.Contains(buf.String(), "scheduling.volcano.sh/group-name") {
-		t.Error("volcano renderer should include volcano annotations")
-	}
-}
-
-func TestSelectRenderer_DefaultScheduler(t *testing.T) {
-	origScheduler := scheduler
-	scheduler = "default-scheduler"
-	defer func() { scheduler = origScheduler }()
-
-	r := selectRenderer()
-	var buf bytes.Buffer
-	r(&buf, 1, "bench", "default-scheduler", 100, 128, "pause:3.9")
-
-	// default-scheduler 使用 godel basic 模板（带 godel annotations）
-	if !strings.Contains(buf.String(), "godel.bytedance.com/pod-state") {
-		t.Error("default-scheduler should use basic renderer with godel annotations")
-	}
-}
-
-// ═══════════════════════════════════════════════════════
-// 10. 边界条件测试
-// ═══════════════════════════════════════════════════════
-
-func TestRenderBasicPod_LargeIndex(t *testing.T) {
-	var buf bytes.Buffer
-	renderBasicPod(&buf, 999999, "bench", "godel-scheduler", 100, 128, "pause:3.9")
-	if !strings.Contains(buf.String(), "name: bench-pod-999999") {
-		t.Error("large index pod name not rendered correctly")
-	}
-}
-
-func TestRenderBasicPod_LargeResources(t *testing.T) {
-	var buf bytes.Buffer
-	renderBasicPod(&buf, 1, "bench", "godel-scheduler", 4000, 8192, "pause:3.9")
-	yaml := buf.String()
-
-	if !strings.Contains(yaml, `cpu: "4000m"`) {
-		t.Error("large CPU not rendered correctly")
-	}
-	if !strings.Contains(yaml, `memory: "8192Mi"`) {
-		t.Error("large memory not rendered correctly")
-	}
-}
-
-func TestRateLimiter_SingleToken(t *testing.T) {
 	ctx := context.Background()
-	rl := newRateLimiter(1)
-
-	got, err := rl.waitForSlot(ctx, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != 1 {
-		t.Errorf("expected 1 token, got %d", got)
-	}
-}
-
-func TestRateLimiter_BatchLargerThanBudget(t *testing.T) {
-	ctx := context.Background()
-	rl := newRateLimiter(10)
-
-	// 第一次调用时 budget 最多为 1（elapsed ≈ 0, allowed = 0*10+1 = 1）
-	got, err := rl.waitForSlot(ctx, 1000)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// 不应超过令牌桶的当前预算
-	if got > 1000 {
-		t.Errorf("got %d tokens, should not exceed requested 1000", got)
-	}
-	if got < 1 {
-		t.Errorf("should get at least 1 token, got %d", got)
-	}
-}
-
-func TestPipeline_ZeroTotal(t *testing.T) {
-	// total=0 不应有任何输出
-	ch := make(chan yamlBatch, 4)
-	var submitted atomic.Int64
+	ch := make(chan podTask, 1000)
+	var submitted, errors atomic.Int64
 	var wg sync.WaitGroup
+	client := fake.NewSimpleClientset()
 
 	wg.Add(1)
-	go mockApplyWorker(ch, &submitted, &wg)
+	go createWorker(ctx, client, ch, &submitted, &errors, &wg)
 
-	remaining := 0
-	// 循环不应执行
-	for remaining > 0 {
-		t.Fatal("should not enter loop with remaining=0")
+	flagNamespace = "bench"
+	flagScheduler = "godel-scheduler"
+	flagImage = "pause:latest"
+	flagCPU = 100
+	flagMem = 128
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ch <- podTask{pod: buildBasicPod(i)}
 	}
-
 	close(ch)
 	wg.Wait()
-
-	if submitted.Load() != 0 {
-		t.Errorf("expected 0 submitted, got %d", submitted.Load())
-	}
-}
-
-func TestGangGroup_BatchSize1(t *testing.T) {
-	origScheduler := scheduler
-	scheduler = "godel-scheduler"
-	defer func() { scheduler = origScheduler }()
-
-	var buf bytes.Buffer
-	renderGangGroup(&buf, 1, 1, "bench", "godel-scheduler", 100, 128, "pause:3.9")
-	yaml := buf.String()
-
-	docs := splitYAMLDocs(yaml)
-	// 1 PodGroup + 1 Pod = 2 documents
-	if len(docs) != 2 {
-		t.Errorf("gang group with size 1: expected 2 docs, got %d", len(docs))
-	}
-}
-
-// ═══════════════════════════════════════════════════════
-// 辅助函数
-// ═══════════════════════════════════════════════════════
-
-// splitYAMLDocs 将多文档 YAML 按 "---" 分割，过滤空文档
-func splitYAMLDocs(yaml string) []string {
-	parts := strings.Split(yaml, "---\n")
-	docs := make([]string, 0, len(parts))
-	for _, p := range parts {
-		if strings.TrimSpace(p) != "" {
-			docs = append(docs, p)
-		}
-	}
-	return docs
 }

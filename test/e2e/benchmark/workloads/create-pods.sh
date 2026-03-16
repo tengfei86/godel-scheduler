@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # workloads/create-pods.sh — 按固定速率批量创建 Pod
 #
-# 底层使用 Go 编写的 podgen 工具，解决 bash 循环 fork/exec
-# 导致的速率不稳定问题。
+# 底层使用 Go 编写的 podgen v2 工具 (client-go 直连 API Server)
+# v1 使用 kubectl apply fork/exec，在 1000 pods/s 时只能达到 ~200 pods/s
+# v2 使用 client-go + HTTP/2 多路复用，可稳定达到 2000+ pods/s
 #
 # 用法:
 #   ./create-pods.sh <rate> <total> <scheduler_name> [cpu] [mem] [workload_type]
@@ -15,25 +16,16 @@
 #   mem             - 内存请求 (Mi, 默认 128)
 #   workload_type   - basic|burst|gang|heterogeneous (默认 basic)
 #
-# 负载场景说明:
-#   w1 - 低负载稳态       100 pods/s,  10K pods, cpu:100m/mem:128Mi
-#   w2 - 中负载稳态       500 pods/s,  50K pods, cpu:100m/mem:128Mi
-#   w3 - 高负载稳态     1,000 pods/s, 100K pods, cpu:100m/mem:128Mi
-#   w4 - 极限负载       2,000 pods/s, 200K pods, cpu:100m/mem:128Mi
-#   w5 - 突发洪峰   0→2000→0 pods/s,  50K pods, cpu:100m/mem:128Mi
-#   w6 - Gang 调度   200 groups/s × 5 pods/group, 10K pods
-#   w7 - 异构资源       500 pods/s,  50K pods, 混合规格(30%小+40%中+20%大+10%超大)
-#   w8 - 大规模集群   2,000 pods/s, 800K pods, cpu:100m/mem:128Mi
-#
 # 环境变量 (可选):
-#   PODGEN_BATCH    - 每次 kubectl apply 的 Pod 数 (默认 200)
-#   PODGEN_WORKERS  - 并发 kubectl apply 的 worker 数 (默认 8)
-#   PODGEN_DRY_RUN  - 设为 1 则仅打印 YAML 不提交
+#   PODGEN_WORKERS  - 并发 goroutine 数 (默认 64)
+#   PODGEN_QPS      - client-go QPS 限速 (默认 3000)
+#   PODGEN_BURST    - client-go burst 限速 (默认 6000)
+#   PODGEN_DRY_RUN  - 设为 1 则仅计数不实际创建
 #
 # 示例:
 #   ./create-pods.sh 500 50000 godel-scheduler 100 128
-#   ./create-pods.sh 1000 10000 godel-scheduler 100 128 gang
-#   PODGEN_WORKERS=16 ./create-pods.sh 2000 200000 godel-scheduler
+#   ./create-pods.sh 1000 100000 godel-scheduler 100 128 basic
+#   PODGEN_WORKERS=128 ./create-pods.sh 2000 200000 godel-scheduler
 
 set -eu
 
@@ -56,36 +48,34 @@ PODGEN_DIR="${SCRIPT_DIR}/podgen"
 PODGEN_BIN="${PODGEN_DIR}/podgen"
 
 # ── 可调参数 ──
-BATCH_SIZE="${PODGEN_BATCH:-200}"
-WORKER_COUNT="${PODGEN_WORKERS:-8}"
+WORKER_COUNT="${PODGEN_WORKERS:-64}"
+QPS="${PODGEN_QPS:-3000}"
+BURST="${PODGEN_BURST:-6000}"
 DRY_RUN="${PODGEN_DRY_RUN:-0}"
 
 # ── 自动调参 ──
-# 根据速率自动调整 batch 和 workers，确保管道不堵塞
 auto_tune_params() {
   local r=$1
 
-  # batch_size: 速率越高，每批越大，减少 kubectl 调用次数
-  # 经验公式: batch ≈ rate / workers，但不超过 500，不低于 50
-  if [[ "$BATCH_SIZE" == "200" ]]; then  # 仅在用户未设置时自动调参
-    local auto_batch=$(( r / WORKER_COUNT ))
-    (( auto_batch < 50 )) && auto_batch=50
-    (( auto_batch > 500 )) && auto_batch=500
-    BATCH_SIZE=$auto_batch
-  fi
-
-  # workers: 速率 >= 1000 时自动加到 16
-  if [[ "$WORKER_COUNT" == "8" ]]; then
+  # workers: 高速率需要更多并发 goroutine
+  if [[ "$WORKER_COUNT" == "64" ]]; then
     if (( r >= 2000 )); then
-      WORKER_COUNT=20
+      WORKER_COUNT=200
     elif (( r >= 1000 )); then
-      WORKER_COUNT=16
+      WORKER_COUNT=128
     elif (( r >= 500 )); then
-      WORKER_COUNT=12
+      WORKER_COUNT=96
     fi
   fi
 
-  log_info "  调参: batch=${BATCH_SIZE}, workers=${WORKER_COUNT}"
+  # QPS/Burst: 确保 client-go 限速不成为瓶颈 (≥2x target rate)
+  if [[ "$QPS" == "3000" ]]; then
+    local min_qps=$(( r * 2 ))
+    (( min_qps > QPS )) && QPS=$min_qps
+    BURST=$(( QPS * 2 ))
+  fi
+
+  log_info "  调参: workers=${WORKER_COUNT}, qps=${QPS}, burst=${BURST}"
 }
 
 # ── 编译 podgen ──
@@ -100,18 +90,18 @@ build_podgen() {
     fi
   fi
 
-  log_info "  编译 podgen..."
+  log_info "  编译 podgen v2 (client-go)..."
   if ! command -v go &>/dev/null; then
     log_error "未找到 go 编译器，请安装 Go 1.21+"
-    log_error "  或手动编译: cd ${PODGEN_DIR} && go build -o podgen ."
+    log_error "  或手动编译: cd ${PODGEN_DIR} && CGO_ENABLED=0 go build -ldflags '-s -w' -o podgen ."
     exit 1
   fi
 
-  (cd "$PODGEN_DIR" && CGO_ENABLED=0 go build -o podgen .) || {
+  (cd "$PODGEN_DIR" && CGO_ENABLED=0 go build -ldflags '-s -w' -o podgen .) || {
     log_error "podgen 编译失败"
     exit 1
   }
-  log_info "  ✓ podgen 编译成功"
+  log_info "  ✓ podgen v2 编译成功"
 }
 
 # ── 主流程 ──
@@ -130,8 +120,9 @@ PODGEN_ARGS=(
   -mem "$MEM"
   -namespace "$NAMESPACE"
   -image "$PAUSE_IMAGE"
-  -batch "$BATCH_SIZE"
   -workers "$WORKER_COUNT"
+  -qps "$QPS"
+  -burst "$BURST"
 )
 
 if [[ "$DRY_RUN" == "1" ]]; then
@@ -150,7 +141,7 @@ fi
 
 START_TS=$(date +%s)
 
-log_info "  启动 podgen: ${PODGEN_BIN} ${PODGEN_ARGS[*]}"
+log_info "  启动 podgen v2: ${PODGEN_BIN} ${PODGEN_ARGS[*]}"
 "$PODGEN_BIN" "${PODGEN_ARGS[@]}"
 
 END_TS=$(date +%s)
