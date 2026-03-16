@@ -47,6 +47,9 @@ spec:
         - etcd
         - --data-dir=/var/lib/etcd-events
         - --name=etcd-events
+        - --initial-cluster=etcd-events=http://127.0.0.1:2480
+        - --initial-cluster-token=etcd-events-token
+        - --initial-advertise-peer-urls=http://127.0.0.1:2480
         - --listen-client-urls=http://0.0.0.0:2479
         - --advertise-client-urls=http://127.0.0.1:2479
         - --listen-peer-urls=http://0.0.0.0:2480
