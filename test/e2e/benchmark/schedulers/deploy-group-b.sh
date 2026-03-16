@@ -24,15 +24,21 @@ ensure_image_loaded "${GODEL_IMAGE}"
 kubectl apply -k "${MANIFESTS_EMBEDDED}"
 
 # 对齐各组件资源，确保与其他调度器组公平对比
-for deploy in binder dispatcher scheduler controller-manager; do
+set_deploy_resources() {
+  local deploy="$1" req_cpu="$2" req_mem="$3" lim_cpu="$4" lim_mem="$5"
   if kubectl get deployment "$deploy" -n "${GODEL_NAMESPACE}" >/dev/null 2>&1; then
     kubectl set resources deployment/"$deploy" \
       -n "${GODEL_NAMESPACE}" \
       --containers='*' \
-      --requests="cpu=${BENCH_SCHED_REQ_CPU},memory=${BENCH_SCHED_REQ_MEM}" \
-      --limits="cpu=${BENCH_SCHED_LIM_CPU},memory=${BENCH_SCHED_LIM_MEM}" >/dev/null
+      --requests="cpu=${req_cpu},memory=${req_mem}" \
+      --limits="cpu=${lim_cpu},memory=${lim_mem}" >/dev/null
   fi
-done
+}
+
+set_deploy_resources "binder" "${BENCH_BINDER_REQ_CPU}" "${BENCH_BINDER_REQ_MEM}" "${BENCH_BINDER_LIM_CPU}" "${BENCH_BINDER_LIM_MEM}"
+set_deploy_resources "dispatcher" "${BENCH_DISPATCHER_REQ_CPU}" "${BENCH_DISPATCHER_REQ_MEM}" "${BENCH_DISPATCHER_LIM_CPU}" "${BENCH_DISPATCHER_LIM_MEM}"
+set_deploy_resources "scheduler" "${BENCH_SCHED_REQ_CPU}" "${BENCH_SCHED_REQ_MEM}" "${BENCH_SCHED_LIM_CPU}" "${BENCH_SCHED_LIM_MEM}"
+set_deploy_resources "controller-manager" "${BENCH_SCHED_REQ_CPU}" "${BENCH_SCHED_REQ_MEM}" "${BENCH_SCHED_LIM_CPU}" "${BENCH_SCHED_LIM_MEM}"
 
 # ── Step 3: 等待组件就绪 ──
 log_step "Step 3: 等待组件就绪"
