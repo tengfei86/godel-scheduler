@@ -44,23 +44,27 @@ NODE_COUNT="${SCALE_NODES[$SCALE]:-1000}"
 log_info "目标规模: ${SCALE} (${NODE_COUNT} 节点)"
 
 # ── Step 1: 创建 kind 集群 ──
-log_step "Step 1/7: 创建 kind 集群"
+log_step "Step 1/8: 创建 kind 集群"
 create_kind_cluster $FORCE_FLAG
 
 # ── Step 2: Patch kindnet 以忽略 KWOK 假节点 ──
-log_step "Step 2/7: Patch kindnet"
+log_step "Step 2/8: Patch kindnet"
 patch_kindnet_for_kwok
 
 # ── Step 3: 部署 KWOK ──
-log_step "Step 3/7: 部署 KWOK 控制器"
+log_step "Step 3/8: 部署 KWOK 控制器"
 deploy_kwok
 
 # ── Step 4: 创建模拟节点 ──
-log_step "Step 4/7: 创建 ${NODE_COUNT} 个 KWOK 模拟节点"
+log_step "Step 4/8: 创建 ${NODE_COUNT} 个 KWOK 模拟节点"
 create_kwok_nodes "$NODE_COUNT"
 
-# ── Step 5: 构建 Gödel 镜像并加载到 kind ──
-log_step "Step 5/7: 构建 Gödel 镜像"
+# ── Step 5: 部署事件专用 etcd ──
+log_step "Step 5/8: 部署事件专用 etcd (分离 events 写入)"
+bash "${SCRIPT_DIR}/cluster/deploy-etcd-events.sh" "${KIND_CLUSTER_NAME}"
+
+# ── Step 6: 构建 Gödel 镜像并加载到 kind ──
+log_step "Step 6/8: 构建 Gödel 镜像"
 if [[ "$REBUILD_IMAGE" == true ]] || ! docker image inspect "${GODEL_IMAGE}" &>/dev/null; then
   log_info "编译 Gödel (linux/amd64)..."
   (cd "${PROJECT_ROOT}" && GO_BUILD_PLATFORMS=linux/amd64 make build)
@@ -72,8 +76,8 @@ else
 fi
 ensure_image_loaded "${GODEL_IMAGE}"
 
-# ── Step 6: 提示 Prometheus 安装方式 ──
-log_step "Step 6/7: Prometheus 说明"
+# ── Step 7: 提示 Prometheus 安装方式 ──
+log_step "Step 7/8: Prometheus 说明"
 log_info "Prometheus 将在部署调度器时通过 kustomize overlay 自动安装"
 log_info "  kubectl apply -k manifests/monitoring/overlays/group-{a,b,c,d,e}/"
 log_info "  每个 overlay 包含该组对应的 scrape targets + recording rules"
@@ -81,8 +85,8 @@ log_info ""
 log_info "如需提前手动安装（使用 base 配置）："
 log_info "  kubectl apply -k ${MANIFESTS_MONITORING_BASE}"
 
-# ── Step 7: 验证 ──
-log_step "Step 7/7: 验证环境"
+# ── Step 8: 验证 ──
+log_step "Step 8/8: 验证环境"
 show_cluster_status
 
 separator "环境准备完成"
