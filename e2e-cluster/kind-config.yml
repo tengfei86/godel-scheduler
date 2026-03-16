@@ -6,42 +6,22 @@ nodes:
       - containerPort: 30090
         hostPort: 30090
         protocol: TCP
-      # 事件专用 etcd 端口（从宿主机映射）
-      - containerPort: 2479
-        hostPort: 2479
-        protocol: TCP
     kubeadmConfigPatches:
       - |
         kind: ClusterConfiguration
         etcd:
           local:
             extraArgs:
-              # ── 容量 ──
               quota-backend-bytes: "17179869184"
-              # ── 自动压缩：每 1000 个 revision 压缩一次 ──
               auto-compaction-mode: "revision"
               auto-compaction-retention: "1000"
-              # ── 快照阈值：减少快照频率，降低磁盘 I/O ──
               snapshot-count: "50000"
-              # ── 心跳/选举：适配高延迟场景，防止频繁选举 ──
-              heartbeat-interval: "200"
-              election-timeout: "2000"
-              # ── 后端批量提交：攒够再写盘，大幅提升写入吞吐 ──
-              experimental-backend-batch-interval: "10ms"
-              experimental-backend-batch-limit: "1000"
-              # ── gRPC 消息大小上限：大规模 list 不被截断 ──
-              max-request-bytes: "10485760"
-              # ── 并发 ──
-              experimental-compaction-batch-limit: "1000"
         apiServer:
           timeoutForControlPlane: 4m0s
           extraArgs:
             event-ttl: "10m"
-            # ── 事件分离到独立 etcd，减轻主 etcd 写压力 ──
-            etcd-servers-overrides: "/events#http://127.0.0.1:2479"
             max-mutating-requests-inflight: "10000"
             max-requests-inflight: "20000"
-            # ── watch 缓存：减少 etcd 读压力 ──
             default-watch-cache-size: "1000"
             watch-cache-sizes: "pods#5000,nodes#1000"
         controllerManager:
