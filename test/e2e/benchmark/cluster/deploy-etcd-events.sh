@@ -28,7 +28,8 @@ else
 fi
 
 # ── Step 1: 部署 etcd-events static pod ──
-docker exec "$CONTROL_PLANE" bash -c "cat > /etc/kubernetes/manifests/etcd-events.yaml" <<MANIFEST
+TMPFILE=$(mktemp /tmp/etcd-events-XXXXXX.yaml)
+cat > "$TMPFILE" <<EOF
 apiVersion: v1
 kind: Pod
 metadata:
@@ -81,7 +82,11 @@ spec:
       hostPath:
         path: /var/lib/etcd-events
         type: DirectoryOrCreate
-MANIFEST
+EOF
+
+docker cp "$TMPFILE" "${CONTROL_PLANE}:/etc/kubernetes/manifests/etcd-events.yaml"
+rm -f "$TMPFILE"
+echo "[INFO] manifest 已写入控制面节点"
 
 echo "[INFO] 等待 etcd-events 就绪..."
 for i in $(seq 1 30); do
