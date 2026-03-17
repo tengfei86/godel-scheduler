@@ -6,7 +6,7 @@
 #
 # 选项:
 #   --groups "a b"         指定要测试的组 (默认: "a b c d e")
-#   --scales "s1 s2"       指定要测试的规模 (默认: "s2")
+#   --scales "s1 s2"       指定要测试的规模 (默认: "s3")
 #   --workloads "w1 w2"    指定要测试的负载 (默认: 按组自动选择)
 #   --runs 3               重复次数 (默认: 3)
 #   --skip-deploy          跳过调度器部署（假设已部署）
@@ -28,7 +28,7 @@ source "${SCRIPT_DIR}/workloads/workload-matrix.sh"
 # ── 默认参数 ──
 # 注意: 不使用 Bash 内建特殊变量名 GROUPS，避免被当前用户组 ID 覆盖。
 TARGET_GROUPS="a b c d e"
-SCALES="s2"
+SCALES="s3"
 RUNS="${EXPERIMENT_REPEATS}"
 SKIP_DEPLOY=false
 SETUP_NODES=false
