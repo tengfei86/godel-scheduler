@@ -1,0 +1,1 @@
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{},"values":[[1773684689,"0"],[1773684704,"75.37777777777777"],[1773684719,"201.17777777777775"]]}]},"warnings":["PromQL info: metric might not be a counter, name does not end in _total/_sum/_count/_bucket: \"scheduler_pod_scheduling_attempts\" (1:10)"]}
