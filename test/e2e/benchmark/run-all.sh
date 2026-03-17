@@ -51,7 +51,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ── 各组测试的负载场景 ──
-# 组 A/B: 全部 W1-W8
+# 组 A/B: 全部 W1-W7
 # 组 C: 核心 W1-W4
 # 组 D/E: W1-W4 + W6 (Gang)
 get_workloads_for_group() {
@@ -61,7 +61,7 @@ get_workloads_for_group() {
     return
   fi
   case "$group" in
-    a|b) echo "w1 w2 w3 w4 w5 w6 w7 w8" ;;
+    a|b) echo "w1 w2 w3 w4 w5 w6 w7" ;;
     c)   echo "w1 w2 w3 w4 w5" ;;
     d|e) echo "w1 w2 w3 w4 w6" ;;
     *)   echo "w1 w2 w3 w4" ;;
