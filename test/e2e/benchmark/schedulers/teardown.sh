@@ -28,19 +28,52 @@ teardown_godel() {
 # ── 卸载 Volcano ──
 teardown_volcano() {
   log_info "卸载 Volcano..."
-  helm uninstall volcano -n "${VOLCANO_NAMESPACE}" 2>/dev/null || true
+  helm uninstall volcano -n "${VOLCANO_NAMESPACE}" --wait --timeout 120s 2>/dev/null || true
+
+  # 先删 webhook，避免已下线的 webhook endpoint 拦截 API 请求
+  log_info "  清理 Volcano webhook 配置..."
+  kubectl get mutatingwebhookconfiguration -o name 2>/dev/null | grep -i 'volcano' | xargs -r kubectl delete 2>/dev/null || true
+  kubectl get validatingwebhookconfiguration -o name 2>/dev/null | grep -i 'volcano' | xargs -r kubectl delete 2>/dev/null || true
+
   kubectl delete namespace "${VOLCANO_NAMESPACE}" --ignore-not-found 2>/dev/null || true
-  # 清理 CRDs（可选，避免影响后续安装）
-  kubectl delete crd -l app.kubernetes.io/managed-by=volcano 2>/dev/null || true
+  # CRDs
+  for crd in $(kubectl get crd -o name 2>/dev/null | grep -i 'volcano'); do
+    kubectl patch "$crd" --type=merge -p '{"metadata":{"finalizers":[]}}' 2>/dev/null || true
+    kubectl delete "$crd" --ignore-not-found --timeout=30s 2>/dev/null || true
+  done
   log_info "✓ Volcano 已卸载"
 }
 
 # ── 卸载 Koordinator ──
 teardown_koordinator() {
   log_info "卸载 Koordinator..."
-  helm uninstall koordinator -n "${KOORDINATOR_NAMESPACE}" 2>/dev/null || true
+  helm uninstall koordinator -n "${KOORDINATOR_NAMESPACE}" --wait --timeout 120s 2>/dev/null || true
+
+  # 先删 webhook，避免已下线的 webhook endpoint 拦截后续 API 请求导致 context deadline exceeded
+  log_info "  清理 Koordinator webhook 配置..."
+  kubectl delete mutatingwebhookconfiguration -l app.kubernetes.io/name=koordinator --ignore-not-found 2>/dev/null || true
+  kubectl delete validatingwebhookconfiguration -l app.kubernetes.io/name=koordinator --ignore-not-found 2>/dev/null || true
+  # 兜底：按名称前缀删除（部分版本不带 label）
+  kubectl get mutatingwebhookconfiguration -o name 2>/dev/null | grep -i 'koordinator\|koord' | xargs -r kubectl delete 2>/dev/null || true
+  kubectl get validatingwebhookconfiguration -o name 2>/dev/null | grep -i 'koordinator\|koord' | xargs -r kubectl delete 2>/dev/null || true
+
+  # 清理 CRDs（移除 finalizer 防止卡住）
+  log_info "  清理 Koordinator CRDs..."
+  for crd in $(kubectl get crd -o name 2>/dev/null | grep -i 'koordinator\|slo.koordinator'); do
+    kubectl patch "$crd" --type=merge -p '{"metadata":{"finalizers":[]}}' 2>/dev/null || true
+    kubectl delete "$crd" --ignore-not-found --timeout=30s 2>/dev/null || true
+  done
+
+  # 删除 namespace
   kubectl delete namespace "${KOORDINATOR_NAMESPACE}" --ignore-not-found 2>/dev/null || true
-  kubectl delete crd -l app.kubernetes.io/managed-by=koordinator 2>/dev/null || true
+  # 如果 namespace 卡在 Terminating，强制清理 finalizer
+  if kubectl get namespace "${KOORDINATOR_NAMESPACE}" -o jsonpath='{.status.phase}' 2>/dev/null | grep -q "Terminating"; then
+    log_warn "  namespace ${KOORDINATOR_NAMESPACE} 卡在 Terminating，清理 finalizer..."
+    kubectl get namespace "${KOORDINATOR_NAMESPACE}" -o json 2>/dev/null \
+      | python3 -c "import sys,json; ns=json.load(sys.stdin); ns['spec']['finalizers']=[]; json.dump(ns,sys.stdout)" \
+      | kubectl replace --raw "/api/v1/namespaces/${KOORDINATOR_NAMESPACE}/finalize" -f - 2>/dev/null || true
+  fi
+
   log_info "✓ Koordinator 已卸载"
 }
 

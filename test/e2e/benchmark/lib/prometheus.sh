@@ -59,7 +59,7 @@ prometheus_query_range() {
   local step="${5:-$PROMETHEUS_STEP}"
 
   local encoded_query
-  encoded_query=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${query}'))" 2>/dev/null \
+  encoded_query=$(printf '%s' "$query" | python3 -c "import sys,urllib.parse; print(urllib.parse.quote(sys.stdin.read()))" 2>/dev/null \
     || echo "$query")
 
   curl -s --retry 3 --retry-delay 2 \
@@ -79,7 +79,7 @@ prometheus_query_instant() {
   local query="${1}"
   local time="${2:-}"
 
-  local url="${PROMETHEUS_ADDR}/api/v1/query?query=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${query}'))")"
+  local url="${PROMETHEUS_ADDR}/api/v1/query?query=$(printf '%s' "$query" | python3 -c "import sys,urllib.parse; print(urllib.parse.quote(sys.stdin.read()))")"
   [[ -n "$time" ]] && url="${url}&time=${time}"
 
   curl -s --retry 3 --retry-delay 2 "$url"

@@ -235,10 +235,20 @@ declare -A KOORDINATOR_QUERIES=(
 # ═══════════════════════════════════════════════
 export_queries() {
   local -n queries=$1
+  local skip_ref="${2:-}"
   local count=0
   local total=${#queries[@]}
 
   for name in "${!queries[@]}"; do
+    # 如果指定了 skip_ref（组专属查询集），跳过组专属已覆盖的 key
+    if [[ -n "$skip_ref" ]]; then
+      local -n skip_set=$skip_ref
+      if [[ -v "skip_set[$name]" ]]; then
+        log_debug "  跳过 ${name}（组专属已覆盖）"
+        continue
+      fi
+    fi
+
     count=$((count + 1))
     local query="${queries[$name]}"
     local output="${DIR}/${name}.json"
@@ -248,29 +258,35 @@ export_queries() {
   done
 }
 
-# 通用查询
-log_info "导出通用查询..."
-export_queries COMMON_QUERIES
-
 # 按组导出
 case "$GROUP" in
   a)
+    log_info "导出通用查询..."
+    export_queries COMMON_QUERIES GODEL_SHARED_QUERIES
     log_info "导出 Gödel Shared Binder 查询集 (${#GODEL_SHARED_QUERIES[@]} 条)..."
     export_queries GODEL_SHARED_QUERIES
     ;;
   b)
+    log_info "导出通用查询..."
+    export_queries COMMON_QUERIES GODEL_EMBEDDED_QUERIES
     log_info "导出 Gödel Embedded Binder 查询集 (${#GODEL_EMBEDDED_QUERIES[@]} 条)..."
     export_queries GODEL_EMBEDDED_QUERIES
     ;;
   c)
+    log_info "导出通用查询..."
+    export_queries COMMON_QUERIES KUBE_QUERIES
     log_info "导出 kube-scheduler 查询集 (${#KUBE_QUERIES[@]} 条)..."
     export_queries KUBE_QUERIES
     ;;
   d)
+    log_info "导出通用查询..."
+    export_queries COMMON_QUERIES VOLCANO_QUERIES
     log_info "导出 Volcano 查询集 (${#VOLCANO_QUERIES[@]} 条)..."
     export_queries VOLCANO_QUERIES
     ;;
   e)
+    log_info "导出通用查询..."
+    export_queries COMMON_QUERIES KOORDINATOR_QUERIES
     log_info "导出 Koordinator 查询集 (${#KOORDINATOR_QUERIES[@]} 条)..."
     export_queries KOORDINATOR_QUERIES
     ;;

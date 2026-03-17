@@ -20,6 +20,10 @@ separator "部署组 E — Koordinator Scheduler"
 log_step "Step 1: 清理先前的调度器部署"
 bash "${SCRIPT_DIR}/schedulers/teardown.sh"
 
+# 额外等待：确保 webhook 和 namespace 完全清除后再安装
+log_info "等待 10s 确保资源完全清理..."
+sleep 10
+
 # ── Step 2: 安装 Koordinator ──
 log_step "Step 2: 安装 Koordinator v${KOORDINATOR_VERSION}"
 
@@ -89,27 +93,64 @@ manager:
               operator: DoesNotExist
 EOF
 
-INSTALL_OUTPUT=$(helm upgrade --install koordinator koordinator-sh/koordinator \
-  -n "${KOORDINATOR_NAMESPACE}" \
-  -f "${KOORDINATOR_VALUES}" \
-  --set scheduler.replicas=1 \
-  --set manager.replicas=1 \
-  --set descheduler.replicas=0 \
-  --set scheduler.resources.requests.cpu=${BENCH_SCHED_REQ_CPU} \
-  --set scheduler.resources.requests.memory=${BENCH_SCHED_REQ_MEM} \
-  --set scheduler.resources.limits.cpu=${BENCH_SCHED_LIM_CPU} \
-  --set scheduler.resources.limits.memory=${BENCH_SCHED_LIM_MEM} \
-  --set manager.resources.requests.cpu=${BENCH_SCHED_REQ_CPU} \
-  --set manager.resources.requests.memory=${BENCH_SCHED_REQ_MEM} \
-  --set manager.resources.limits.cpu=${BENCH_SCHED_LIM_CPU} \
-  --set manager.resources.limits.memory=${BENCH_SCHED_LIM_MEM} \
-  --wait \
-  --timeout 5m \
-  2>&1) || {
-    log_error "helm upgrade --install 失败，错误信息:"
-    echo "${INSTALL_OUTPUT}"
-    exit 1
-  }
+# 确保没有残留 webhook 拦截 API 请求（防止 context deadline exceeded）
+log_info "清理可能残留的 Koordinator webhook..."
+kubectl get mutatingwebhookconfiguration -o name 2>/dev/null | grep -i 'koordinator\|koord' | xargs -r kubectl delete 2>/dev/null || true
+kubectl get validatingwebhookconfiguration -o name 2>/dev/null | grep -i 'koordinator\|koord' | xargs -r kubectl delete 2>/dev/null || true
+
+# 安装 Koordinator（带重试 — webhook/CRD 注册可能需要多轮尝试）
+HELM_MAX_RETRIES=3
+HELM_RETRY=0
+INSTALL_OK=false
+
+while (( HELM_RETRY < HELM_MAX_RETRIES )); do
+  HELM_RETRY=$((HELM_RETRY + 1))
+  log_info "Helm install 尝试 ${HELM_RETRY}/${HELM_MAX_RETRIES}..."
+
+  INSTALL_OUTPUT=$(helm upgrade --install koordinator koordinator-sh/koordinator \
+    -n "${KOORDINATOR_NAMESPACE}" \
+    -f "${KOORDINATOR_VALUES}" \
+    --set scheduler.replicas=1 \
+    --set manager.replicas=1 \
+    --set descheduler.replicas=0 \
+    --set scheduler.resources.requests.cpu=${BENCH_SCHED_REQ_CPU} \
+    --set scheduler.resources.requests.memory=${BENCH_SCHED_REQ_MEM} \
+    --set scheduler.resources.limits.cpu=${BENCH_SCHED_LIM_CPU} \
+    --set scheduler.resources.limits.memory=${BENCH_SCHED_LIM_MEM} \
+    --set manager.resources.requests.cpu=${BENCH_SCHED_REQ_CPU} \
+    --set manager.resources.requests.memory=${BENCH_SCHED_REQ_MEM} \
+    --set manager.resources.limits.cpu=${BENCH_SCHED_LIM_CPU} \
+    --set manager.resources.limits.memory=${BENCH_SCHED_LIM_MEM} \
+    --wait \
+    --timeout 10m \
+    2>&1) && {
+      INSTALL_OK=true
+      break
+    }
+
+  log_warn "Helm install 尝试 ${HELM_RETRY} 失败:"
+  echo "${INSTALL_OUTPUT}" | tail -5
+
+  if (( HELM_RETRY < HELM_MAX_RETRIES )); then
+    # 安装失败后清理残留 webhook，防止下次尝试被拦截
+    log_info "清理失败安装残留的 webhook..."
+    kubectl get mutatingwebhookconfiguration -o name 2>/dev/null | grep -i 'koordinator\|koord' | xargs -r kubectl delete 2>/dev/null || true
+    kubectl get validatingwebhookconfiguration -o name 2>/dev/null | grep -i 'koordinator\|koord' | xargs -r kubectl delete 2>/dev/null || true
+    sleep 15
+  fi
+done
+
+if [[ "$INSTALL_OK" != "true" ]]; then
+  log_error "Helm install 在 ${HELM_MAX_RETRIES} 次尝试后仍失败"
+  log_error "最后一次错误:"
+  echo "${INSTALL_OUTPUT}"
+  log_error ""
+  log_error "调试步骤:"
+  log_error "  1. kubectl get pods -n ${KOORDINATOR_NAMESPACE}"
+  log_error "  2. kubectl get mutatingwebhookconfiguration,validatingwebhookconfiguration | grep koord"
+  log_error "  3. kubectl describe pod -n ${KOORDINATOR_NAMESPACE} -l koord-app=koord-manager"
+  exit 1
+fi
 rm -f "${KOORDINATOR_VALUES}"
 
 # ── Step 3: 等待组件就绪 ──
