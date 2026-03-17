@@ -12,6 +12,15 @@ source "${SCRIPT_DIR}/lib/utils.sh"
 source "${SCRIPT_DIR}/lib/cluster.sh"
 source "${SCRIPT_DIR}/lib/prometheus.sh"
 
+# ── 可选参数 ──
+SCHEDULER_INSTANCES=1
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --instances) SCHEDULER_INSTANCES="$2"; shift 2 ;;
+    *)           log_error "未知参数: $1"; exit 1 ;;
+  esac
+done
+
 separator "部署组 B — 独立 Binder (Proposed)"
 
 # ── Step 1: 清理先前部署 ──
@@ -22,6 +31,12 @@ bash "${SCRIPT_DIR}/schedulers/teardown.sh"
 log_step "Step 2: 部署 Gödel Scheduler (Embedded Binder)"
 ensure_image_loaded "${GODEL_IMAGE}"
 kubectl apply -k "${MANIFESTS_EMBEDDED}"
+
+# ── 多实例部署 ──
+if (( SCHEDULER_INSTANCES > 1 )); then
+  log_step "Step 2b: 部署 ${SCHEDULER_INSTANCES} 个 Scheduler 实例 (内嵌 Binder)"
+  bash "${SCRIPT_DIR}/schedulers/scale-schedulers.sh" "$SCHEDULER_INSTANCES" --embedded-binder
+fi
 
 # 对齐各组件资源，确保与其他调度器组公平对比
 set_deploy_resources() {
@@ -37,7 +52,9 @@ set_deploy_resources() {
 
 set_deploy_resources "binder" "${BENCH_BINDER_REQ_CPU}" "${BENCH_BINDER_REQ_MEM}" "${BENCH_BINDER_LIM_CPU}" "${BENCH_BINDER_LIM_MEM}"
 set_deploy_resources "dispatcher" "${BENCH_DISPATCHER_REQ_CPU}" "${BENCH_DISPATCHER_REQ_MEM}" "${BENCH_DISPATCHER_LIM_CPU}" "${BENCH_DISPATCHER_LIM_MEM}"
-set_deploy_resources "scheduler" "${BENCH_SCHED_REQ_CPU}" "${BENCH_SCHED_REQ_MEM}" "${BENCH_SCHED_LIM_CPU}" "${BENCH_SCHED_LIM_MEM}"
+if (( SCHEDULER_INSTANCES <= 1 )); then
+  set_deploy_resources "scheduler" "${BENCH_SCHED_REQ_CPU}" "${BENCH_SCHED_REQ_MEM}" "${BENCH_SCHED_LIM_CPU}" "${BENCH_SCHED_LIM_MEM}"
+fi
 set_deploy_resources "controller-manager" "${BENCH_SCHED_REQ_CPU}" "${BENCH_SCHED_REQ_MEM}" "${BENCH_SCHED_LIM_CPU}" "${BENCH_SCHED_LIM_MEM}"
 
 # ── Step 3: 等待组件就绪 ──
@@ -50,9 +67,15 @@ wait_deployment_ready "${GODEL_NAMESPACE}" "dispatcher" "${WAIT_READY_TIMEOUT}"
 # Binder replicas=0，不需要等待
 
 # 等待 Scheduler 实例（每个内嵌了 Binder）
-for deploy in $(kubectl get deployment -n "${GODEL_NAMESPACE}" --no-headers 2>/dev/null | awk '{print $1}' | grep "^scheduler-"); do
-  wait_deployment_ready "${GODEL_NAMESPACE}" "$deploy" "${WAIT_READY_TIMEOUT}"
-done
+if (( SCHEDULER_INSTANCES > 1 )); then
+  for i in $(seq 0 $((SCHEDULER_INSTANCES - 1))); do
+    wait_deployment_ready "${GODEL_NAMESPACE}" "scheduler-${i}" "${WAIT_READY_TIMEOUT}"
+  done
+else
+  for deploy in $(kubectl get deployment -n "${GODEL_NAMESPACE}" --no-headers 2>/dev/null | awk '{print $1}' | grep "^scheduler"); do
+    wait_deployment_ready "${GODEL_NAMESPACE}" "$deploy" "${WAIT_READY_TIMEOUT}"
+  done
+fi
 
 # ── Step 4: 验证 ──
 log_step "Step 4: 验证部署"

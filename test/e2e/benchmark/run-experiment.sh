@@ -54,10 +54,12 @@ shift 4
 # ── 可选标志 ──
 SETUP_NODES=false
 SKIP_COLLECT=false
+SCHEDULER_INSTANCES=""
 while [[ $# -gt 0 ]]; do
   case $1 in
     --setup-nodes)  SETUP_NODES=true; shift ;;
     --skip-collect) SKIP_COLLECT=true; shift ;;
+    --instances)    SCHEDULER_INSTANCES="$2"; shift 2 ;;
     *)              log_error "未知参数: $1"; exit 1 ;;
   esac
 done
@@ -89,8 +91,12 @@ SCHED_NAME="${SCHEDULER_NAMES[$GROUP]}"
 GROUP_LABEL="${GROUP_LABELS[$GROUP]}"
 NODE_COUNT="${SCALE_NODES[$SCALE]}"
 
-# ── 结果目录 (含 scale 维度) ──
-EXP_RESULTS_DIR="${RESULTS_DIR}/${GROUP}/${SCALE}/${WORKLOAD}/run${RUN_ID}"
+# ── 结果目录 (含 scale 和 instances 维度) ──
+if [[ -n "$SCHEDULER_INSTANCES" ]]; then
+  EXP_RESULTS_DIR="${RESULTS_DIR}/${GROUP}/${SCALE}/${WORKLOAD}/inst${SCHEDULER_INSTANCES}/run${RUN_ID}"
+else
+  EXP_RESULTS_DIR="${RESULTS_DIR}/${GROUP}/${SCALE}/${WORKLOAD}/run${RUN_ID}"
+fi
 mkdir -p "$EXP_RESULTS_DIR"
 
 separator "实验: 组=${GROUP} (${GROUP_LABEL}) | ${SCALE} (${NODE_COUNT}节点) | ${WORKLOAD} (${WDESC}) | Run #${RUN_ID}"
@@ -290,6 +296,7 @@ end_time=${END_TIME}
 end_iso=${END_ISO}
 duration=${DURATION}
 duration_human=$(format_duration $DURATION)
+scheduler_instances=${SCHEDULER_INSTANCES:-1}
 EOF
 
 separator "实验完成"

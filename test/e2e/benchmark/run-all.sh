@@ -11,12 +11,14 @@
 #   --runs 3               重复次数 (默认: 3)
 #   --skip-deploy          跳过调度器部署（假设已部署）
 #   --setup-nodes          自动创建/验证 KWOK 节点数量
+#   --instances "1 2 3 5"  Scheduler 实例数列表，仅组 A/B 有效 (水平扩展测试)
 #   --dry-run              仅打印执行计划，不实际运行
 #
 # 示例:
 #   ./run-all.sh                                                  # 全量执行
 #   ./run-all.sh --groups "a b" --scales "s2 s3" --workloads "w1 w2"
 #   ./run-all.sh --dry-run                                        # 预览执行计划
+#   ./run-all.sh --groups "a b" --scales "s3" --workloads "w3" --instances "1 2 3 5"  # 水平扩展测试
 
 set -eu
 
@@ -34,6 +36,7 @@ SKIP_DEPLOY=false
 SETUP_NODES=false
 DRY_RUN=false
 CUSTOM_WORKLOADS=""
+CUSTOM_INSTANCES=""
 
 # ── 参数解析 ──
 # --groups 会写入 TARGET_GROUPS（而不是 GROUPS）以规避 Bash 特殊变量冲突。
@@ -45,6 +48,7 @@ while [[ $# -gt 0 ]]; do
     --runs)        RUNS="$2"; shift 2 ;;
     --skip-deploy) SKIP_DEPLOY=true; shift ;;
     --setup-nodes) SETUP_NODES=true; shift ;;
+    --instances)   CUSTOM_INSTANCES="$2"; shift 2 ;;
     --dry-run)     DRY_RUN=true; shift ;;
     *)             log_error "未知参数: $1"; exit 1 ;;
   esac
@@ -105,9 +109,15 @@ validate_inputs
 total_experiments=0
 for group in $TARGET_GROUPS; do
   workloads=$(get_workloads_for_group "$group")
+  # 组 A/B 且指定了 --instances 时，每个 instance count 都算独立实验
+  if [[ "$group" =~ ^[ab]$ ]] && [[ -n "$CUSTOM_INSTANCES" ]]; then
+    inst_count=$(echo "$CUSTOM_INSTANCES" | wc -w | tr -d ' ')
+  else
+    inst_count=1
+  fi
   for _ in $SCALES; do
     for _ in $workloads; do
-      total_experiments=$((total_experiments + RUNS))
+      total_experiments=$((total_experiments + RUNS * inst_count))
     done
   done
 done
@@ -115,6 +125,9 @@ done
 separator "全量实验计划"
 log_info "组: ${TARGET_GROUPS}"
 log_info "规模: ${SCALES}"
+if [[ -n "$CUSTOM_INSTANCES" ]]; then
+  log_info "Scheduler 实例数: ${CUSTOM_INSTANCES} (仅组 A/B)"
+fi
 log_info "重复: ${RUNS} 次"
 log_info "总实验数: ${total_experiments}"
 echo ""
@@ -123,16 +136,32 @@ echo ""
 exp_index=0
 for group in $TARGET_GROUPS; do
   workloads=$(get_workloads_for_group "$group")
+  if [[ "$group" =~ ^[ab]$ ]] && [[ -n "$CUSTOM_INSTANCES" ]]; then
+    inst_list="$CUSTOM_INSTANCES"
+  else
+    inst_list=""
+  fi
   echo "  组 ${group} ($(get_group_label "$group")):"
   for scale in $SCALES; do
     echo "    规模 ${scale} ($(get_scale_nodes "$scale") 节点):"
-    for wl in $workloads; do
-      desc=$(get_workload_param "$wl" "desc")
-      for run in $(seq 1 "$RUNS"); do
-        exp_index=$((exp_index + 1))
-        printf "      [%3d/%3d] %s × %s × %s × run%d\n" "$exp_index" "$total_experiments" "$group" "$scale" "$wl" "$run"
+    if [[ -n "$inst_list" ]]; then
+      for inst in $inst_list; do
+        echo "      Scheduler 实例数=${inst}:"
+        for wl in $workloads; do
+          for run in $(seq 1 "$RUNS"); do
+            exp_index=$((exp_index + 1))
+            printf "        [%3d/%3d] %s × %s × %s × inst%s × run%d\n" "$exp_index" "$total_experiments" "$group" "$scale" "$wl" "$inst" "$run"
+          done
+        done
       done
-    done
+    else
+      for wl in $workloads; do
+        for run in $(seq 1 "$RUNS"); do
+          exp_index=$((exp_index + 1))
+          printf "      [%3d/%3d] %s × %s × %s × run%d\n" "$exp_index" "$total_experiments" "$group" "$scale" "$wl" "$run"
+        done
+      done
+    fi
   done
   echo ""
 done
@@ -159,36 +188,92 @@ failed_experiments=()
 for group in $TARGET_GROUPS; do
   separator "部署组 ${group} ($(get_group_label "$group"))"
 
-  # 部署调度器
-  if [[ "$SKIP_DEPLOY" != "true" ]]; then
-    log_step "部署组 ${group} 调度器"
-    bash "${SCRIPT_DIR}/schedulers/deploy-group-${group}.sh" || {
-      log_error "组 ${group} 部署失败，跳过该组"
-      continue
-    }
-    sleep 10
+  # 确定该组的 instance 列表
+  if [[ "$group" =~ ^[ab]$ ]] && [[ -n "$CUSTOM_INSTANCES" ]]; then
+    inst_list="$CUSTOM_INSTANCES"
+  else
+    inst_list=""
   fi
 
-  # 执行该组所有规模 × 负载场景
-  workloads=$(get_workloads_for_group "$group")
-  for scale in $SCALES; do
-    separator "规模 ${scale} ($(get_scale_nodes "$scale") 节点)"
-    for wl in $workloads; do
-      for run in $(seq 1 "$RUNS"); do
-        exp_index=$((exp_index + 1))
-        separator "[${exp_index}/${total_experiments}] 组=${group} 规模=${scale} 负载=${wl} Run=#${run}"
+  # ── 无 instance 变量的正常流程 ──
+  if [[ -z "$inst_list" ]]; then
+    if [[ "$SKIP_DEPLOY" != "true" ]]; then
+      log_step "部署组 ${group} 调度器"
+      bash "${SCRIPT_DIR}/schedulers/deploy-group-${group}.sh" || {
+        log_error "组 ${group} 部署失败，跳过该组"
+        continue
+      }
+      sleep 10
+    fi
 
-        EXTRA_FLAGS=""
-        [[ "$SETUP_NODES" == "true" ]] && EXTRA_FLAGS="--setup-nodes"
+    workloads=$(get_workloads_for_group "$group")
+    for scale in $SCALES; do
+      separator "规模 ${scale} ($(get_scale_nodes "$scale") 节点)"
+      for wl in $workloads; do
+        for run in $(seq 1 "$RUNS"); do
+          exp_index=$((exp_index + 1))
+          separator "[${exp_index}/${total_experiments}] 组=${group} 规模=${scale} 负载=${wl} Run=#${run}"
 
-        if bash "${SCRIPT_DIR}/run-experiment.sh" "$group" "$scale" "$wl" "$run" $EXTRA_FLAGS; then
-          log_info "✓ 实验成功: ${group}/${scale}/${wl}/run${run}"
-        else
-          log_error "✗ 实验失败: ${group}/${scale}/${wl}/run${run}"
-          failed_experiments+=("${group}/${scale}/${wl}/run${run}")
-        fi
+          EXTRA_FLAGS=""
+          [[ "$SETUP_NODES" == "true" ]] && EXTRA_FLAGS="--setup-nodes"
 
-        echo ""
+          if bash "${SCRIPT_DIR}/run-experiment.sh" "$group" "$scale" "$wl" "$run" $EXTRA_FLAGS; then
+            log_info "✓ 实验成功: ${group}/${scale}/${wl}/run${run}"
+          else
+            log_error "✗ 实验失败: ${group}/${scale}/${wl}/run${run}"
+            failed_experiments+=("${group}/${scale}/${wl}/run${run}")
+          fi
+          echo ""
+        done
+      done
+    done
+    continue
+  fi
+
+  # ── 有 instance 变量的水平扩展流程 (仅组 A/B) ──
+  first_inst=true
+  for inst in $inst_list; do
+    separator "组 ${group} — ${inst} 个 Scheduler 实例"
+
+    if [[ "$SKIP_DEPLOY" != "true" ]]; then
+      if [[ "$first_inst" == "true" ]]; then
+        log_step "部署组 ${group} 调度器 (${inst} 实例)"
+        bash "${SCRIPT_DIR}/schedulers/deploy-group-${group}.sh" --instances "$inst" || {
+          log_error "组 ${group} 部署失败，跳过该组"
+          continue 2
+        }
+        first_inst=false
+      else
+        log_step "调整 Scheduler 实例数为 ${inst}"
+        embedded_flag=""
+        [[ "$group" == "b" ]] && embedded_flag="--embedded-binder"
+        bash "${SCRIPT_DIR}/schedulers/scale-schedulers.sh" "$inst" $embedded_flag || {
+          log_error "Scheduler 实例调整失败，跳过 inst=${inst}"
+          continue
+        }
+      fi
+      sleep 10
+    fi
+
+    workloads=$(get_workloads_for_group "$group")
+    for scale in $SCALES; do
+      separator "规模 ${scale} ($(get_scale_nodes "$scale") 节点) × ${inst} 实例"
+      for wl in $workloads; do
+        for run in $(seq 1 "$RUNS"); do
+          exp_index=$((exp_index + 1))
+          separator "[${exp_index}/${total_experiments}] 组=${group} 规模=${scale} 负载=${wl} inst=${inst} Run=#${run}"
+
+          EXTRA_FLAGS="--instances $inst"
+          [[ "$SETUP_NODES" == "true" ]] && EXTRA_FLAGS="$EXTRA_FLAGS --setup-nodes"
+
+          if bash "${SCRIPT_DIR}/run-experiment.sh" "$group" "$scale" "$wl" "$run" $EXTRA_FLAGS; then
+            log_info "✓ 实验成功: ${group}/${scale}/${wl}/inst${inst}/run${run}"
+          else
+            log_error "✗ 实验失败: ${group}/${scale}/${wl}/inst${inst}/run${run}"
+            failed_experiments+=("${group}/${scale}/${wl}/inst${inst}/run${run}")
+          fi
+          echo ""
+        done
       done
     done
   done
@@ -247,6 +332,9 @@ REPORT_FILE="${RESULTS_DIR}/report_${REPORT_TIME}.md"
   echo "| Binder 资源 limits | ${BENCH_BINDER_LIM_CPU} CPU / ${BENCH_BINDER_LIM_MEM} MEM |"
   echo "| Dispatcher 资源 requests | ${BENCH_DISPATCHER_REQ_CPU} CPU / ${BENCH_DISPATCHER_REQ_MEM} MEM |"
   echo "| Dispatcher 资源 limits | ${BENCH_DISPATCHER_LIM_CPU} CPU / ${BENCH_DISPATCHER_LIM_MEM} MEM |"
+  if [[ -n "$CUSTOM_INSTANCES" ]]; then
+    echo "| Scheduler 实例数 (组 A/B) | ${CUSTOM_INSTANCES} |"
+  fi
   echo ""
 
   echo "## 实验明细"
