@@ -543,8 +543,8 @@ func TestCreateWorker_WithErrors(t *testing.T) {
 	callCount := atomic.Int64{}
 	client.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, runtime.Object, error) {
 		n := callCount.Add(1)
-		// 前 10 次调用失败 (5 个 pod × 2 次重试 = 10 次调用)
-		if n <= 10 {
+		// 前 15 次调用失败 (5 个 pod × 3 次重试 = 15 次调用)
+		if n <= 15 {
 			return true, nil, fmt.Errorf("simulated API error")
 		}
 		return false, nil, nil // 交给默认 handler

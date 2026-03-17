@@ -109,7 +109,7 @@ check_api_server 10
 # ═══════════════════════════════════════════════
 # Step 1: 验证/调整 KWOK 节点数量
 # ═══════════════════════════════════════════════
-log_step "Step 1/11: 验证 KWOK 节点数量 (目标=${NODE_COUNT})"
+log_step "Step 1/12: 验证 KWOK 节点数量 (目标=${NODE_COUNT})"
 ACTUAL_NODES=$(kubectl get nodes -l fake.byted.org/node --no-headers 2>/dev/null | wc -l | tr -d ' ')
 log_info "当前 KWOK 节点: ${ACTUAL_NODES}, 期望: ${NODE_COUNT}"
 
@@ -135,7 +135,7 @@ fi
 # ═══════════════════════════════════════════════
 # Step 2: 清理上一轮测试环境
 # ═══════════════════════════════════════════════
-log_step "Step 2/11: 清理上一轮测试环境"
+log_step "Step 2/12: 清理上一轮测试环境"
 cleanup_bench "$BENCH_NAMESPACE"
 
 # ── etcd 压缩：防止 "database space exceeded" ──
@@ -159,15 +159,21 @@ else
 fi
 
 # ═══════════════════════════════════════════════
-# Step 3: 等待系统冷却
+# Step 3/12: 重启 API Server (清理连接积压)
 # ═══════════════════════════════════════════════
-log_step "Step 3/11: 等待系统冷却 (${COOLDOWN_SECONDS}s)"
+log_step "Step 3/12: 重启 API Server"
+restart_apiserver
+
+# ═══════════════════════════════════════════════
+# Step 4/12: 等待系统冷却
+# ═══════════════════════════════════════════════
+log_step "Step 4/12: 等待系统冷却 (${COOLDOWN_SECONDS}s)"
 sleep "$COOLDOWN_SECONDS"
 
 # ═══════════════════════════════════════════════
-# Step 4: 验证调度器就绪
+# Step 5/12: 验证调度器就绪
 # ═══════════════════════════════════════════════
-log_step "Step 4/11: 验证调度器就绪"
+log_step "Step 5/12: 验证调度器就绪"
 verify_scheduler_ready() {
   local ns="$1" label="$2" desc="$3" name_prefix_regex="${4:-}"
   local running
@@ -204,30 +210,30 @@ case "$GROUP" in
 esac
 
 # ═══════════════════════════════════════════════
-# Step 5: 记录实验开始时间
+# Step 6: 记录实验开始时间
 # ═══════════════════════════════════════════════
-log_step "Step 5/11: 记录实验开始时间"
+log_step "Step 6/12: 记录实验开始时间"
 START_TIME=$(date +%s)
 START_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 log_info "开始时间: ${START_ISO} (ts=${START_TIME})"
 
 # ═══════════════════════════════════════════════
-# Step 6: 执行负载
+# Step 7: 执行负载
 # ═══════════════════════════════════════════════
-log_step "Step 6/11: 执行负载 (${WDESC})"
+log_step "Step 7/12: 执行负载 (${WDESC})"
 bash "${SCRIPT_DIR}/workloads/create-pods.sh" \
   "$RATE" "$TOTAL" "$SCHED_NAME" "$CPU" "$MEM" "$WTYPE"
 
 # ═══════════════════════════════════════════════
-# Step 7: 轮询等待所有 Pod 调度完成
+# Step 8: 轮询等待所有 Pod 调度完成
 # ═══════════════════════════════════════════════
-log_step "Step 7/11: 等待所有 Pod 调度完成"
+log_step "Step 8/12: 等待所有 Pod 调度完成"
 wait_all_scheduled "$BENCH_NAMESPACE" "$WAIT_SCHEDULE_TIMEOUT"
 
 # ═══════════════════════════════════════════════
-# Step 8: 记录实验结束时间
+# Step 9: 记录实验结束时间
 # ═══════════════════════════════════════════════
-log_step "Step 8/11: 记录实验结束时间"
+log_step "Step 9/12: 记录实验结束时间"
 END_TIME=$(date +%s)
 END_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 DURATION=$((END_TIME - START_TIME))
@@ -235,30 +241,30 @@ log_info "结束时间: ${END_ISO} (ts=${END_TIME})"
 log_info "总耗时: $(format_duration $DURATION)"
 
 # ═══════════════════════════════════════════════
-# Step 9: 导出 Prometheus 数据
+# Step 10: 导出 Prometheus 数据
 # ═══════════════════════════════════════════════
 if [[ "$SKIP_COLLECT" == "true" ]]; then
-  log_step "Step 9/11: 跳过 Prometheus 数据导出 (--skip-collect)"
+  log_step "Step 10/12: 跳过 Prometheus 数据导出 (--skip-collect)"
 else
-  log_step "Step 9/11: 导出 Prometheus 数据"
+  log_step "Step 10/12: 导出 Prometheus 数据"
   bash "${SCRIPT_DIR}/collect/export-prometheus.sh" \
     "$GROUP" "$START_TIME" "$END_TIME" "$EXP_RESULTS_DIR"
 fi
 
 # ═══════════════════════════════════════════════
-# Step 10: 采集节点资源分布快照
+# Step 11: 采集节点资源分布快照
 # ═══════════════════════════════════════════════
 if [[ "$SKIP_COLLECT" == "true" ]]; then
-  log_step "Step 10/11: 跳过节点资源分布采集 (--skip-collect)"
+  log_step "Step 11/12: 跳过节点资源分布采集 (--skip-collect)"
 else
-  log_step "Step 10/11: 采集节点资源分布快照"
+  log_step "Step 11/12: 采集节点资源分布快照"
   bash "${SCRIPT_DIR}/collect/collect-utilization.sh" > "$EXP_RESULTS_DIR/utilization.csv"
 fi
 
 # ═══════════════════════════════════════════════
-# Step 11: 采集 Pod 分布快照 + 写入元数据
+# Step 12: 采集 Pod 分布快照 + 写入元数据
 # ═══════════════════════════════════════════════
-log_step "Step 11/11: 采集 Pod 分布快照 & 元数据"
+log_step "Step 12/12: 采集 Pod 分布快照 & 元数据"
 if [[ "$SKIP_COLLECT" != "true" ]]; then
   bash "${SCRIPT_DIR}/collect/collect-distribution.sh" > "$EXP_RESULTS_DIR/pod-distribution.csv"
 fi

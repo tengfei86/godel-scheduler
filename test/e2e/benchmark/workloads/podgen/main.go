@@ -112,6 +112,8 @@ func buildClient() (*kubernetes.Clientset, error) {
 	config.Burst = flagBurst
 	// 关闭压缩减少 CPU 消耗
 	config.DisableCompression = true
+	// 超时：单次 API 调用 30s（默认 0 = 无超时，高并发下可能卡住连接）
+	config.Timeout = 30 * time.Second
 
 	return kubernetes.NewForConfig(config)
 }
@@ -320,15 +322,29 @@ func createWorker(ctx context.Context, client kubernetes.Interface, ch <-chan po
 				submitted.Add(1)
 				continue
 			}
-			_, err := client.CoreV1().Pods(task.pod.Namespace).Create(ctx, task.pod, metav1.CreateOptions{})
-			if err != nil {
-				// 轻量重试一次
-				time.Sleep(10 * time.Millisecond)
+			var err error
+			// 指数退避重试，最多 3 次
+			for attempt := 0; attempt < 3; attempt++ {
 				_, err = client.CoreV1().Pods(task.pod.Namespace).Create(ctx, task.pod, metav1.CreateOptions{})
-				if err != nil {
-					errors.Add(1)
-					continue
+				if err == nil {
+					break
 				}
+				// 已被取消则直接退出
+				if ctx.Err() != nil {
+					errors.Add(1)
+					err = nil // 避免下方再计数
+					break
+				}
+				// 指数退避: 50ms, 200ms, 800ms
+				backoff := time.Duration(50<<uint(attempt)) * time.Millisecond
+				select {
+				case <-ctx.Done():
+				case <-time.After(backoff):
+				}
+			}
+			if err != nil {
+				errors.Add(1)
+				continue
 			}
 			submitted.Add(1)
 		}

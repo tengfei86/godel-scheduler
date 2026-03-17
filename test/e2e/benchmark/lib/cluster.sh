@@ -74,6 +74,38 @@ tune_apiserver() {
   log_info "✓ API Server 参数已调整"
 }
 
+# ── 重启 API Server ──
+# 通过删除 kube-apiserver 静态 Pod 触发 kubelet 自动重建，清理连接积压和内存膨胀
+restart_apiserver() {
+  local container_name="${KIND_CLUSTER_NAME}-control-plane"
+  log_info "重启 API Server（清理连接积压）..."
+
+  # 方法: 给 kube-apiserver.yaml 加一个时间戳注解，kubelet 检测到变更自动重启
+  local ts
+  ts=$(date +%s)
+  docker exec "$container_name" bash -c "
+    sed -i 's/^    restart-ts:.*/    restart-ts: \"${ts}\"/' /etc/kubernetes/manifests/kube-apiserver.yaml 2>/dev/null
+    if ! grep -q 'restart-ts:' /etc/kubernetes/manifests/kube-apiserver.yaml; then
+      sed -i '/^  annotations:/a\\    restart-ts: \"${ts}\"' /etc/kubernetes/manifests/kube-apiserver.yaml 2>/dev/null
+    fi
+    if ! grep -q 'annotations:' /etc/kubernetes/manifests/kube-apiserver.yaml; then
+      sed -i '/^metadata:/a\\  annotations:\n    restart-ts: \"${ts}\"' /etc/kubernetes/manifests/kube-apiserver.yaml 2>/dev/null
+    fi
+  "
+
+  # 等待 API Server 下线再上线
+  sleep 5
+  local max_wait=60
+  for i in $(seq 1 "$max_wait"); do
+    if kubectl cluster-info --request-timeout=3s &>/dev/null; then
+      log_info "✓ API Server 重启完成 (${i}s)"
+      return 0
+    fi
+    sleep 1
+  done
+  log_warn "API Server 重启等待超时 (${max_wait}s)，继续执行"
+}
+
 # ── 确保镜像已加载到 kind 集群 ──
 # 用法: ensure_image_loaded <image>
 ensure_image_loaded() {
