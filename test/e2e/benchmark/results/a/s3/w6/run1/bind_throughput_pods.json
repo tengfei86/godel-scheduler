@@ -1,0 +1,1 @@
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{},"values":[[1773684689,"0"],[1773684704,"48.84444444444444"],[1773684719,"167.6222222222222"]]}]},"warnings":["PromQL info: metric might not be a counter, name does not end in _total/_sum/_count/_bucket: \"binder_binding_pod_attempts\" (1:10)"]}
