@@ -51,6 +51,10 @@ verify_prometheus_targets() {
 
 # ── 从 Prometheus 导出查询结果 ──
 # 用法: prometheus_query_range <query> <start_ts> <end_ts> <output_file> [step]
+# 自动处理:
+#   1. 时间跨度过长时放大 step，避免数据点过多导致 Prometheus 超时
+#   2. 设置 curl --max-time 防止无限等待
+#   3. 首次失败自动放大 step 重试一次
 prometheus_query_range() {
   local query="${1}"
   local start="${2}"
@@ -58,18 +62,44 @@ prometheus_query_range() {
   local output="${4}"
   local step="${5:-$PROMETHEUS_STEP}"
 
+  # 自动调整 step：如果数据点数超过 MAX_POINTS，放大 step
+  local step_seconds
+  step_seconds=$(echo "$step" | sed 's/s$//')
+  local duration=$(( end - start ))
+  local max_points="${PROMETHEUS_MAX_POINTS:-11000}"
+  local estimated_points=$(( duration / step_seconds ))
+  if (( estimated_points > max_points )); then
+    step_seconds=$(( (duration + max_points - 1) / max_points ))
+    step="${step_seconds}s"
+    log_debug "  step 自动放大为 ${step} (${estimated_points} 点 → ~${max_points} 点)"
+  fi
+
   local encoded_query
   encoded_query=$(printf '%s' "$query" | python3 -c "import sys,urllib.parse; print(urllib.parse.quote(sys.stdin.read()))" 2>/dev/null \
     || echo "$query")
 
-  curl -s --retry 3 --retry-delay 2 \
-    "${PROMETHEUS_ADDR}/api/v1/query_range?query=${encoded_query}&start=${start}&end=${end}&step=${step}" \
-    > "$output"
+  local timeout="${PROMETHEUS_QUERY_TIMEOUT:-300}"
+  local url="${PROMETHEUS_ADDR}/api/v1/query_range?query=${encoded_query}&start=${start}&end=${end}&step=${step}&timeout=${timeout}s"
+
+  curl -s --max-time "$timeout" --retry 2 --retry-delay 5 \
+    "$url" > "$output" 2>/dev/null || true
 
   if jq -e '.status == "success"' "$output" &>/dev/null; then
     log_debug "✓ 查询成功: $(basename "$output")"
+    return 0
+  fi
+
+  # 首次失败 → 放大 step 2 倍重试
+  local retry_step=$(( step_seconds * 2 ))
+  log_warn "查询失败，重试 step=${retry_step}s: $(basename "$output")"
+  url="${PROMETHEUS_ADDR}/api/v1/query_range?query=${encoded_query}&start=${start}&end=${end}&step=${retry_step}s&timeout=${timeout}s"
+  curl -s --max-time "$timeout" --retry 1 --retry-delay 5 \
+    "$url" > "$output" 2>/dev/null || true
+
+  if jq -e '.status == "success"' "$output" &>/dev/null; then
+    log_debug "✓ 重试成功: $(basename "$output") (step=${retry_step}s)"
   else
-    log_warn "查询可能失败: $(basename "$output")"
+    log_warn "✗ 查询最终失败: $(basename "$output")"
   fi
 }
 

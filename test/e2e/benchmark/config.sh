@@ -35,6 +35,8 @@ SCHEDULER_INSTANCE_COUNTS=(1 2 3 5)
 PROMETHEUS_ADDR="http://localhost:30090"
 PROMETHEUS_NAMESPACE="monitoring"
 PROMETHEUS_STEP="15s"
+PROMETHEUS_QUERY_TIMEOUT="${PROMETHEUS_QUERY_TIMEOUT:-300}"  # 单次查询超时 (s)
+PROMETHEUS_MAX_POINTS=11000                                  # 超过此数据点自动放大 step
 
 # ── 镜像 ──
 GODEL_IMAGE="godel-local:latest"
