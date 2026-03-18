@@ -33,6 +33,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -88,7 +91,7 @@ func init() {
 
 // ── Kubernetes 客户端构建 ──
 
-func buildClient() (*kubernetes.Clientset, error) {
+func buildClient() (*kubernetes.Clientset, dynamic.Interface, error) {
 	var config *rest.Config
 	var err error
 
@@ -104,7 +107,7 @@ func buildClient() (*kubernetes.Clientset, error) {
 		}
 	}
 	if err != nil {
-		return nil, fmt.Errorf("构建 kubeconfig 失败: %w", err)
+		return nil, nil, fmt.Errorf("构建 kubeconfig 失败: %w", err)
 	}
 
 	// 高 QPS/Burst：避免 client-go 自身限速成为瓶颈
@@ -115,7 +118,15 @@ func buildClient() (*kubernetes.Clientset, error) {
 	// 超时：单次 API 调用 30s（默认 0 = 无超时，高并发下可能卡住连接）
 	config.Timeout = 30 * time.Second
 
-	return kubernetes.NewForConfig(config)
+	cs, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, nil, fmt.Errorf("创建 kubernetes clientset 失败: %w", err)
+	}
+	dyn, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return nil, nil, fmt.Errorf("创建 dynamic client 失败: %w", err)
+	}
+	return cs, dyn, nil
 }
 
 // ── Pod 构造函数 ──
@@ -387,7 +398,7 @@ func progressPrinter(ctx context.Context, submitted, errors *atomic.Int64, total
 func main() {
 	flag.Parse()
 
-	client, err := buildClient()
+	client, dynClient, err := buildClient()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[ERROR] %v\n", err)
 		os.Exit(1)
@@ -419,7 +430,7 @@ func main() {
 	case "burst":
 		runBurst(ctx, client)
 	case "gang":
-		runGang(ctx, client)
+		runGang(ctx, client, dynClient)
 	case "heterogeneous":
 		runHeterogeneous(ctx, client)
 	default:
@@ -510,8 +521,70 @@ func runBurst(ctx context.Context, client kubernetes.Interface) {
 	wg.Wait()
 }
 
+// ── PodGroup CRD 创建（Volcano / Koordinator） ──
+
+// Volcano PodGroup: scheduling.volcano.sh/v1beta1
+var volcanoPodGroupGVR = schema.GroupVersionResource{
+	Group:    "scheduling.volcano.sh",
+	Version:  "v1beta1",
+	Resource: "podgroups",
+}
+
+// Koordinator PodGroup: scheduling.sigs.k8s.io/v1alpha1
+var koordPodGroupGVR = schema.GroupVersionResource{
+	Group:    "scheduling.sigs.k8s.io",
+	Version:  "v1alpha1",
+	Resource: "podgroups",
+}
+
+// createPodGroupForGang 在创建 Gang Pod 之前先创建 PodGroup CRD 对象。
+// Gödel 不需要（通过 Pod annotation 自动关联），仅 Volcano 和 Koordinator 需要。
+func createPodGroupForGang(ctx context.Context, dynClient dynamic.Interface, pgName string, minMember int) error {
+	switch flagScheduler {
+	case "volcano":
+		pg := &unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"apiVersion": "scheduling.volcano.sh/v1beta1",
+				"kind":       "PodGroup",
+				"metadata": map[string]interface{}{
+					"name":      pgName,
+					"namespace": flagNamespace,
+				},
+				"spec": map[string]interface{}{
+					"minMember": int64(minMember),
+				},
+			},
+		}
+		_, err := dynClient.Resource(volcanoPodGroupGVR).Namespace(flagNamespace).Create(ctx, pg, metav1.CreateOptions{})
+		if err != nil {
+			return fmt.Errorf("创建 Volcano PodGroup %s 失败: %w", pgName, err)
+		}
+	case "koord-scheduler":
+		pg := &unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"apiVersion": "scheduling.sigs.k8s.io/v1alpha1",
+				"kind":       "PodGroup",
+				"metadata": map[string]interface{}{
+					"name":      pgName,
+					"namespace": flagNamespace,
+				},
+				"spec": map[string]interface{}{
+					"minMember":              int64(minMember),
+					"scheduleTimeoutSeconds": int64(600),
+				},
+			},
+		}
+		_, err := dynClient.Resource(koordPodGroupGVR).Namespace(flagNamespace).Create(ctx, pg, metav1.CreateOptions{})
+		if err != nil {
+			return fmt.Errorf("创建 Koordinator PodGroup %s 失败: %w", pgName, err)
+		}
+	}
+	// godel-scheduler / default-scheduler: 不需要 CRD
+	return nil
+}
+
 // ── gang 模式 ──
-func runGang(ctx context.Context, client kubernetes.Interface) {
+func runGang(ctx context.Context, client kubernetes.Interface, dynClient dynamic.Interface) {
 	totalGroups := flagTotal / flagGangSize
 	groupRate := flagRate / flagGangSize
 	if groupRate < 1 {
@@ -532,6 +605,13 @@ func runGang(ctx context.Context, client kubernetes.Interface) {
 	for g := 1; g <= totalGroups; g++ {
 		if err := rl.waitForSlot(ctx); err != nil {
 			break
+		}
+		// 先创建 PodGroup CRD（Volcano / Koordinator 需要）
+		pgName := fmt.Sprintf("bench-gang-%d", g)
+		if !flagDryRun {
+			if err := createPodGroupForGang(ctx, dynClient, pgName, flagGangSize); err != nil {
+				fmt.Fprintf(os.Stderr, "[WARN] %v\n", err)
+			}
 		}
 		for m := 1; m <= flagGangSize; m++ {
 			select {

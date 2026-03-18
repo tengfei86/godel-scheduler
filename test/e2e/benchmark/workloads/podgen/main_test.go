@@ -700,7 +700,8 @@ func TestRunGang_FakeClient(t *testing.T) {
 	client := fake.NewSimpleClientset()
 	ctx := context.Background()
 
-	runGang(ctx, client)
+	// Gödel 不需要 PodGroup CRD，dynamic client 传 nil
+	runGang(ctx, client, nil)
 
 	pods, err := client.CoreV1().Pods("gang-ns").List(ctx, metav1.ListOptions{})
 	if err != nil {
