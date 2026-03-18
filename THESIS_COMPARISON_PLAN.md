@@ -1152,3 +1152,97 @@ EOF
 3. **Pod 模板用 `envsubst` 渲染** — `schedulerName`、CPU、MEM 作为环境变量注入，同一模板适配所有组
 4. **导出脚本按组选择 PromQL 查询集** — 因为各调度器指标名不同（`scheduler_pod_scheduling_attempts` vs `volcano_scheduler_schedule_count` 等）
 5. **结果目录结构固定** — `results/{group}/{workload}/run{id}/`，方便后续 Python 脚本自动扫描分析
+
+---
+
+## 12. 数据质量报告（S3 规模，Run 1）
+
+> **采集日期**: 2026-03-17 ~ 2026-03-18
+> **规模**: S3（5,000 KWOK 节点）
+> **说明**: 本节记录首轮实验（run1）的数据完整性和已知问题，供论文写作和图表绘制时参考。
+
+### 12.1 数据完整性总览
+
+| 组                  | 负载 | 实验时长 | JSON 文件数 | 空文件数 | 完整性    | 备注                                            |
+| ------------------- | ---- | -------- | ----------- | -------- | --------- | ----------------------------------------------- |
+| A (Shared Binder)   | W1   | 1m44s    | 16          | 0        | ✅ 完整   |                                                 |
+| A                   | W2   | 3m3s     | 16          | 0        | ✅ 完整   |                                                 |
+| A                   | W3   | 6m5s     | 16          | 0        | ✅ 完整   |                                                 |
+| A                   | W4   | 10m48s   | 16          | 0        | ✅ 完整   |                                                 |
+| A                   | W6   | 33s      | 16          | 0        | ✅ 完整   |                                                 |
+| B (Embedded Binder) | W1   | 1m43s    | 20          | 4        | ⚠️ 部分   | 4 个空文件为正常未触发的指标                    |
+| B                   | W2   | 2m8s     | 20          | 4        | ⚠️ 部分   | 同上                                            |
+| B                   | W3   | 4m8s     | 20          | 4        | ⚠️ 部分   | 同上                                            |
+| B                   | W4   | 12m5s    | 20          | 4        | ⚠️ 部分   | 同上                                            |
+| B                   | W6   | 25s      | 20          | 4        | ⚠️ 部分   | 同上                                            |
+| C (kube-scheduler)  | W1   | 1m43s    | 15          | 0        | ✅ 完整   |                                                 |
+| C                   | W2   | 2m2s     | 15          | 0        | ✅ 完整   |                                                 |
+| C                   | W3   | 3m23s    | 15          | 0        | ✅ 完整   |                                                 |
+| C                   | W4   | 8m41s    | 15          | 0        | ✅ 完整   |                                                 |
+| C                   | W6   | —        | —           | —        | ❌ 不适用 | kube-scheduler 不支持 Gang 调度                 |
+| D (Volcano)         | W1   | 3m25s    | 16          | 1        | ⚠️ 部分   | `scheduling_success_rate` 为空                  |
+| D                   | W2   | 17m41s   | 18          | 3        | ⚠️ 部分   | 旧格式裸指标文件残留（0B），见 §12.3            |
+| D                   | W3   | 35m8s    | 18          | 12       | ❌ 大量空 | **Scheduler 过载**，仅前 12min 有数据，见 §12.2 |
+| D                   | W4   | 1h10m7s  | 16          | 1        | ⚠️ 部分   | **Scheduler 过载**，仅前 1min 有数据，见 §12.2  |
+| D                   | W6   | 3m25s    | 16          | 16       | ❌ 全空   | 旧版脚本导出（0B），需用修复后脚本重跑          |
+| E (Koordinator)     | W1   | 3m45s    | 18          | 0        | ✅ 完整   |                                                 |
+| E                   | W2   | 17m17s   | 18          | 0        | ✅ 完整   |                                                 |
+| E                   | W3   | 34m42s   | 18          | 0        | ✅ 完整   |                                                 |
+| E                   | W4   | 1h12m43s | 18          | 0        | ✅ 完整   |                                                 |
+| E                   | W6   | —        | —           | —        | 🔄 待跑   | Gang PodGroup CRD 已修复，待重新执行            |
+
+### 12.2 Volcano (D) 高负载下 Scheduler 过载问题
+
+Volcano 采用 session-based 批处理调度模型，在 W3/W4 高负载场景下出现严重性能退化：
+
+**W3 (100K pods, 1000 pods/s)**:
+
+- Scheduler 有效工作约 **12 分钟**（实验持续 35 分钟）
+- `scheduling_latency_p50` 从 30ms 飙升至 7.68s 后指标消失
+- 仅 `action_latency`、`scheduling_error_rate`、`unschedule_jobs`、`scheduling_latency_p50/p90` 有部分数据
+- `scheduling_throughput`、`session_throughput`、`task_latency`、`plugin_latency`、`goroutines`、`pending_pods` 等 12 个指标全部为空
+
+**W4 (200K pods, 2000 pods/s)**:
+
+- Scheduler 有效工作仅 **1 分钟**（实验持续 70 分钟）
+- `scheduling_throughput` 仅 5 个数据点（60 秒），`goroutines` 覆盖 5.5 分钟
+- 之后 Prometheus scrape 不再收到新数据
+
+**根因分析**:
+
+- Volcano 的 scheduling session 处理时间随 pending Pod 数量指数增长
+- 在大规模场景下，每个 session 耗时数秒 → 指标产出速率低于 Prometheus 的 `rate()` 最小窗口 → `rate()` 返回空 → 指标消失
+- 这是 Volcano 架构本身的性能瓶颈，**非脚本 bug**
+
+**论文处理建议**:
+
+- 在图表中标注 "scheduler saturated" 或 "overloaded"
+- 利用有限的数据展示延迟飙升趋势（如 W3 的 0.03s → 7.68s）
+- 在正文中讨论 Volcano session-based 模型的可扩展性局限
+
+### 12.3 已修复的导出问题
+
+| 问题                                                                   | 影响范围               | 修复内容                                                                                                                                                              |
+| ---------------------------------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Volcano 裸指标无 `sum()` 聚合                                          | D 组 W2/W3/W6 全部 0B  | `pending_pods` → `sum(volcano_unschedule_task_count)`；`scheduling_error_rate` → `sum(rate(...))`；`job_scheduling_duration` 裸 Gauge → `avg(…)/1000` + `max(…)/1000` |
+| Prometheus `query_range` 仅重试 1 次                                   | 大时间跨度查询偶发失败 | 改为 4 次重试 + step 指数退避（2x→4x→8x），使用临时文件避免覆盖好数据                                                                                                 |
+| Koordinator `extension_point_latency_p99` 查询 `[1m]` 窗口计算开销过大 | E 组 W3/W4 偶发超时    | rate 窗口改为 `[5m]`                                                                                                                                                  |
+
+### 12.4 Group B 空文件说明
+
+Group B (Embedded Binder) 每个 workload 固定 4 个空文件，属于**正常情况**（指标未触发）：
+
+| 空文件                          | 原因                                                            |
+| ------------------------------- | --------------------------------------------------------------- |
+| `bind_retries.json`             | 无绑定重试发生（正常场景不触发）                                |
+| `dispatcher_fallback.json`      | 无 Dispatcher 回退发生                                          |
+| `node_validation_failures.json` | 无节点验证失败                                                  |
+| `goroutines.json`               | `scheduler_goroutines` 指标在 Embedded 模式下需确认 scrape 配置 |
+
+### 12.5 待完成项
+
+- [ ] **D/W6**: 用修复后的脚本（sum 聚合 + PodGroup CRD）重新跑 Volcano Gang 调度实验
+- [ ] **E/W6**: 用修复后的 podgen（PodGroup CRD 支持）跑 Koordinator Gang 调度实验
+- [ ] **D/W2**: 包含旧格式残留文件（`job_scheduling_duration.json` 0B），需用新脚本重新导出
+- [ ] **D/W4**: 包含旧格式裸指标文件（`pending_pods` 1.9MB/3056 条, `scheduling_error_rate` 1.2MB/2263 条），重跑后会变为聚合后的小文件
+- [ ] 所有组完成 3 次重复实验（当前均为 run1）
