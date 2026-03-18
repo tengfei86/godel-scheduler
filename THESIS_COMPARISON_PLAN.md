@@ -1246,3 +1246,5 @@ Group B (Embedded Binder) 每个 workload 固定 4 个空文件，属于**正常
 - [ ] **D/W2**: 包含旧格式残留文件（`job_scheduling_duration.json` 0B），需用新脚本重新导出
 - [ ] **D/W4**: 包含旧格式裸指标文件（`pending_pods` 1.9MB/3056 条, `scheduling_error_rate` 1.2MB/2263 条），重跑后会变为聚合后的小文件
 - [ ] 所有组完成 3 次重复实验（当前均为 run1）
+
+

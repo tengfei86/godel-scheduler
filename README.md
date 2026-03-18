@@ -60,3 +60,20 @@ bind-key -T copy-mode-vi y send-keys -X copy-selection-and-cancel
 ./run-all.sh --groups "a b" --scales "s3 s4 s5" --workloads "w3 w4" --instances "3" --setup-nodes  --runs 1
 
 ```
+
+
+```bash
+1.  课题背景介绍 
+     1.1.  课题来源
+     1.2.  课题研究内容
+     1.3.  系统总体方案
+2.  论文工作是否按开题报告预定的内容及进度安排进行 
+     2.1.  开题报告工作计划
+     2.2.  实际工作计划
+     2.3.  说明
+3.  论文工作成果介绍 
+     3.1 课题所实施的解决方案介绍
+     3.2 开题报告中所列关键问题的解决情况
+     3.3 创新性的方法、技术、成果
+4.  论文后期工作及进度安排 
+```
