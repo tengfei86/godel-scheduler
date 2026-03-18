@@ -57,6 +57,6 @@ bind-key -T copy-mode-vi y send-keys -X copy-selection-and-cancel
 
 ```bash
 
-./run-all.sh --groups "a b" --scales "s3 s4 s5" --workloads "w3 w4" --instances "3" --runs 1
+./run-all.sh --groups "a b" --scales "s3 s4 s5" --workloads "w3 w4" --instances "3" --setup-nodes  --runs 1
 
 ```
