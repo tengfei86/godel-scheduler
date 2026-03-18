@@ -172,19 +172,20 @@ declare -A VOLCANO_QUERIES=(
   [plugin_latency_p90]='histogram_quantile(0.90,sum(rate(volcano_plugin_scheduling_latency_milliseconds_bucket[1m]))by(le,plugin))/1000'
 
   # 成功率 — Volcano 无 Pod 级 result 标签，用 Job 调度完成数 / (完成数 + 不可调度数) 近似
-  [scheduling_success_rate]='(sum(rate(volcano_e2e_job_scheduling_latency_milliseconds_count[5m])) / 2 or on() vector(0)) / clamp_min(sum(rate(volcano_e2e_job_scheduling_latency_milliseconds_count[5m])) / 2 + rate(volcano_unschedule_task_count[5m]), 1e-9)'
+  [scheduling_success_rate]='(sum(rate(volcano_e2e_job_scheduling_latency_milliseconds_count[5m])) / 2 or on() vector(0)) / clamp_min(sum(rate(volcano_e2e_job_scheduling_latency_milliseconds_count[5m])) / 2 + sum(rate(volcano_unschedule_task_count[5m])), 1e-9)'
   # 错误率 — 用不可调度任务数变化率
-  [scheduling_error_rate]='rate(volcano_unschedule_task_count[5m])'
+  [scheduling_error_rate]='sum(rate(volcano_unschedule_task_count[5m]))'
 
-  # Pending（不可调度任务/Job 数）
-  [pending_pods]='volcano_unschedule_task_count'
-  [unschedule_jobs]='volcano_unschedule_job_count'
+  # Pending（不可调度任务/Job 数）— 必须 sum() 聚合，否则裸指标会返回数千条 per-task 时间序列
+  [pending_pods]='sum(volcano_unschedule_task_count)'
+  [unschedule_jobs]='sum(volcano_unschedule_job_count)'
 
   # Goroutines
   [goroutines]='go_goroutines{job=~".*volcano.*"}'
 
-  # E2E Job scheduling duration
-  [job_scheduling_duration]='volcano_e2e_job_scheduling_duration'
+  # E2E Job scheduling duration (Gauge, 每个 Job 一条, 单位毫秒 → 聚合为统计值，除以 1000 转秒)
+  [job_scheduling_duration_avg]='avg(volcano_e2e_job_scheduling_duration) / 1000'
+  [job_scheduling_duration_max]='max(volcano_e2e_job_scheduling_duration) / 1000'
 )
 
 # ═══════════════════════════════════════════════
