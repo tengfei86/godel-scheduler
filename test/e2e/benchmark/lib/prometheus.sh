@@ -54,7 +54,8 @@ verify_prometheus_targets() {
 # 自动处理:
 #   1. 时间跨度过长时放大 step，避免数据点过多导致 Prometheus 超时
 #   2. 设置 curl --max-time 防止无限等待
-#   3. 首次失败自动放大 step 重试一次
+#   3. 失败后逐步放大 step 重试（2x → 4x → 8x），直到成功或达到最大重试
+#   4. 使用临时文件，避免损坏已有输出；最终失败写入空数据 JSON
 prometheus_query_range() {
   local query="${1}"
   local start="${2}"
@@ -79,28 +80,50 @@ prometheus_query_range() {
     || echo "$query")
 
   local timeout="${PROMETHEUS_QUERY_TIMEOUT:-300}"
-  local url="${PROMETHEUS_ADDR}/api/v1/query_range?query=${encoded_query}&start=${start}&end=${end}&step=${step}&timeout=${timeout}s"
+  local max_retries=4
+  local attempt=0
+  local cur_step=$step_seconds
 
-  curl -s --max-time "$timeout" --retry 2 --retry-delay 5 \
-    "$url" > "$output" 2>/dev/null || true
+  while (( attempt < max_retries )); do
+    attempt=$((attempt + 1))
+    local url="${PROMETHEUS_ADDR}/api/v1/query_range?query=${encoded_query}&start=${start}&end=${end}&step=${cur_step}s&timeout=${timeout}s"
 
-  if jq -e '.status == "success"' "$output" &>/dev/null; then
-    log_debug "✓ 查询成功: $(basename "$output")"
-    return 0
-  fi
+    # 写入临时文件，避免损坏已有输出
+    local tmpfile="${output}.tmp"
+    curl -s --max-time "$timeout" --retry 2 --retry-delay 5 \
+      "$url" > "$tmpfile" 2>/dev/null || true
 
-  # 首次失败 → 放大 step 2 倍重试
-  local retry_step=$(( step_seconds * 2 ))
-  log_warn "查询失败，重试 step=${retry_step}s: $(basename "$output")"
-  url="${PROMETHEUS_ADDR}/api/v1/query_range?query=${encoded_query}&start=${start}&end=${end}&step=${retry_step}s&timeout=${timeout}s"
-  curl -s --max-time "$timeout" --retry 1 --retry-delay 5 \
-    "$url" > "$output" 2>/dev/null || true
+    # 验证: 必须是合法 JSON 且 status == success
+    if jq -e '.status == "success"' "$tmpfile" &>/dev/null; then
+      mv -f "$tmpfile" "$output"
+      if (( attempt > 1 )); then
+        log_debug "✓ 重试成功: $(basename "$output") (step=${cur_step}s, 第${attempt}次)"
+      else
+        log_debug "✓ 查询成功: $(basename "$output")"
+      fi
+      return 0
+    fi
 
-  if jq -e '.status == "success"' "$output" &>/dev/null; then
-    log_debug "✓ 重试成功: $(basename "$output") (step=${retry_step}s)"
-  else
-    log_warn "✗ 查询最终失败: $(basename "$output")"
-  fi
+    # 查看失败原因
+    local err_type="unknown"
+    if [[ ! -s "$tmpfile" ]]; then
+      err_type="empty/timeout"
+    elif ! python3 -c "import json,sys; json.load(sys.stdin)" < "$tmpfile" 2>/dev/null; then
+      err_type="truncated_json"
+    else
+      err_type=$(jq -r '.errorType // .error // "query_error"' "$tmpfile" 2>/dev/null || echo "parse_error")
+    fi
+    rm -f "$tmpfile"
+
+    if (( attempt < max_retries )); then
+      cur_step=$(( cur_step * 2 ))
+      log_warn "查询失败(${err_type})，重试 step=${cur_step}s (${attempt}/${max_retries}): $(basename "$output")"
+    else
+      log_warn "✗ 查询最终失败(${err_type}): $(basename "$output") (${max_retries}次重试均失败)"
+      # 写入空的成功响应，避免后续解析报错
+      echo '{"status":"success","data":{"resultType":"matrix","result":[]}}' > "$output"
+    fi
+  done
 }
 
 # ── 执行即时查询 ──

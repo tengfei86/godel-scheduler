@@ -208,8 +208,8 @@ declare -A KOORDINATOR_QUERIES=(
   [attempt_latency_p90]='histogram_quantile(0.90,sum(rate(scheduler_scheduling_attempt_duration_seconds_bucket{job=~".*koord.*"}[1m]))by(le))'
   [attempt_latency_p99]='histogram_quantile(0.99,sum(rate(scheduler_scheduling_attempt_duration_seconds_bucket{job=~".*koord.*"}[1m]))by(le))'
 
-  # 扩展点延迟
-  [extension_point_latency_p99]='histogram_quantile(0.99,sum(rate(scheduler_framework_extension_point_duration_seconds_bucket{job=~".*koord.*"}[1m]))by(le,extension_point))'
+  # 扩展点延迟（使用 5m 窗口减少计算开销，避免大规模 Pod 时 Prometheus 超时）
+  [extension_point_latency_p99]='histogram_quantile(0.99,sum(rate(scheduler_framework_extension_point_duration_seconds_bucket{job=~".*koord.*"}[5m]))by(le,extension_point))'
 
   # 节点评估数
   [evaluated_nodes_avg]='sum(rate(scheduler_pod_scheduling_evaluated_nodes_sum{job=~".*koord.*"}[1m]))/sum(rate(scheduler_pod_scheduling_evaluated_nodes_count{job=~".*koord.*"}[1m]))'
