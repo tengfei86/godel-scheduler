@@ -96,7 +96,7 @@ declare -A GODEL_EMBEDDED_QUERIES=(
   [scheduling_success_rate]='(sum(rate(scheduler_pod_scheduling_attempts{result="scheduled"}[5m])) or on() vector(0)) / clamp_min(sum(rate(scheduler_pod_scheduling_attempts[5m])), 1e-9)'
   [scheduling_error_rate]='(sum(rate(scheduler_pod_scheduling_attempts{result="error"}[5m])) or on() vector(0)) / clamp_min(sum(rate(scheduler_pod_scheduling_attempts[5m])), 1e-9)'
 
-  # Embedded Binder 特有
+  # Embedded Binder 特有 — 单实例 Gauge，无需聚合
   [bind_inflight]='binder_embedded_bind_inflight'
   [bind_retries]='sum(rate(binder_embedded_bind_retries_total[5m]))'
   [dispatcher_fallback]='sum(rate(binder_dispatcher_fallback_total[5m]))'
@@ -138,7 +138,7 @@ declare -A KUBE_QUERIES=(
   # Pending pods (gauge)
   [pending_pods]='sum(scheduler_pending_pods)'
 
-  # Goroutines
+  # Goroutines — kube-scheduler 单实例，无需聚合
   [goroutines]='scheduler_goroutines'
 
   # 队列入队速率
@@ -219,7 +219,7 @@ declare -A KOORDINATOR_QUERIES=(
   # 队列
   [queue_incoming_pods]='sum(rate(scheduler_queue_incoming_pods_total{job=~".*koord.*"}[1m])) by (event)'
 
-  # Goroutines & Pending
+  # Goroutines & Pending — Koordinator 通常单实例，label 维度少，无需额外聚合
   [goroutines]='go_goroutines{job=~".*koord.*"}'
   [pending_pods]='scheduler_pending_pods{job=~".*koord.*"}'
 
