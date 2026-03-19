@@ -588,7 +588,7 @@ def generate_t4(records: List[ChartRecord]) -> None:
 
 
 def generate_u1(records: List[ChartRecord]) -> None:
-    groups = ["a", "b", "d", "e"]
+    groups = ["a", "b", "c", "d", "e"]
     data: List[List[float]] = []
     labels: List[str] = []
     sources: List[str] = []
@@ -629,7 +629,7 @@ def generate_u1(records: List[ChartRecord]) -> None:
 
     summary = "ENO 在节点 CPU 利用率分布上相对 Godel 更集中，表现出更好的均衡性。"
     records.append(
-        ChartRecord("U-1", "节点 CPU 利用率箱线图（A/B/D/E）", summary, sources, png, pdf)
+        ChartRecord("U-1", "节点 CPU 利用率箱线图（A/B/C/D/E）", summary, sources, png, pdf)
     )
 
 

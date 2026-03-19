@@ -142,11 +142,12 @@
 图片(PDF): test/e2e/benchmark/results/final-charts/08_T-4_inst3_scaling_throughput.pdf
 
 [U-1]
-标题: 节点 CPU 利用率箱线图（A/B/D/E）
+标题: 节点 CPU 利用率箱线图（A/B/C/D/E）
 指标总结: ENO 在节点 CPU 利用率分布上相对 Godel 更集中，表现出更好的均衡性。
 数据源:
 - test/e2e/benchmark/results/a/s3/w3/run1/utilization.csv
 - test/e2e/benchmark/results/b/s3/w3/run1/utilization.csv
+- test/e2e/benchmark/results/c/s3/w3/run1/utilization.csv
 - test/e2e/benchmark/results/e/s3/w3/run1/utilization.csv
 图片: test/e2e/benchmark/results/final-charts/09_U-1_cpu_utilization_boxplot.png
 图片(PDF): test/e2e/benchmark/results/final-charts/09_U-1_cpu_utilization_boxplot.pdf
