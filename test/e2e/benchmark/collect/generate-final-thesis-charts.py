@@ -22,8 +22,8 @@ RESULTS = ROOT / "test/e2e/benchmark/results"
 OUT_DIR = RESULTS / "final-charts"
 
 GROUPS = {
-    "a": "A (Shared Binder)",
-    "b": "B (Embedded Binder)",
+    "a": "A (Godel)",
+    "b": "B (ENO)",
     "c": "C (kube-scheduler)",
     "d": "D (Volcano)",
     "e": "E (Koordinator)",
@@ -214,9 +214,9 @@ def generate_t1(records: List[ChartRecord]) -> None:
     )
     if "a" in means and "b" in means and means["a"] > 0:
         uplift = (means["b"] / means["a"] - 1.0) * 100.0
-        summary = f"该图按全采样点连线并叠加 rolling mean(5) 展示；按非零区间均值统计，Group B 吞吐量相对 Group A 提升约 {uplift:.1f}%（W3, s3, run1）。"
+        summary = f"该图按全采样点连线并叠加 rolling mean(5) 展示；按非零区间均值统计，ENO 吞吐量相对 Godel 提升约 {uplift:.1f}%（W3, s3, run1）。"
     else:
-        summary = "Group B 在该场景吞吐曲线上整体高于或接近 Group A。"
+        summary = "ENO 在该场景吞吐曲线上整体高于或接近 Godel。"
     if missing_groups:
         summary += " 数据缺失: " + ", ".join(GROUPS[g] for g in missing_groups) + "。"
     records.append(
@@ -268,9 +268,9 @@ def generate_t3(records: List[ChartRecord]) -> None:
     valid = np.isfinite(b_vals) & np.isfinite(a_vals) & (a_vals > 0)
     if valid.any():
         uplift = float(np.mean((b_vals[valid] / a_vals[valid] - 1.0) * 100.0))
-        summary = f"在 W1-W4 的非零区间平均吞吐量口径下，Group B 相对 Group A 提升约 {uplift:.1f}%。"
+        summary = f"在 W1-W4 的非零区间平均吞吐量口径下，ENO 相对 Godel 提升约 {uplift:.1f}%。"
     else:
-        summary = "Group B 在 W1-W4 的吞吐量整体高于 Group A。"
+        summary = "ENO 在 W1-W4 的吞吐量整体高于 Godel。"
     if d_missing_ws:
         summary += f" 数据缺失: D (Volcano) {', '.join(d_missing_ws)}。"
     records.append(
@@ -313,9 +313,9 @@ def generate_l1(records: List[ChartRecord]) -> None:
     )
     if "a" in means and "b" in means and means["a"] > 0:
         drop = (1.0 - means["b"] / means["a"]) * 100.0
-        summary = f"Group B 的 P99 延迟相对 Group A 下降约 {drop:.1f}%（W3, s3, run1）。"
+        summary = f"ENO 的 P99 延迟相对 Godel 下降约 {drop:.1f}%（W3, s3, run1）。"
     else:
-        summary = "Group B 在高压场景下的 P99 延迟曲线整体低于 Group A。"
+        summary = "ENO 在高压场景下的 P99 延迟曲线整体低于 Godel。"
     if missing_groups:
         summary += " 数据缺失: " + ", ".join(GROUPS[g] for g in missing_groups) + "。"
     records.append(
@@ -356,9 +356,9 @@ def generate_l2(records: List[ChartRecord]) -> None:
     b_avg = float(np.nanmean(vals_b))
     if a_avg > 0:
         drop = (1.0 - b_avg / a_avg) * 100.0
-        summary = f"Group B 在绑定延迟分位（P50/P90/P99）上平均较 Group A 降低约 {drop:.1f}%。"
+        summary = f"ENO 在绑定延迟分位（P50/P90/P99）上平均较 Godel 降低约 {drop:.1f}%。"
     else:
-        summary = "Group B 在绑定延迟各分位上均低于 Group A。"
+        summary = "ENO 在绑定延迟各分位上均低于 Godel。"
     records.append(
         ChartRecord("L-2", "绑定延迟分位对比（P50/P90/P99, A/B）", summary, sources, png, pdf)
     )
@@ -438,13 +438,13 @@ def generate_s2(records: List[ChartRecord]) -> None:
 
     if np.isfinite(b_s) and np.isfinite(a_s):
         cmp_s = "高于" if b_s >= a_s else "低于"
-        success_text = f"Group B 平均成功率（去前导0）({b_s:.2f}%) {cmp_s} Group A ({a_s:.2f}%)"
+        success_text = f"ENO 平均成功率（去前导0）({b_s:.2f}%) {cmp_s} Godel ({a_s:.2f}%)"
     else:
         success_text = "成功率去零统计样本不足"
 
     if np.isfinite(b_e) and np.isfinite(a_e):
         cmp_e = "低于" if b_e <= a_e else "高于"
-        error_text = f"平均失败率（去前导0）({b_e:.3f}%) {cmp_e} Group A ({a_e:.3f}%)"
+        error_text = f"平均失败率（去前导0）({b_e:.3f}%) {cmp_e} Godel ({a_e:.3f}%)"
     else:
         error_text = "失败率去前导0后无有效样本"
 
@@ -477,9 +477,9 @@ def generate_s3(records: List[ChartRecord]) -> None:
 
     if "a" in peaks and "b" in peaks and peaks["a"] > 0:
         drop = (1.0 - peaks["b"] / peaks["a"]) * 100.0
-        summary = f"Group B 的 Pending 峰值相对 Group A 下降约 {drop:.1f}%，队列堆积更轻。"
+        summary = f"ENO 的 Pending 峰值相对 Godel 下降约 {drop:.1f}%，队列堆积更轻。"
     else:
-        summary = "Group B 的 Pending 堆积曲线整体低于 Group A。"
+        summary = "ENO 的 Pending 堆积曲线整体低于 Godel。"
     records.append(
         ChartRecord("S-3", "Pending Pod 堆积曲线（W4, A/B/C/D/E）", summary, sources, png, pdf)
     )
@@ -510,9 +510,9 @@ def generate_w6(records: List[ChartRecord]) -> None:
     b_idx = groups.index("b")
     if vals[a_idx] and vals[b_idx]:
         improve = (1.0 - vals[b_idx] / vals[a_idx]) * 100.0
-        summary = f"Group B 在 W6 的完成时间相对 Group A 缩短约 {improve:.1f}%。"
+        summary = f"ENO 在 W6 的完成时间相对 Godel 缩短约 {improve:.1f}%。"
     else:
-        summary = "Group B 在 W6 场景完成时间上优于 Group A。"
+        summary = "ENO 在 W6 场景完成时间上优于 Godel。"
     records.append(
         ChartRecord("W6", "Gang 场景完成时间对比（A/B/D/E）", summary, sources, png, pdf)
     )
@@ -579,9 +579,9 @@ def generate_t4(records: List[ChartRecord]) -> None:
     b_w3 = np.array(series_stats.get("b-w3", []), dtype=float)
     if a_w3.size > 0 and b_w3.size > 0 and np.mean(a_w3) > 0:
         uplift = (float(np.mean(b_w3)) / float(np.mean(a_w3)) - 1.0) * 100.0
-        summary = f"该图按全采样点连线并叠加 rolling mean(5) 展示（不做点位平均）；在 W3 聚合口径下，Group B 采样均值相对 Group A 提升约 {uplift:.1f}%。"
+        summary = f"该图按全采样点连线并叠加 rolling mean(5) 展示（不做点位平均）；在 W3 聚合口径下，ENO 采样均值相对 Godel 提升约 {uplift:.1f}%。"
     else:
-        summary = "该图按全采样点连线并叠加 rolling mean(5) 展示（不做点位平均）；Group B 在多数采样点上吞吐量高于 Group A。"
+        summary = "该图按全采样点连线并叠加 rolling mean(5) 展示（不做点位平均）；ENO 在多数采样点上吞吐量高于 Godel。"
     records.append(
         ChartRecord("T-4", "实例数3吞吐量扩展图（A/B, inst3, s3/s4/s5, w3/w4）", summary, sorted(set(sources)), png, pdf)
     )
@@ -627,7 +627,7 @@ def generate_u1(records: List[ChartRecord]) -> None:
     ax.tick_params(axis="x", labelrotation=15)
     png, pdf = save(fig, "09_U-1_cpu_utilization_boxplot")
 
-    summary = "Group B 在节点 CPU 利用率分布上相对 Group A 更集中，表现出更好的均衡性。"
+    summary = "ENO 在节点 CPU 利用率分布上相对 Godel 更集中，表现出更好的均衡性。"
     records.append(
         ChartRecord("U-1", "节点 CPU 利用率箱线图（A/B/D/E）", summary, sources, png, pdf)
     )
@@ -654,7 +654,7 @@ def write_data_quality_notes() -> None:
         f.write("# Data Quality Notes\n\n")
         f.write("- 当前结果目录以 run1 为主，run2/run3 基本缺失，因此本轮图表按 run1 口径生成。\n")
         f.write("- Group D (Volcano) 在部分场景存在缺失，应在论文中标注 overloaded / data unavailable。\n")
-        f.write("- Group B 的 bind_retries/dispatcher_fallback/node_validation_failures/goroutines 在无触发场景可能为空。\n")
+        f.write("- ENO 的 bind_retries/dispatcher_fallback/node_validation_failures/goroutines 在无触发场景可能为空。\n")
 
 
 def main() -> None:
