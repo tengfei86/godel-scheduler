@@ -1184,16 +1184,22 @@ EOF
 | C                   | W3   | 3m23s    | 15          | 0            | ✅ 完整   |                                         |
 | C                   | W4   | 8m41s    | 15          | 0            | ✅ 完整   |                                         |
 | C                   | W5   | 2m13s    | 15          | 0            | ✅ 完整   |                                         |
-| D (Volcano)         | W1   | 3m25s    | 16          | 1            | ⚠️ 部分   | `scheduling_success_rate` 无数据         |
-| D                   | W2   | 17m41s   | 18          | 3            | ⚠️ 部分   | `job_scheduling_duration*`/`pending` 缺失 |
+| D (Volcano)         | W1   | 3m25s    | 18          | 0            | ✅ 完整   | 当前目录校验为 18/18 可用                |
+| D                   | W2   | 17m41s   | 18          | 11           | ❌ 大量缺失 | 当前目录校验为 7/18 可用（见下方明细）   |
 | D                   | W3   | 35m8s    | 18          | 12           | ❌ 大量缺失 | 高负载下过载，关键指标大面积缺失        |
 | D                   | W4   | 1h10m7s  | 16          | 1            | ⚠️ 部分   | `scheduling_success_rate` 无数据         |
-| D                   | W6   | 3m25s    | 16          | 16           | ❌ 全缺失 | Gang 场景导出失败（全部无数据）         |
+| D                   | W6   | 3m25s    | 18          | 1            | ⚠️ 部分   | 当前目录校验为 17/18 可用（仅 1 项缺失） |
 | E (Koordinator)     | W1   | 3m24s    | 18          | 0            | ✅ 完整   |                                         |
 | E                   | W2   | 17m13s   | 18          | 0            | ✅ 完整   |                                         |
 | E                   | W3   | 35m27s   | 18          | 0            | ✅ 完整   |                                         |
 | E                   | W4   | 1h12m24s | 18          | 0            | ✅ 完整   |                                         |
 | E                   | W6   | 7m29s    | 18          | 0            | ✅ 完整   | Gang 数据已补齐                          |
+
+Volcano 目录复核（`test/e2e/benchmark/results/d/s3/*/run1`）：
+
+- `W1`: `18/18` 可用（无缺失）。
+- `W2`: `7/18` 可用，缺失 11 项：`goroutines.json`、`job_scheduling_duration.json`、`job_scheduling_duration_avg.json`、`job_scheduling_duration_max.json`、`pending_pods.json`、`plugin_latency_p90.json`、`scheduling_success_rate.json`、`scheduling_throughput.json`、`session_throughput.json`、`task_latency_p90.json`、`task_latency_p99.json`。
+- `W6`: `17/18` 可用，仅缺失 `job_scheduling_duration.json`。
 
 ### 12.2 Volcano (D) 数据缺失现状
 
