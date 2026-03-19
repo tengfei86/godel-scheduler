@@ -1229,8 +1229,8 @@ Group B (Embedded Binder) 在 W1-W7 均固定出现 4 个“无数据指标”�
 ### 12.5 待完成项（按当前 results 目录）
 
 - [ ] **D/W6 (S3/run1)**: 16/16 指标无数据，需重跑 Volcano Gang 场景并校验 PodGroup/PromQL
-- [ ] **D/W3 (S3/run1)**: 12/18 指标无数据，建议降低负载或优化采样窗口后重跑
 - [ ] **D/W2 (S3/run1)**: 3/18 指标无数据，建议补导出以保证与其他组一致
+- [x] **D/W3、D/W4 (S3/run1)**: 不再重跑；论文中按 “overloaded / data unavailable” 标注并解释口径
 - [ ] 所有组补齐 run2/run3（当前主要为 run1）
 
 
