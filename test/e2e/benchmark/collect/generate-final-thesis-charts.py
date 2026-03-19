@@ -92,6 +92,25 @@ def series_mean_nonzero(path: Path) -> float:
     return float(np.mean(nz)) if nz else float("nan")
 
 
+def leading_zero_trim_mean(path: Path) -> float:
+    """Average after removing only leading consecutive zeros from a single series."""
+    _, ys = read_first_series(path)
+    if not ys:
+        return float("nan")
+    i = 0
+    n = len(ys)
+    while i < n and ys[i] == 0:
+        i += 1
+    trimmed = ys[i:]
+    if not trimmed:
+        return float("nan")
+    vals = np.array(trimmed, dtype=float)
+    vals = vals[np.isfinite(vals)]
+    if vals.size == 0:
+        return float("nan")
+    return float(np.mean(vals))
+
+
 def metadata_duration(path: Path) -> Optional[float]:
     if not path.exists():
         return None
@@ -134,6 +153,23 @@ def rolling_mean(values: List[float], window: int = 5) -> np.ndarray:
     kernel = np.ones(window, dtype=float) / float(window)
     # Keep output length equal to input for easy overlay.
     return np.convolve(arr, kernel, mode="same")
+
+
+def mean_excluding_zero(values: np.ndarray) -> float:
+    arr = np.array(values, dtype=float)
+    arr = arr[np.isfinite(arr)]
+    arr = arr[arr != 0]
+    if arr.size == 0:
+        return float("nan")
+    return float(np.mean(arr))
+
+
+def safe_nanmean(values: List[float]) -> float:
+    arr = np.array(values, dtype=float)
+    arr = arr[np.isfinite(arr)]
+    if arr.size == 0:
+        return float("nan")
+    return float(np.mean(arr))
 
 
 def generate_t1(records: List[ChartRecord]) -> None:
@@ -338,8 +374,9 @@ def generate_s2(records: List[ChartRecord]) -> None:
         for w in workloads:
             ps = RESULTS / g / f"s3/{w}/run1/scheduling_success_rate.json"
             pe = RESULTS / g / f"s3/{w}/run1/scheduling_error_rate.json"
-            success[g].append(series_mean(ps) * 100.0)
-            error[g].append(series_mean(pe) * 100.0)
+            # Plot using the same leading-zero-trimmed ratio semantics.
+            success[g].append(leading_zero_trim_mean(ps))
+            error[g].append(leading_zero_trim_mean(pe))
             if ps.exists():
                 sources.append(str(ps.relative_to(ROOT)))
             if pe.exists():
@@ -356,11 +393,13 @@ def generate_s2(records: List[ChartRecord]) -> None:
         ax.set_xticklabels([w.upper() for w in workloads])
         ax.grid(axis="y", alpha=0.3)
     axes[0].set_title("Success Rate")
-    axes[0].set_ylabel("%")
+    axes[0].set_ylabel("ratio")
+    axes[0].set_ylim(0, 1.05)
     axes[1].set_title("Error Rate")
-    axes[1].set_ylabel("%")
+    axes[1].set_ylabel("ratio")
+    axes[1].set_ylim(bottom=0)
     axes[0].legend(fontsize=7)
-    fig.suptitle("S-2 Success/Error Rates by Workload (W1-W4, s3)")
+    fig.suptitle("S-2 Success/Error Rates by Workload (W1-W4, s3)", y=0.985)
 
     d_success_missing = [workloads[i].upper() for i, v in enumerate(success["d"]) if not np.isfinite(v)]
     d_error_missing = [workloads[i].upper() for i, v in enumerate(error["d"]) if not np.isfinite(v)]
@@ -368,7 +407,7 @@ def generate_s2(records: List[ChartRecord]) -> None:
     if d_missing_union:
         fig.text(
             0.5,
-            0.995,
+            0.945,
             f"D (Volcano): overloaded / data unavailable ({', '.join(d_missing_union)})",
             ha="center",
             va="top",
@@ -376,19 +415,40 @@ def generate_s2(records: List[ChartRecord]) -> None:
             color="#b03a2e",
             fontweight="bold",
         )
+        # Reserve more headroom so suptitle/warning never overlap subplots.
+        fig.subplots_adjust(top=0.83)
+    else:
+        fig.subplots_adjust(top=0.88)
 
     png, pdf = save(fig, "05_S-2_success_error_by_workload")
 
-    b_s = np.nanmean(np.array(success["b"], dtype=float))
-    a_s = np.nanmean(np.array(success["a"], dtype=float))
-    b_e = np.nanmean(np.array(error["b"], dtype=float))
-    a_e = np.nanmean(np.array(error["a"], dtype=float))
-    cmp_s = "高于" if b_s >= a_s else "低于"
-    cmp_e = "低于" if b_e <= a_e else "高于"
-    summary = (
-        f"在 W1-W4 上，Group B 平均成功率 ({b_s:.2f}%) {cmp_s} Group A ({a_s:.2f}%)，"
-        f"且平均失败率 ({b_e:.3f}%) {cmp_e} Group A ({a_e:.3f}%)。"
-    )
+    trimmed_success = {g: [] for g in groups}
+    trimmed_error = {g: [] for g in groups}
+    for g in groups:
+        for w in workloads:
+            ps = RESULTS / g / f"s3/{w}/run1/scheduling_success_rate.json"
+            pe = RESULTS / g / f"s3/{w}/run1/scheduling_error_rate.json"
+            trimmed_success[g].append(leading_zero_trim_mean(ps) * 100.0)
+            trimmed_error[g].append(leading_zero_trim_mean(pe) * 100.0)
+
+    b_s = safe_nanmean(trimmed_success["b"])
+    a_s = safe_nanmean(trimmed_success["a"])
+    b_e = safe_nanmean(trimmed_error["b"])
+    a_e = safe_nanmean(trimmed_error["a"])
+
+    if np.isfinite(b_s) and np.isfinite(a_s):
+        cmp_s = "高于" if b_s >= a_s else "低于"
+        success_text = f"Group B 平均成功率（去前导0）({b_s:.2f}%) {cmp_s} Group A ({a_s:.2f}%)"
+    else:
+        success_text = "成功率去零统计样本不足"
+
+    if np.isfinite(b_e) and np.isfinite(a_e):
+        cmp_e = "低于" if b_e <= a_e else "高于"
+        error_text = f"平均失败率（去前导0）({b_e:.3f}%) {cmp_e} Group A ({a_e:.3f}%)"
+    else:
+        error_text = "失败率去前导0后无有效样本"
+
+    summary = f"在 W1-W4 上，{success_text}，且{error_text}。"
     if d_missing_union:
         summary += f" 数据缺失: D (Volcano) {', '.join(d_missing_union)}。"
     records.append(
