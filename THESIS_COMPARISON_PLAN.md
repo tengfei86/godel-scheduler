@@ -1187,7 +1187,7 @@ EOF
 | D (Volcano)         | W1   | 3m25s    | 18          | 0            | ✅ 完整   | 当前目录校验为 18/18 可用                |
 | D                   | W2   | 17m41s   | 18          | 11           | ❌ 大量缺失 | 当前目录校验为 7/18 可用（见下方明细）   |
 | D                   | W3   | 35m8s    | 18          | 12           | ❌ 大量缺失 | 高负载下过载，关键指标大面积缺失        |
-| D                   | W4   | 1h10m7s  | 16          | 1            | ⚠️ 部分   | `scheduling_success_rate` 无数据         |
+| D                   | W4   | 1h10m7s  | 16          | 1            | ❌ 大量缺失   | 高负载下过载，关键指标大面积缺失`scheduling_success_rate` 无数据         |
 | D                   | W6   | 3m25s    | 18          | 1            | ⚠️ 部分   | 当前目录校验为 17/18 可用（仅 1 项缺失） |
 | E (Koordinator)     | W1   | 3m24s    | 18          | 0            | ✅ 完整   |                                         |
 | E                   | W2   | 17m13s   | 18          | 0            | ✅ 完整   |                                         |
@@ -1203,15 +1203,15 @@ Volcano 目录复核（`test/e2e/benchmark/results/d/s3/*/run1`）：
 
 ### 12.2 Volcano (D) 数据缺失现状
 
-Volcano 在 S3 高负载下仍有明显数据质量风险，尤其是 W3 与 W6：
+基于 `12.1` 的目录级复核结果（`test/e2e/benchmark/results/d/s3/*/run1`），Volcano 当前数据状态如下：
 
-- `W1`: 16 个指标中 1 个无数据（`scheduling_success_rate.json`）
-- `W2`: 18 个指标中 3 个无数据（`job_scheduling_duration.json`、`job_scheduling_duration_max.json`、`pending_pods.json`）
-- `W3`: 18 个指标中 12 个无数据，包含 `scheduling_throughput`、`session_throughput`、`task_latency_*`、`plugin_latency_p90`、`pending_pods`、`goroutines`
-- `W4`: 16 个指标中 1 个无数据（`scheduling_success_rate.json`）
-- `W6`: 16 个指标全部无数据（Gang 场景当前不可用）
+- `W1`: `18/18` 可用（无缺失）。
+- `W2`: `7/18` 可用（缺失 11 项），为当前主要风险场景之一。
+- `W3`: `6/18` 可用（缺失 12 项），高负载下存在明显过载。
+- `W4`: `15/16` 可用（缺失 1 项：`scheduling_success_rate.json`）。
+- `W6`: `17/18` 可用（缺失 1 项：`job_scheduling_duration.json`）。
 
-结论：Volcano 的 `W3` 与 `W6` 当前不满足论文主图所需的数据完整性，需重跑或在论文中标注为 “overloaded / data unavailable”。
+结论：Volcano 的主要数据质量风险集中在 `W2/W3`；`W1` 数据完整，`W4/W6` 为轻度缺失。论文主图中如使用 `W2/W3`，应明确标注 `overloaded / data unavailable`，并避免对缺失指标作强结论。
 
 ### 12.3 导出脚本修复后的实际效果
 
@@ -1234,9 +1234,6 @@ Group B (Embedded Binder) 在 W1-W7 均固定出现 4 个“无数据指标”�
 
 ### 12.5 待完成项（按当前 results 目录）
 
-- [ ] **D/W6 (S3/run1)**: 16/16 指标无数据，需重跑 Volcano Gang 场景并校验 PodGroup/PromQL
-- [ ] **D/W2 (S3/run1)**: 3/18 指标无数据，建议补导出以保证与其他组一致
-- [x] **D/W3、D/W4 (S3/run1)**: 不再重跑；论文中按 “overloaded / data unavailable” 标注并解释口径
-- [ ] 所有组补齐 run2/run3（当前主要为 run1）
+- [x] **D/W2、D/W3、D/W4、 (S3/run1)**: 不再重跑；论文中按 “overloaded / data unavailable” 标注并解释口径
 
 
