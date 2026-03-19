@@ -74,7 +74,7 @@ applyTo: '**/{THESIS_COMPARISON_PLAN.md,test/e2e/benchmark/results/**,test/e2e/b
 	- `node_validation_failures.json`
 	- `goroutines.json`
 	这些在无故障/未触发场景下可视为正常。
-- Group D 在 `W3/W6` 可能存在大面积无数据，需标注：`overloaded / data unavailable`。
+- Group D 在 `w2/W3/w4/W6` 可能存在大面积无数据，需标注：`overloaded / data unavailable`。
 - 任意图若关键数据不足，不得强制绘制错误结论图；可替换为可选图并说明原因。
 
 ## 7. 图像输出规范
