@@ -13,7 +13,7 @@
 
 [T-3]
 标题: 负载-吞吐量对比（W1-W4, A/B/C/D/E）
-指标总结: 在 W1-W4 的非零区间平均吞吐量口径下，Group B 相对 Group A 提升约 11.0%。
+指标总结: 在 W1-W4 的非零区间平均吞吐量口径下，Group B 相对 Group A 提升约 11.0%。 数据缺失: D (Volcano) W2, W3, W4。
 数据源:
 - test/e2e/benchmark/results/a/s3/w1/run1/scheduling_throughput.json
 - test/e2e/benchmark/results/a/s3/w2/run1/scheduling_throughput.json
@@ -28,9 +28,6 @@
 - test/e2e/benchmark/results/c/s3/w3/run1/scheduling_throughput.json
 - test/e2e/benchmark/results/c/s3/w4/run1/scheduling_throughput.json
 - test/e2e/benchmark/results/d/s3/w1/run1/scheduling_throughput.json
-- test/e2e/benchmark/results/d/s3/w2/run1/scheduling_throughput.json
-- test/e2e/benchmark/results/d/s3/w3/run1/scheduling_throughput.json
-- test/e2e/benchmark/results/d/s3/w4/run1/scheduling_throughput.json
 - test/e2e/benchmark/results/e/s3/w1/run1/scheduling_throughput.json
 - test/e2e/benchmark/results/e/s3/w2/run1/scheduling_throughput.json
 - test/e2e/benchmark/results/e/s3/w3/run1/scheduling_throughput.json
@@ -64,7 +61,7 @@
 
 [S-2]
 标题: 成功率/失败率对比（W1-W4, A/B/C/D/E）
-指标总结: 在 W1-W4 上，Group B 平均成功率 (96.49%) 低于 Group A (98.43%)，且平均失败率 (0.000%) 低于 Group A (0.000%)。
+指标总结: 在 W1-W4 上，Group B 平均成功率 (96.49%) 低于 Group A (98.43%)，且平均失败率 (0.000%) 低于 Group A (0.000%)。 数据缺失: D (Volcano) W2, W3, W4。
 数据源:
 - test/e2e/benchmark/results/a/s3/w1/run1/scheduling_error_rate.json
 - test/e2e/benchmark/results/a/s3/w1/run1/scheduling_success_rate.json
@@ -92,12 +89,6 @@
 - test/e2e/benchmark/results/c/s3/w4/run1/scheduling_success_rate.json
 - test/e2e/benchmark/results/d/s3/w1/run1/scheduling_error_rate.json
 - test/e2e/benchmark/results/d/s3/w1/run1/scheduling_success_rate.json
-- test/e2e/benchmark/results/d/s3/w2/run1/scheduling_error_rate.json
-- test/e2e/benchmark/results/d/s3/w2/run1/scheduling_success_rate.json
-- test/e2e/benchmark/results/d/s3/w3/run1/scheduling_error_rate.json
-- test/e2e/benchmark/results/d/s3/w3/run1/scheduling_success_rate.json
-- test/e2e/benchmark/results/d/s3/w4/run1/scheduling_error_rate.json
-- test/e2e/benchmark/results/d/s3/w4/run1/scheduling_success_rate.json
 - test/e2e/benchmark/results/e/s3/w1/run1/scheduling_error_rate.json
 - test/e2e/benchmark/results/e/s3/w1/run1/scheduling_success_rate.json
 - test/e2e/benchmark/results/e/s3/w2/run1/scheduling_error_rate.json
@@ -116,7 +107,6 @@
 - test/e2e/benchmark/results/a/s3/w4/run1/pending_pods.json
 - test/e2e/benchmark/results/b/s3/w4/run1/pending_pods.json
 - test/e2e/benchmark/results/c/s3/w4/run1/pending_pods.json
-- test/e2e/benchmark/results/d/s3/w4/run1/pending_pods.json
 - test/e2e/benchmark/results/e/s3/w4/run1/pending_pods.json
 图片: test/e2e/benchmark/results/final-charts/06_S-3_pending_pods_timeseries.png
 图片(PDF): test/e2e/benchmark/results/final-charts/06_S-3_pending_pods_timeseries.pdf
@@ -157,7 +147,6 @@
 数据源:
 - test/e2e/benchmark/results/a/s3/w3/run1/utilization.csv
 - test/e2e/benchmark/results/b/s3/w3/run1/utilization.csv
-- test/e2e/benchmark/results/d/s3/w3/run1/utilization.csv
 - test/e2e/benchmark/results/e/s3/w3/run1/utilization.csv
 图片: test/e2e/benchmark/results/final-charts/09_U-1_cpu_utilization_boxplot.png
 图片(PDF): test/e2e/benchmark/results/final-charts/09_U-1_cpu_utilization_boxplot.pdf

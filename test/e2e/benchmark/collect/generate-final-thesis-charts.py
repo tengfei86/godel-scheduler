@@ -155,7 +155,10 @@ def generate_t1(records: List[ChartRecord]) -> None:
         nz = [v for v in ys if v > 0]
         means[g] = float(np.mean(nz)) if nz else float(np.mean(ys))
         sources.append(str(p.relative_to(ROOT)))
-    ax.set_title("T-1 Throughput Time Series (all points + rolling mean, W3, s3)")
+    ax.set_title(
+        "T-1 Throughput Time Series (all points + rolling mean, W3, s3)\n"
+        "D (Volcano): overloaded / data unavailable"
+    )
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("Scheduling Throughput (pods/s)")
     ax.grid(alpha=0.3)
@@ -163,6 +166,16 @@ def generate_t1(records: List[ChartRecord]) -> None:
     png, pdf = save(fig, "01_T-1_throughput_timeseries")
 
     missing_groups = [g for g in ["a", "b", "c", "d", "e"] if g not in means]
+    fig.text(
+        0.5,
+        0.995,
+        "D (Volcano): overloaded / data unavailable",
+        ha="center",
+        va="top",
+        fontsize=11,
+        color="#b03a2e",
+        fontweight="bold",
+    )
     if "a" in means and "b" in means and means["a"] > 0:
         uplift = (means["b"] / means["a"] - 1.0) * 100.0
         summary = f"该图按全采样点连线并叠加 rolling mean(5) 展示；按非零区间均值统计，Group B 吞吐量相对 Group A 提升约 {uplift:.1f}%（W3, s3, run1）。"
@@ -198,6 +211,20 @@ def generate_t3(records: List[ChartRecord]) -> None:
     ax.set_title("T-3 Throughput by Workload (steady, W1-W4, s3)")
     ax.grid(axis="y", alpha=0.3)
     ax.legend(fontsize=8)
+
+    d_missing_ws = [workloads[i].upper() for i, v in enumerate(data["d"]) if not np.isfinite(v)]
+    if d_missing_ws:
+        fig.text(
+            0.5,
+            0.995,
+            f"D (Volcano): overloaded / data unavailable ({', '.join(d_missing_ws)})",
+            ha="center",
+            va="top",
+            fontsize=11,
+            color="#b03a2e",
+            fontweight="bold",
+        )
+
     png, pdf = save(fig, "02_T-3_workload_throughput")
 
     b_vals = np.array(data["b"], dtype=float)
@@ -208,6 +235,8 @@ def generate_t3(records: List[ChartRecord]) -> None:
         summary = f"在 W1-W4 的非零区间平均吞吐量口径下，Group B 相对 Group A 提升约 {uplift:.1f}%。"
     else:
         summary = "Group B 在 W1-W4 的吞吐量整体高于 Group A。"
+    if d_missing_ws:
+        summary += f" 数据缺失: D (Volcano) {', '.join(d_missing_ws)}。"
     records.append(
         ChartRecord("T-3", "负载-吞吐量对比（W1-W4, A/B/C/D/E）", summary, sorted(set(sources)), png, pdf)
     )
@@ -225,7 +254,10 @@ def generate_l1(records: List[ChartRecord]) -> None:
         ax.plot(relative_seconds(ts), np.array(ys) * 1000.0, label=GROUPS[g], color=COLORS[g], linewidth=1.6)
         means[g] = float(np.mean(ys))
         sources.append(str(p.relative_to(ROOT)))
-    ax.set_title("L-1 E2E P99 Latency Time Series (W3, s3)")
+    ax.set_title(
+        "L-1 E2E P99 Latency Time Series (W3, s3)\n"
+        "D (Volcano): overloaded / data unavailable"
+    )
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("P99 Latency (ms)")
     ax.grid(alpha=0.3)
@@ -233,6 +265,16 @@ def generate_l1(records: List[ChartRecord]) -> None:
     png, pdf = save(fig, "03_L-1_p99_latency_timeseries")
 
     missing_groups = [g for g in ["a", "b", "c", "d", "e"] if g not in means]
+    fig.text(
+        0.5,
+        0.995,
+        "D (Volcano): overloaded / data unavailable",
+        ha="center",
+        va="top",
+        fontsize=11,
+        color="#b03a2e",
+        fontweight="bold",
+    )
     if "a" in means and "b" in means and means["a"] > 0:
         drop = (1.0 - means["b"] / means["a"]) * 100.0
         summary = f"Group B 的 P99 延迟相对 Group A 下降约 {drop:.1f}%（W3, s3, run1）。"
@@ -319,6 +361,22 @@ def generate_s2(records: List[ChartRecord]) -> None:
     axes[1].set_ylabel("%")
     axes[0].legend(fontsize=7)
     fig.suptitle("S-2 Success/Error Rates by Workload (W1-W4, s3)")
+
+    d_success_missing = [workloads[i].upper() for i, v in enumerate(success["d"]) if not np.isfinite(v)]
+    d_error_missing = [workloads[i].upper() for i, v in enumerate(error["d"]) if not np.isfinite(v)]
+    d_missing_union = sorted(set(d_success_missing + d_error_missing))
+    if d_missing_union:
+        fig.text(
+            0.5,
+            0.995,
+            f"D (Volcano): overloaded / data unavailable ({', '.join(d_missing_union)})",
+            ha="center",
+            va="top",
+            fontsize=11,
+            color="#b03a2e",
+            fontweight="bold",
+        )
+
     png, pdf = save(fig, "05_S-2_success_error_by_workload")
 
     b_s = np.nanmean(np.array(success["b"], dtype=float))
@@ -331,6 +389,8 @@ def generate_s2(records: List[ChartRecord]) -> None:
         f"在 W1-W4 上，Group B 平均成功率 ({b_s:.2f}%) {cmp_s} Group A ({a_s:.2f}%)，"
         f"且平均失败率 ({b_e:.3f}%) {cmp_e} Group A ({a_e:.3f}%)。"
     )
+    if d_missing_union:
+        summary += f" 数据缺失: D (Volcano) {', '.join(d_missing_union)}。"
     records.append(
         ChartRecord("S-2", "成功率/失败率对比（W1-W4, A/B/C/D/E）", summary, sorted(set(sources)), png, pdf)
     )
