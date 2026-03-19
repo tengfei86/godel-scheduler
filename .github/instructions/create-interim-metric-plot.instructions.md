@@ -38,7 +38,7 @@ applyTo: '**/{THESIS_COMPARISON_PLAN.md,test/e2e/benchmark/results/**,test/e2e/b
 5. `S-2` 成功率/失败率对比（W1-W4, A/B/C/D/E）
 6. `S-3` Pending Pod 堆积曲线（W4, A/B/C/D/E）
 7. `W6` Gang 场景完成时间对比（A/B/D/E）
-8. `T-4` 实例数-吞吐量扩展图（A/B，inst1/3，scale=s3/s4/s5，workload=w3/w4）
+8. `T-4` 实例数3-吞吐量扩展图（A/B，inst3，scale=s3/s4/s5，workload=w3/w4）
 
 说明：仅 `T-4` 使用 `s3/s4/s5` 与 `w3/w4` 的独立数据集；其余图表统一使用 `s3`。
 
