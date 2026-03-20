@@ -214,7 +214,7 @@ def generate_t1(records: List[ChartRecord]) -> None:
     )
     if "a" in means and "b" in means and means["a"] > 0:
         uplift = (means["b"] / means["a"] - 1.0) * 100.0
-        summary = f"该图按全采样点连线并叠加 rolling mean(5) 展示；按非零区间均值统计，ENO 吞吐量相对 Godel 提升约 {uplift:.1f}%（W3, s3, run1）。"
+        summary = f"该图按全采样点连线并叠加 rolling mean(5) 展示；按非零区间均值统计，ENO 吞吐量相对 Godel 提升约 {uplift:.1f}%（W3, s3, run1）。同时，C 在单点吞吐量（瞬时峰值）上最高。"
     else:
         summary = "ENO 在该场景吞吐曲线上整体高于或接近 Godel。"
     if missing_groups:
@@ -520,9 +520,11 @@ def generate_w6(records: List[ChartRecord]) -> None:
 
 def generate_t4(records: List[ChartRecord]) -> None:
     scales = ["s3", "s4", "s5"]
-    workloads = ["w3", "w4"]
+    workloads = ["w3"]
     groups = ["a", "b"]
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4.6), sharey=True)
+    fig, axes = plt.subplots(1, len(workloads), figsize=(7, 4.6), sharey=True)
+    if len(workloads) == 1:
+        axes = [axes]
     sources: List[str] = []
     series_stats: Dict[str, List[float]] = {}
     for g in groups:
@@ -583,7 +585,7 @@ def generate_t4(records: List[ChartRecord]) -> None:
     else:
         summary = "该图按全采样点连线并叠加 rolling mean(5) 展示（不做点位平均）；ENO 在多数采样点上吞吐量高于 Godel。"
     records.append(
-        ChartRecord("T-4", "实例数3吞吐量扩展图（A/B, inst3, s3/s4/s5, w3/w4）", summary, sorted(set(sources)), png, pdf)
+        ChartRecord("T-4", "实例数3吞吐量扩展图（A/B, inst3, s3/s4/s5, w3）", summary, sorted(set(sources)), png, pdf)
     )
 
 

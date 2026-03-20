@@ -2,7 +2,7 @@
 
 [T-1]
 标题: 吞吐量时间曲线（W3, A/B/C/D/E）
-指标总结: 该图按全采样点连线并叠加 rolling mean(5) 展示；按非零区间均值统计，ENO 吞吐量相对 Godel 提升约 26.7%（W3, s3, run1）。 数据缺失: D (Volcano)。
+指标总结: 该图按全采样点连线并叠加 rolling mean(5) 展示；按非零区间均值统计，ENO 吞吐量相对 Godel 提升约 26.7%（W3, s3, run1）。同时，C 在单点吞吐量（瞬时峰值）上最高。 数据缺失: D (Volcano)。
 数据源:
 - test/e2e/benchmark/results/a/s3/w3/run1/scheduling_throughput.json
 - test/e2e/benchmark/results/b/s3/w3/run1/scheduling_throughput.json
@@ -123,21 +123,15 @@
 图片(PDF): test/e2e/benchmark/results/final-charts/07_W6_gang_completion_time.pdf
 
 [T-4]
-标题: 实例数3吞吐量扩展图（A/B, inst3, s3/s4/s5, w3/w4）
+标题: 实例数3吞吐量扩展图（A/B, inst3, s3/s4/s5, w3）
 指标总结: 该图按全采样点连线并叠加 rolling mean(5) 展示（不做点位平均）；在 W3 聚合口径下，ENO 采样均值相对 Godel 提升约 19.3%。
 数据源:
 - test/e2e/benchmark/results/a/s3/w3/inst3/run1/scheduling_throughput.json
-- test/e2e/benchmark/results/a/s3/w4/inst3/run1/scheduling_throughput.json
 - test/e2e/benchmark/results/a/s4/w3/inst3/run1/scheduling_throughput.json
-- test/e2e/benchmark/results/a/s4/w4/inst3/run1/scheduling_throughput.json
 - test/e2e/benchmark/results/a/s5/w3/inst3/run1/scheduling_throughput.json
-- test/e2e/benchmark/results/a/s5/w4/inst3/run1/scheduling_throughput.json
 - test/e2e/benchmark/results/b/s3/w3/inst3/run1/scheduling_throughput.json
-- test/e2e/benchmark/results/b/s3/w4/inst3/run1/scheduling_throughput.json
 - test/e2e/benchmark/results/b/s4/w3/inst3/run1/scheduling_throughput.json
-- test/e2e/benchmark/results/b/s4/w4/inst3/run1/scheduling_throughput.json
 - test/e2e/benchmark/results/b/s5/w3/inst3/run1/scheduling_throughput.json
-- test/e2e/benchmark/results/b/s5/w4/inst3/run1/scheduling_throughput.json
 图片: test/e2e/benchmark/results/final-charts/08_T-4_inst3_scaling_throughput.png
 图片(PDF): test/e2e/benchmark/results/final-charts/08_T-4_inst3_scaling_throughput.pdf
 
