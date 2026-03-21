@@ -12,26 +12,22 @@
 图片(PDF): test/e2e/benchmark/results/final-charts/01_T-1_throughput_timeseries.pdf
 
 [T-3]
-标题: 负载-吞吐量对比（W1-W4, A/B/C/D/E）
-指标总结: 在 W1-W4 的非零区间平均吞吐量口径下，ENO 相对 Godel 提升约 11.0%。 数据缺失: D (Volcano) W2, W3, W4。
+标题: 负载-吞吐量对比（W1-W3, A/B/C/D/E）
+指标总结: 在 W1-W3 的非零区间平均吞吐量口径下，ENO 相对 Godel 提升约 14.0%。 数据缺失: D (Volcano) W2, W3。
 数据源:
 - test/e2e/benchmark/results/a/s3/w1/run1/scheduling_throughput.json
 - test/e2e/benchmark/results/a/s3/w2/run1/scheduling_throughput.json
 - test/e2e/benchmark/results/a/s3/w3/run1/scheduling_throughput.json
-- test/e2e/benchmark/results/a/s3/w4/run1/scheduling_throughput.json
 - test/e2e/benchmark/results/b/s3/w1/run1/scheduling_throughput.json
 - test/e2e/benchmark/results/b/s3/w2/run1/scheduling_throughput.json
 - test/e2e/benchmark/results/b/s3/w3/run1/scheduling_throughput.json
-- test/e2e/benchmark/results/b/s3/w4/run1/scheduling_throughput.json
 - test/e2e/benchmark/results/c/s3/w1/run1/scheduling_throughput.json
 - test/e2e/benchmark/results/c/s3/w2/run1/scheduling_throughput.json
 - test/e2e/benchmark/results/c/s3/w3/run1/scheduling_throughput.json
-- test/e2e/benchmark/results/c/s3/w4/run1/scheduling_throughput.json
 - test/e2e/benchmark/results/d/s3/w1/run1/scheduling_throughput.json
 - test/e2e/benchmark/results/e/s3/w1/run1/scheduling_throughput.json
 - test/e2e/benchmark/results/e/s3/w2/run1/scheduling_throughput.json
 - test/e2e/benchmark/results/e/s3/w3/run1/scheduling_throughput.json
-- test/e2e/benchmark/results/e/s3/w4/run1/scheduling_throughput.json
 图片: test/e2e/benchmark/results/final-charts/02_T-3_workload_throughput.png
 图片(PDF): test/e2e/benchmark/results/final-charts/02_T-3_workload_throughput.pdf
 

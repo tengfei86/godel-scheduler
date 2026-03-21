@@ -225,7 +225,7 @@ def generate_t1(records: List[ChartRecord]) -> None:
 
 
 def generate_t3(records: List[ChartRecord]) -> None:
-    workloads = ["w1", "w2", "w3", "w4"]
+    workloads = ["w1", "w2", "w3"]
     groups = ["a", "b", "c", "d", "e"]
     data = {g: [] for g in groups}
     sources: List[str] = []
@@ -244,7 +244,7 @@ def generate_t3(records: List[ChartRecord]) -> None:
     ax.set_xticks(x)
     ax.set_xticklabels([w.upper() for w in workloads])
     ax.set_ylabel("Steady Throughput (non-zero avg, pods/s)")
-    ax.set_title("T-3 Throughput by Workload (steady, W1-W4, s3)")
+    ax.set_title("T-3 Throughput by Workload (steady, W1-W3, s3)")
     ax.grid(axis="y", alpha=0.3)
     ax.legend(fontsize=8)
 
@@ -268,13 +268,13 @@ def generate_t3(records: List[ChartRecord]) -> None:
     valid = np.isfinite(b_vals) & np.isfinite(a_vals) & (a_vals > 0)
     if valid.any():
         uplift = float(np.mean((b_vals[valid] / a_vals[valid] - 1.0) * 100.0))
-        summary = f"在 W1-W4 的非零区间平均吞吐量口径下，ENO 相对 Godel 提升约 {uplift:.1f}%。"
+        summary = f"在 W1-W3 的非零区间平均吞吐量口径下，ENO 相对 Godel 提升约 {uplift:.1f}%。"
     else:
-        summary = "ENO 在 W1-W4 的吞吐量整体高于 Godel。"
+        summary = "ENO 在 W1-W3 的吞吐量整体高于 Godel。"
     if d_missing_ws:
         summary += f" 数据缺失: D (Volcano) {', '.join(d_missing_ws)}。"
     records.append(
-        ChartRecord("T-3", "负载-吞吐量对比（W1-W4, A/B/C/D/E）", summary, sorted(set(sources)), png, pdf)
+        ChartRecord("T-3", "负载-吞吐量对比（W1-W3, A/B/C/D/E）", summary, sorted(set(sources)), png, pdf)
     )
 
 
