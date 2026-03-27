@@ -1241,3 +1241,397 @@ Group B (Embedded Binder) 在 W1-W7 均固定出现 4 个“无数据指标”�
 - [x] **D/W2、D/W3、D/W4、 (S3/run1)**: 不再重跑；论文中按 “overloaded / data unavailable” 标注并解释口径
 
 
+
+
+---
+
+## 13. 论文创新点定义与章节结构
+
+### 13.1 两个创新点概览
+
+| # | 创新点 | 类型 | 核心贡献 | 已实现 |
+|---|--------|------|----------|--------|
+| 1 | **嵌入式绑定架构 (Embedded Binder Architecture)** | 架构创新 | 消除 Scheduler→Binder 跨进程通信瓶颈，绑定吞吐量随 Scheduler 实例线性扩展 | ✅ Phase 1-7 |
+| 2 | **分层容错绑定策略 (Hierarchical Fault-Tolerant Binding Strategy)** | 机制创新 | 四层容错链路：预防→同步重试→异步恢复→跨实例逃逸，构建分布式调度中首个结构化绑定容错模型 | ✅ Phase 2-4 |
+
+### 13.2 创新点 1：嵌入式绑定架构
+
+**解决的问题**：Gödel 原始架构中，所有 Scheduler 实例共享单一 Binder 进程，绑定操作成为系统吞吐量瓶颈。
+
+**核心设计**：
+
+```
+共享 Binder（原始）                    嵌入式 Binder（改进）
+═════════════════                     ═══════════════════
+
+Sched-A ──┐                           Sched-A + Binder-A ──→ API Server
+Sched-B ──┼──→ Shared Binder ──→ AS   Sched-B + Binder-B ──→ API Server
+Sched-C ──┘    (单点瓶颈)             Sched-C + Binder-C ──→ API Server
+
+通信方式: PatchPod → Informer → RPC   通信方式: 进程内函数调用
+绑定扩展: 不随 Scheduler 扩展         绑定扩展: 线性扩展
+故障影响: Binder 挂 → 全部停止        故障影响: 故障隔离到单实例
+```
+
+**技术要点**：
+
+| 组件 | 文件 | 作用 |
+|------|------|------|
+| `BinderInterface` | `binder_interface.go` | 统一接口抽象，支持嵌入/独立两种模式 |
+| `EmbeddedBinder` | `embedded_binder.go` | 核心实现：BindUnit → 验证 → 绑定 → 缓存完成 |
+| `CacheAdapter` | `cache_adapter.go` | 包装 SchedulerCache 为 BinderCache，共享内存零拷贝 |
+| `PodGroupController` 迁移 | `podgroup.go` | 分区感知的 PodGroup 状态管理 |
+| Feature Gate | `options.go` | `--enable-embedded-binder` 一键切换，向后兼容 |
+| Kustomize Overlay | `manifests/overlays/embedded-binder/` | 声明式部署模式切换 |
+
+**实验验证指标**：
+
+| 指标 | 含义 | 对比维度 |
+|------|------|----------|
+| `binder_embedded_bind_pod_duration_seconds` P99 | 单 Pod 绑定延迟 | A vs B |
+| `binder_embedded_bind_pods_total` rate | 绑定吞吐量 (pods/s) | A vs B |
+| `scheduler_e2e_scheduling_duration_seconds` P99 | 端到端调度延迟 | A vs B vs C vs D vs E |
+| `scheduler_pod_scheduling_attempts` rate | 调度吞吐量 | 五组横向对比 |
+
+### 13.3 创新点 2：分层容错绑定策略
+
+**解决的问题**：分布式调度系统中，绑定阶段面临多种故障源（API Server 过载、节点分区变更、资源冲突等），现有调度器（kube-scheduler、Volcano、Koordinator）均缺乏结构化的绑定容错机制。
+
+**四层容错架构**：
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                                                                      │
+│  Layer 0: 预防层 — NodeValidator                                     │
+│  ─────────────────────────────────                                   │
+│  绑定前验证目标节点仍属于本 Scheduler 分区                           │
+│  拦截 reshuffle 期间的过期绑定请求                                   │
+│  → 避免必定失败的 API 调用，降低 API Server 负载                     │
+│  指标: binder_node_validation_failures_total                         │
+│                                                                      │
+│  Layer 1: 同步重试层 — bindPodToNode()                               │
+│  ─────────────────────────────────────                               │
+│  识别 Conflict/Timeout/TooManyRequests 等瞬态错误                    │
+│  指数退避重试（100ms × attempt），最多 MaxBindRetries 次              │
+│  → 应对 API Server 短暂过载或网络抖动                                │
+│  指标: binder_embedded_bind_retries_total                            │
+│                                                                      │
+│  Layer 2: 异步恢复层 — BinderTasksReconciler                         │
+│  ──────────────────────────────────────────                          │
+│  绑定失败的 Pod 加入 RateLimiting WorkQueue                          │
+│  后台 Worker 按指数退避间隔（5ms~10s）异步重试                       │
+│  → 不阻塞调度主循环，异步恢复绑定                                    │
+│  指标: binder_embedded_bind_inflight (Gauge)                         │
+│                                                                      │
+│  Layer 3: 跨实例逃逸层 — Dispatcher Fallback                         │
+│  ──────────────────────────────────────────                          │
+│  Pod 注解记录累计失败次数 (bind-failure-count)                        │
+│  累计失败 ≥ MaxLocalRetries → 清除调度注解 → 回退到 Dispatcher       │
+│  Dispatcher 重新分发 Pod 到其他 Scheduler 实例                        │
+│  → 持续故障场景下的自动跨实例恢复                                    │
+│  指标: binder_dispatcher_fallback_total                              │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+
+故障处理升级路径:
+  L0 拦截 ──失败──→ L1 同步重试 ──失败──→ L2 异步重试 ──失败──→ L3 跨实例逃逸
+  (预防)             (即时恢复)            (后台恢复)           (全局恢复)
+```
+
+**与其他调度器的容错对比**：
+
+| 调度器 | 绑定失败处理 | 层级 |
+|--------|-------------|------|
+| kube-scheduler | 绑定失败 → Pod 回队列重调度 | 单层（无重试） |
+| Volcano | 绑定失败 → Task 状态置为 Error → 重入队 | 单层（无重试） |
+| Koordinator | 同 kube-scheduler | 单层（无重试） |
+| Gödel (Shared Binder) | Binder 内部有限重试 → 无跨实例恢复 | 两层（无逃逸） |
+| **Gödel (Embedded Binder)** | **预防 → 同步重试 → 异步恢复 → 跨实例逃逸** | **四层（完整）** |
+
+**技术要点**：
+
+| 组件 | 文件 | 作用 |
+|------|------|------|
+| `NodeValidator` | `node_validator.go` | Layer 0：分区归属验证 + 类型化错误 |
+| `bindPodToNode` 重试 | `embedded_binder.go` | Layer 1：瞬态错误指数退避 |
+| `BinderTasksReconciler` | `binder_reconciler.go` | Layer 2：异步 RateLimiting 重试队列 |
+| `retry.go` | `utils/retry.go` | Layer 3：失败计数 + `ShouldDispatchToAnotherScheduler` |
+| `CleanupPodAnnotationsWithRetryCount` | `utils/util.go` | Layer 3：注解清除 + Dispatcher 回退触发 |
+
+**实验验证**：
+
+| 实验场景 | 做法 | 验证的层 | 工作量 |
+|---------|------|---------|--------|
+| 正常运行 | 现有 W1-W6 实验 | 基线：四个指标均为 0 或极低 | ✅ 已有 |
+| API Server 高延迟 | `tc netem delay 200ms` | L1：bind_retries 上升 | 小 |
+| 节点 reshuffle | 实验中途修改 Node 分区注解 | L0：node_validation_failures 上升 | 小 |
+| 持续绑定失败 | ResourceQuota 限制 namespace | L2→L3：reconciler → fallback | 小 |
+
+### 13.4 建议论文章节结构
+
+```
+第1章 绪论
+  1.1 研究背景与意义
+  1.2 研究现状与不足
+  1.3 主要工作与创新点
+  1.4 论文组织结构
+
+第2章 相关工作
+  2.1 Kubernetes 调度架构
+  2.2 Gödel Scheduler 三层架构分析
+  2.3 Volcano 批量调度器
+  2.4 Koordinator 混合调度器
+  2.5 现有方案对比与不足总结
+
+第3章 Gödel 调度器瓶颈分析
+  3.1 共享 Binder 性能瓶颈（定量分析）
+  3.2 绑定容错能力缺失（故障场景枚举）
+  3.3 优化目标与约束
+
+第4章 嵌入式绑定架构设计与实现（创新点1）
+  4.1 架构设计
+    4.1.1 总体架构对比（共享 vs 嵌入）
+    4.1.2 Cache 共享与状态一致性设计
+    4.1.3 PodGroupController 分区迁移
+  4.2 关键实现
+    4.2.1 BinderInterface 统一抽象
+    4.2.2 EmbeddedBinder 核心逻辑
+    4.2.3 CacheAdapter 零拷贝包装
+  4.3 部署与兼容性
+    4.3.1 Feature Gate 机制
+    4.3.2 Kustomize 声明式切换
+
+第5章 分层容错绑定策略设计与实现（创新点2）
+  5.1 分布式调度绑定故障分类
+    5.1.1 节点分区变更（reshuffle）
+    5.1.2 API Server 瞬态过载
+    5.1.3 资源冲突与竞争
+    5.1.4 持续性故障
+  5.2 四层容错架构设计
+    5.2.1 Layer 0：节点分区验证（预防层）
+    5.2.2 Layer 1：同步指数退避重试
+    5.2.3 Layer 2：异步 Reconciler 恢复队列
+    5.2.4 Layer 3：Dispatcher 跨实例回退
+  5.3 可观测性设计
+    5.3.1 分层指标体系（8 个 Prometheus 指标）
+    5.3.2 Recording Rules 与告警规则
+
+第6章 实验评估
+  6.1 实验环境
+  6.2 吞吐量与延迟对比（A/B/C/D/E × W1-W6）
+  6.3 嵌入式 vs 共享 Binder 绑定性能（A vs B）
+  6.4 容错能力验证（故障注入实验）
+  6.5 水平扩展性验证
+  6.6 Gang 调度场景对比
+
+第7章 总结与展望
+  7.1 主要工作总结
+  7.2 未来工作（多 Worker 并发调度、资源感知分区等）
+```
+
+### 13.5 摘要参考模板
+
+> 随着云原生应用规模的持续增长，Kubernetes 集群调度系统面临吞吐量和可靠性的双重挑战。本文以 Gödel Scheduler 的三层分布式调度架构（Dispatcher-Scheduler-Binder）为研究对象，针对其共享 Binder 单点瓶颈和绑定容错能力不足两个核心问题，提出了两项优化方案：
+>
+> （1）**嵌入式绑定架构**：将 Binder 从独立进程嵌入 Scheduler 进程内部，消除跨进程通信开销，实现绑定吞吐量随 Scheduler 实例数线性扩展。通过 CacheAdapter 实现 Scheduler-Binder 共享缓存的零拷贝适配，并设计 Feature Gate 机制确保架构向后兼容。
+>
+> （2）**分层容错绑定策略**：构建四层容错链路——节点分区验证（预防层）、同步指数退避重试（即时恢复层）、异步 Reconciler 队列（后台恢复层）、Dispatcher 跨实例回退（全局恢复层），形成分布式调度系统中首个结构化的绑定容错模型。配套设计 8 个 Prometheus 指标实现分层可观测性。
+>
+> 在 5000 节点 KWOK 模拟集群上，与原始 Gödel 共享 Binder、kube-scheduler、Volcano、Koordinator 四个基线进行了六种工作负载下的系统性对比实验。实验结果表明：嵌入式绑定架构在绑定延迟 P99 方面较共享 Binder 降低 XX%，端到端调度吞吐量提升 XX%；分层容错机制在故障注入场景下实现 XX% 的绑定恢复成功率，显著优于其他调度器的单层容错策略。
+
+
+---
+
+## 13. 论文创新点定义与章节结构
+
+### 13.1 两个创新点概览
+
+| # | 创新点 | 类型 | 核心贡献 | 已实现 |
+|---|--------|------|----------|--------|
+| 1 | **嵌入式绑定架构 (Embedded Binder Architecture)** | 架构创新 | 消除 Scheduler→Binder 跨进程通信瓶颈，绑定吞吐量随 Scheduler 实例线性扩展 | ✅ Phase 1-7 |
+| 2 | **分层容错绑定策略 (Hierarchical Fault-Tolerant Binding Strategy)** | 机制创新 | 四层容错链路：预防→同步重试→异步恢复→跨实例逃逸，构建分布式调度中首个结构化绑定容错模型 | ✅ Phase 2-4 |
+
+### 13.2 创新点 1：嵌入式绑定架构
+
+**解决的问题**：Gödel 原始架构中，所有 Scheduler 实例共享单一 Binder 进程，绑定操作成为系统吞吐量瓶颈。
+
+**核心设计**：
+
+```
+共享 Binder（原始）                    嵌入式 Binder（改进）
+═════════════════                     ═══════════════════
+
+Sched-A ──┐                           Sched-A + Binder-A ──→ API Server
+Sched-B ──┼──→ Shared Binder ──→ AS   Sched-B + Binder-B ──→ API Server
+Sched-C ──┘    (单点瓶颈)             Sched-C + Binder-C ──→ API Server
+
+通信方式: PatchPod → Informer → RPC   通信方式: 进程内函数调用
+绑定扩展: 不随 Scheduler 扩展         绑定扩展: 线性扩展
+故障影响: Binder 挂 → 全部停止        故障影响: 故障隔离到单实例
+```
+
+**技术要点**：
+
+| 组件 | 文件 | 作用 |
+|------|------|------|
+| `BinderInterface` | `binder_interface.go` | 统一接口抽象，支持嵌入/独立两种模式 |
+| `EmbeddedBinder` | `embedded_binder.go` | 核心实现：BindUnit → 验证 → 绑定 → 缓存完成 |
+| `CacheAdapter` | `cache_adapter.go` | 包装 SchedulerCache 为 BinderCache，共享内存零拷贝 |
+| `PodGroupController` 迁移 | `podgroup.go` | 分区感知的 PodGroup 状态管理 |
+| Feature Gate | `options.go` | `--enable-embedded-binder` 一键切换，向后兼容 |
+| Kustomize Overlay | `manifests/overlays/embedded-binder/` | 声明式部署模式切换 |
+
+**实验验证指标**：
+
+| 指标 | 含义 | 对比维度 |
+|------|------|----------|
+| `binder_embedded_bind_pod_duration_seconds` P99 | 单 Pod 绑定延迟 | A vs B |
+| `binder_embedded_bind_pods_total` rate | 绑定吞吐量 (pods/s) | A vs B |
+| `scheduler_e2e_scheduling_duration_seconds` P99 | 端到端调度延迟 | A vs B vs C vs D vs E |
+| `scheduler_pod_scheduling_attempts` rate | 调度吞吐量 | 五组横向对比 |
+
+### 13.3 创新点 2：分层容错绑定策略
+
+**解决的问题**：分布式调度系统中，绑定阶段面临多种故障源（API Server 过载、节点分区变更、资源冲突等），现有调度器（kube-scheduler、Volcano、Koordinator）均缺乏结构化的绑定容错机制。
+
+**四层容错架构**：
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                                                                      │
+│  Layer 0: 预防层 — NodeValidator                                     │
+│  ─────────────────────────────────                                   │
+│  绑定前验证目标节点仍属于本 Scheduler 分区                           │
+│  拦截 reshuffle 期间的过期绑定请求                                   │
+│  → 避免必定失败的 API 调用，降低 API Server 负载                     │
+│  指标: binder_node_validation_failures_total                         │
+│                                                                      │
+│  Layer 1: 同步重试层 — bindPodToNode()                               │
+│  ─────────────────────────────────────                               │
+│  识别 Conflict/Timeout/TooManyRequests 等瞬态错误                    │
+│  指数退避重试（100ms × attempt），最多 MaxBindRetries 次              │
+│  → 应对 API Server 短暂过载或网络抖动                                │
+│  指标: binder_embedded_bind_retries_total                            │
+│                                                                      │
+│  Layer 2: 异步恢复层 — BinderTasksReconciler                         │
+│  ──────────────────────────────────────────                          │
+│  绑定失败的 Pod 加入 RateLimiting WorkQueue                          │
+│  后台 Worker 按指数退避间隔（5ms~10s）异步重试                       │
+│  → 不阻塞调度主循环，异步恢复绑定                                    │
+│  指标: binder_embedded_bind_inflight (Gauge)                         │
+│                                                                      │
+│  Layer 3: 跨实例逃逸层 — Dispatcher Fallback                         │
+│  ──────────────────────────────────────────                          │
+│  Pod 注解记录累计失败次数 (bind-failure-count)                        │
+│  累计失败 ≥ MaxLocalRetries → 清除调度注解 → 回退到 Dispatcher       │
+│  Dispatcher 重新分发 Pod 到其他 Scheduler 实例                        │
+│  → 持续故障场景下的自动跨实例恢复                                    │
+│  指标: binder_dispatcher_fallback_total                              │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+
+故障处理升级路径:
+  L0 拦截 ──失败──→ L1 同步重试 ──失败──→ L2 异步重试 ──失败──→ L3 跨实例逃逸
+  (预防)             (即时恢复)            (后台恢复)           (全局恢复)
+```
+
+**与其他调度器的容错对比**：
+
+| 调度器 | 绑定失败处理 | 层级 |
+|--------|-------------|------|
+| kube-scheduler | 绑定失败 → Pod 回队列重调度 | 单层（无重试） |
+| Volcano | 绑定失败 → Task 状态置为 Error → 重入队 | 单层（无重试） |
+| Koordinator | 同 kube-scheduler | 单层（无重试） |
+| Gödel (Shared Binder) | Binder 内部有限重试 → 无跨实例恢复 | 两层（无逃逸） |
+| **Gödel (Embedded Binder)** | **预防 → 同步重试 → 异步恢复 → 跨实例逃逸** | **四层（完整）** |
+
+**技术要点**：
+
+| 组件 | 文件 | 作用 |
+|------|------|------|
+| `NodeValidator` | `node_validator.go` | Layer 0：分区归属验证 + 类型化错误 |
+| `bindPodToNode` 重试 | `embedded_binder.go` | Layer 1：瞬态错误指数退避 |
+| `BinderTasksReconciler` | `binder_reconciler.go` | Layer 2：异步 RateLimiting 重试队列 |
+| `retry.go` | `utils/retry.go` | Layer 3：失败计数 + `ShouldDispatchToAnotherScheduler` |
+| `CleanupPodAnnotationsWithRetryCount` | `utils/util.go` | Layer 3：注解清除 + Dispatcher 回退触发 |
+
+**实验验证**：
+
+| 实验场景 | 做法 | 验证的层 | 工作量 |
+|---------|------|---------|--------|
+| 正常运行 | 现有 W1-W6 实验 | 基线：四个指标均为 0 或极低 | ✅ 已有 |
+| API Server 高延迟 | `tc netem delay 200ms` | L1：bind_retries 上升 | 小 |
+| 节点 reshuffle | 实验中途修改 Node 分区注解 | L0：node_validation_failures 上升 | 小 |
+| 持续绑定失败 | ResourceQuota 限制 namespace | L2→L3：reconciler → fallback | 小 |
+
+### 13.4 建议论文章节结构
+
+```
+第1章 绪论
+  1.1 研究背景与意义
+  1.2 研究现状与不足
+  1.3 主要工作与创新点
+  1.4 论文组织结构
+
+第2章 相关工作
+  2.1 Kubernetes 调度架构
+  2.2 Gödel Scheduler 三层架构分析
+  2.3 Volcano 批量调度器
+  2.4 Koordinator 混合调度器
+  2.5 现有方案对比与不足总结
+
+第3章 Gödel 调度器瓶颈分析
+  3.1 共享 Binder 性能瓶颈（定量分析）
+  3.2 绑定容错能力缺失（故障场景枚举）
+  3.3 优化目标与约束
+
+第4章 嵌入式绑定架构设计与实现（创新点1）
+  4.1 架构设计
+    4.1.1 总体架构对比（共享 vs 嵌入）
+    4.1.2 Cache 共享与状态一致性设计
+    4.1.3 PodGroupController 分区迁移
+  4.2 关键实现
+    4.2.1 BinderInterface 统一抽象
+    4.2.2 EmbeddedBinder 核心逻辑
+    4.2.3 CacheAdapter 零拷贝包装
+  4.3 部署与兼容性
+    4.3.1 Feature Gate 机制
+    4.3.2 Kustomize 声明式切换
+
+第5章 分层容错绑定策略设计与实现（创新点2）
+  5.1 分布式调度绑定故障分类
+    5.1.1 节点分区变更（reshuffle）
+    5.1.2 API Server 瞬态过载
+    5.1.3 资源冲突与竞争
+    5.1.4 持续性故障
+  5.2 四层容错架构设计
+    5.2.1 Layer 0：节点分区验证（预防层）
+    5.2.2 Layer 1：同步指数退避重试
+    5.2.3 Layer 2：异步 Reconciler 恢复队列
+    5.2.4 Layer 3：Dispatcher 跨实例回退
+  5.3 可观测性设计
+    5.3.1 分层指标体系（8 个 Prometheus 指标）
+    5.3.2 Recording Rules 与告警规则
+
+第6章 实验评估
+  6.1 实验环境
+  6.2 吞吐量与延迟对比（A/B/C/D/E × W1-W6）
+  6.3 嵌入式 vs 共享 Binder 绑定性能（A vs B）
+  6.4 容错能力验证（故障注入实验）
+  6.5 水平扩展性验证
+  6.6 Gang 调度场景对比
+
+第7章 总结与展望
+  7.1 主要工作总结
+  7.2 未来工作（多 Worker 并发调度、资源感知分区等）
+```
+
+### 13.5 摘要参考模板
+
+> 随着云原生应用规模的持续增长，Kubernetes 集群调度系统面临吞吐量和可靠性的双重挑战。本文以 Gödel Scheduler 的三层分布式调度架构（Dispatcher-Scheduler-Binder）为研究对象，针对其共享 Binder 单点瓶颈和绑定容错能力不足两个核心问题，提出了两项优化方案：
+>
+> （1）**嵌入式绑定架构**：将 Binder 从独立进程嵌入 Scheduler 进程内部，消除跨进程通信开销，实现绑定吞吐量随 Scheduler 实例数线性扩展。通过 CacheAdapter 实现 Scheduler-Binder 共享缓存的零拷贝适配，并设计 Feature Gate 机制确保架构向后兼容。
+>
+> （2）**分层容错绑定策略**：构建四层容错链路——节点分区验证（预防层）、同步指数退避重试（即时恢复层）、异步 Reconciler 队列（后台恢复层）、Dispatcher 跨实例回退（全局恢复层），形成分布式调度系统中首个结构化的绑定容错模型。配套设计 8 个 Prometheus 指标实现分层可观测性。
+>
+> 在 5000 节点 KWOK 模拟集群上，与原始 Gödel 共享 Binder、kube-scheduler、Volcano、Koordinator 四个基线进行了六种工作负载下的系统性对比实验。实验结果表明：嵌入式绑定架构在绑定延迟 P99 方面较共享 Binder 降低 XX%，端到端调度吞吐量提升 XX%；分层容错机制在故障注入场景下实现 XX% 的绑定恢复成功率，显著优于其他调度器的单层容错策略。
