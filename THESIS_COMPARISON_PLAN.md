@@ -10,7 +10,7 @@
 
 | 标识                                | 配置                                                                    | 说明                                                      |
 | ----------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------- |
-| **A — 共享 Binder（Baseline）**     | `--enable-embedded-binder=false` + 独立 Binder Deployment（replicas=1） | 原始 Gödel Scheduler 架构，所有 Scheduler 共用一个 Binder |
+| **A — 共享 Binder（Baseline）**     | `--enable-embedded-binder=false` + 独立 Binder Deployment（replicas=1） | 共享 Binder 基线实现，所有 Scheduler 共用一个 Binder |
 | **B — 独立 Binder（Proposed）**     | `--enable-embedded-binder=true` + Binder Deployment replicas=0          | 论文提出的架构，每个 Scheduler 内嵌独立 Binder            |
 | **C — kube-scheduler（Reference）** | 原生 Kubernetes 调度器（单实例）                                        | 行业基准参考，用于凸显分布式架构的整体优势                |
 | **D — Volcano**                     | Volcano Scheduler（v1.9.x，单实例）                                     | CNCF 批量调度参考，擅长 Gang / Queue 场景                 |
@@ -21,14 +21,14 @@
 ### 1.3 部署命令
 
 ```bash
-# 组 A：共享 Binder（原始架构）
+# 组 A：共享 Binder（基线架构）
 kubectl apply -k manifests/base/
 
 # 组 B：独立 Binder（论文架构）
 kubectl apply -k manifests/overlays/embedded-binder/
 
 # 组 C：kube-scheduler
-# 禁用 Gödel，启用原生 kube-scheduler
+# 禁用自定义调度器，启用原生 kube-scheduler
 
 # 组 D：Volcano
 helm install volcano volcano-sh/volcano -n volcano-system --create-namespace \
@@ -141,8 +141,8 @@ spec:
 | **W4** 极限负载   |        ✅         |         ✅          |         ✅         |     ✅      |       ✅        | —                                                                                             |
 | **W5** 突发洪峰   |        ✅         |         ✅          |         ✅         |     ❌      |       ❌        | A/B/C 对比突发恢复能力，D/E 架构不同无对应机制                                                |
 | **W6** Gang 调度  |        ✅         |         ✅          |         ❌         |     ✅      |       ✅        | C 不支持 PodGroup/Gang 调度语义；D 原生支持，E 通过 PodGroup CRD 支持                         |
-| **W7** 异构资源   |        ✅         |         ✅          |         ❌         |     ❌      |       ❌        | Gödel 专有测试：验证 Binder 在资源碎片化场景下的绑定效率，C/D/E 不参与此对比                  |
-| **W8** 大规模集群 |        ✅         |         ✅          |         ❌         |     ❌      |       ❌        | 800K Pod 极限压力仅用于 A/B 对比（参照 Gödel 官方 best-practice），D/E 在此规模下为单实例瓶颈 |
+| **W7** 异构资源   |        ✅         |         ✅          |         ❌         |     ❌      |       ❌        | 架构特定测试：验证 Binder 在资源碎片化场景下的绑定效率，C/D/E 不参与此对比                     |
+| **W8** 大规模集群 |        ✅         |         ✅          |         ❌         |     ❌      |       ❌        | 800K Pod 极限压力仅用于 A/B 对比（参照分布式调度 best-practice），D/E 在此规模下为单实例瓶颈   |
 
 > **脚本对应**: `run-all.sh` 中 `get_workloads_for_group()` 的映射：A/B → W1–W8，C → W1–W5，D/E → W1–W4 + W6。
 
@@ -623,7 +623,7 @@ Phase 2: 对比实验 — 组 B（独立 Binder）(2 天)
 └── 导出 Prometheus 快照
 
 Phase 3: 参考基线 — 组 C（kube-scheduler）(1 天)
-├── 禁用 Gödel，启用 kube-scheduler
+├── 禁用自定义调度器，启用 kube-scheduler
 ├── 执行 W1–W4 + VS-1~5
 └── 导出 Prometheus 快照
 
@@ -1055,7 +1055,7 @@ test/e2e/benchmark/
 ├── schedulers/
 │   ├── deploy-group-a.sh        # 部署组 A（共享 Binder）
 │   ├── deploy-group-b.sh        # 部署组 B（独立 Binder）
-│   ├── deploy-group-c.sh        # 部署组 C（kube-scheduler，仅需禁用 Gödel）
+│   ├── deploy-group-c.sh        # 部署组 C（kube-scheduler，仅需禁用自定义调度器）
 │   ├── deploy-group-d.sh        # 部署组 D（Volcano）
 │   ├── deploy-group-e.sh        # 部署组 E（Koordinator）
 │   └── teardown.sh              # 通用卸载（按组清理调度器 + monitoring）
@@ -1251,12 +1251,12 @@ Group B (Embedded Binder) 在 W1-W7 均固定出现 4 个“无数据指标”�
 
 | # | 创新点 | 类型 | 核心贡献 | 已实现 |
 |---|--------|------|----------|--------|
-| 1 | **嵌入式绑定架构 (Embedded Binder Architecture)** | 架构创新 | 消除 Scheduler→Binder 跨进程通信瓶颈，绑定吞吐量随 Scheduler 实例线性扩展 | ✅ Phase 1-7 |
+| 1 | **单 Dispatcher、多独立 Scheduler 分布式调度架构 (Single-Dispatcher Multi-Scheduler Architecture)** | 架构创新 | 构建单 Dispatcher 统一分发、Scheduler 实例独立并行执行的扩展架构，降低中心化链路竞争并提升整体吞吐 | ✅ Phase 1-7 |
 | 2 | **分层容错绑定策略 (Hierarchical Fault-Tolerant Binding Strategy)** | 机制创新 | 四层容错链路：预防→同步重试→异步恢复→跨实例逃逸，构建分布式调度中首个结构化绑定容错模型 | ✅ Phase 2-4 |
 
-### 13.2 创新点 1：嵌入式绑定架构
+### 13.2 创新点 1：单 Dispatcher、多独立 Scheduler 分布式调度架构
 
-**解决的问题**：Gödel 原始架构中，所有 Scheduler 实例共享单一 Binder 进程，绑定操作成为系统吞吐量瓶颈。
+**创新目标**：提出一种可扩展的分布式调度架构范式，通过“单 Dispatcher 统一分发 + 多独立 Scheduler 并行执行”实现控制面解耦与能力横向扩展，为高并发场景提供更稳定的吞吐与时延表现。
 
 **核心设计**：
 
@@ -1345,8 +1345,8 @@ Sched-C ──┘    (单点瓶颈)             Sched-C + Binder-C ──→ API
 | kube-scheduler | 绑定失败 → Pod 回队列重调度 | 单层（无重试） |
 | Volcano | 绑定失败 → Task 状态置为 Error → 重入队 | 单层（无重试） |
 | Koordinator | 同 kube-scheduler | 单层（无重试） |
-| Gödel (Shared Binder) | Binder 内部有限重试 → 无跨实例恢复 | 两层（无逃逸） |
-| **Gödel (Embedded Binder)** | **预防 → 同步重试 → 异步恢复 → 跨实例逃逸** | **四层（完整）** |
+| Shared Binder Baseline | Binder 内部有限重试 → 无跨实例恢复 | 两层（无逃逸） |
+| **Embedded Binder Design** | **预防 → 同步重试 → 异步恢复 → 跨实例逃逸** | **四层（完整）** |
 
 **技术要点**：
 
@@ -1383,12 +1383,12 @@ Sched-C ──┘    (单点瓶颈)             Sched-C + Binder-C ──→ API
   2.4 Koordinator 混合调度器
   2.5 现有方案对比与不足总结
 
-第3章 Gödel 调度器瓶颈分析
+第3章 分布式调度绑定瓶颈分析
   3.1 共享 Binder 性能瓶颈（定量分析）
   3.2 绑定容错能力缺失（故障场景枚举）
   3.3 优化目标与约束
 
-第4章 嵌入式绑定架构设计与实现（创新点1）
+第4章 单 Dispatcher、多独立 Scheduler 分布式调度架构设计与实现（创新点1）
   4.1 架构设计
     4.1.1 总体架构对比（共享 vs 嵌入）
     4.1.2 Cache 共享与状态一致性设计
@@ -1431,13 +1431,13 @@ Sched-C ──┘    (单点瓶颈)             Sched-C + Binder-C ──→ API
 
 ### 13.5 摘要参考模板
 
-> 随着云原生应用规模的持续增长，Kubernetes 集群调度系统面临吞吐量和可靠性的双重挑战。本文以 Gödel Scheduler 的三层分布式调度架构（Dispatcher-Scheduler-Binder）为研究对象，针对其共享 Binder 单点瓶颈和绑定容错能力不足两个核心问题，提出了两项优化方案：
+> 随着云原生应用规模的持续增长，Kubernetes 集群调度系统面临吞吐量和可靠性的双重挑战。本文面向分布式调度系统中“调度-绑定协同效率不足”和“绑定阶段容错能力薄弱”两类共性问题，提出了两项架构与机制创新：
 >
-> （1）**嵌入式绑定架构**：将 Binder 从独立进程嵌入 Scheduler 进程内部，消除跨进程通信开销，实现绑定吞吐量随 Scheduler 实例数线性扩展。通过 CacheAdapter 实现 Scheduler-Binder 共享缓存的零拷贝适配，并设计 Feature Gate 机制确保架构向后兼容。
+> （1）**单 Dispatcher、多独立 Scheduler 分布式调度架构**：构建“单 Dispatcher 统一分发 + 多 Scheduler 独立并行执行”的协同模型，将绑定执行链路与调度实例同域化，减少跨组件通信与状态同步开销，实现系统吞吐能力随调度实例数近线性扩展。通过共享缓存适配层实现低拷贝状态复用，并引入特性开关保障新旧架构平滑切换与向后兼容。
 >
 > （2）**分层容错绑定策略**：构建四层容错链路——节点分区验证（预防层）、同步指数退避重试（即时恢复层）、异步 Reconciler 队列（后台恢复层）、Dispatcher 跨实例回退（全局恢复层），形成分布式调度系统中首个结构化的绑定容错模型。配套设计 8 个 Prometheus 指标实现分层可观测性。
 >
-> 在 5000 节点 KWOK 模拟集群上，与原始 Gödel 共享 Binder、kube-scheduler、Volcano、Koordinator 四个基线进行了六种工作负载下的系统性对比实验。实验结果表明：嵌入式绑定架构在绑定延迟 P99 方面较共享 Binder 降低 XX%，端到端调度吞吐量提升 XX%；分层容错机制在故障注入场景下实现 XX% 的绑定恢复成功率，显著优于其他调度器的单层容错策略。
+> 在 5000 节点 KWOK 模拟集群上，与共享 Binder 基线实现、kube-scheduler、Volcano、Koordinator 四个基线进行了六种工作负载下的系统性对比实验。实验结果表明：该分布式调度架构在绑定延迟 P99 方面较共享 Binder 降低 XX%，端到端调度吞吐量提升 XX%；分层容错机制在故障注入场景下实现 XX% 的绑定恢复成功率，显著优于其他调度器的单层容错策略。
 
 
 ---
@@ -1448,12 +1448,12 @@ Sched-C ──┘    (单点瓶颈)             Sched-C + Binder-C ──→ API
 
 | # | 创新点 | 类型 | 核心贡献 | 已实现 |
 |---|--------|------|----------|--------|
-| 1 | **嵌入式绑定架构 (Embedded Binder Architecture)** | 架构创新 | 消除 Scheduler→Binder 跨进程通信瓶颈，绑定吞吐量随 Scheduler 实例线性扩展 | ✅ Phase 1-7 |
+| 1 | **单 Dispatcher、多独立 Scheduler 分布式调度架构 (Single-Dispatcher Multi-Scheduler Architecture)** | 架构创新 | 构建单 Dispatcher 统一分发、Scheduler 实例独立并行执行的扩展架构，降低中心化链路竞争并提升整体吞吐 | ✅ Phase 1-7 |
 | 2 | **分层容错绑定策略 (Hierarchical Fault-Tolerant Binding Strategy)** | 机制创新 | 四层容错链路：预防→同步重试→异步恢复→跨实例逃逸，构建分布式调度中首个结构化绑定容错模型 | ✅ Phase 2-4 |
 
-### 13.2 创新点 1：嵌入式绑定架构
+### 13.2 创新点 1：单 Dispatcher、多独立 Scheduler 分布式调度架构
 
-**解决的问题**：Gödel 原始架构中，所有 Scheduler 实例共享单一 Binder 进程，绑定操作成为系统吞吐量瓶颈。
+**创新目标**：提出一种可扩展的分布式调度架构范式，通过“单 Dispatcher 统一分发 + 多独立 Scheduler 并行执行”实现控制面解耦与能力横向扩展，为高并发场景提供更稳定的吞吐与时延表现。
 
 **核心设计**：
 
@@ -1542,8 +1542,8 @@ Sched-C ──┘    (单点瓶颈)             Sched-C + Binder-C ──→ API
 | kube-scheduler | 绑定失败 → Pod 回队列重调度 | 单层（无重试） |
 | Volcano | 绑定失败 → Task 状态置为 Error → 重入队 | 单层（无重试） |
 | Koordinator | 同 kube-scheduler | 单层（无重试） |
-| Gödel (Shared Binder) | Binder 内部有限重试 → 无跨实例恢复 | 两层（无逃逸） |
-| **Gödel (Embedded Binder)** | **预防 → 同步重试 → 异步恢复 → 跨实例逃逸** | **四层（完整）** |
+| Shared Binder Baseline | Binder 内部有限重试 → 无跨实例恢复 | 两层（无逃逸） |
+| **Embedded Binder Design** | **预防 → 同步重试 → 异步恢复 → 跨实例逃逸** | **四层（完整）** |
 
 **技术要点**：
 
@@ -1580,12 +1580,12 @@ Sched-C ──┘    (单点瓶颈)             Sched-C + Binder-C ──→ API
   2.4 Koordinator 混合调度器
   2.5 现有方案对比与不足总结
 
-第3章 Gödel 调度器瓶颈分析
+第3章 分布式调度绑定瓶颈分析
   3.1 共享 Binder 性能瓶颈（定量分析）
   3.2 绑定容错能力缺失（故障场景枚举）
   3.3 优化目标与约束
 
-第4章 嵌入式绑定架构设计与实现（创新点1）
+第4章 单 Dispatcher、多独立 Scheduler 分布式调度架构设计与实现（创新点1）
   4.1 架构设计
     4.1.1 总体架构对比（共享 vs 嵌入）
     4.1.2 Cache 共享与状态一致性设计
@@ -1628,10 +1628,10 @@ Sched-C ──┘    (单点瓶颈)             Sched-C + Binder-C ──→ API
 
 ### 13.5 摘要参考模板
 
-> 随着云原生应用规模的持续增长，Kubernetes 集群调度系统面临吞吐量和可靠性的双重挑战。本文以 Gödel Scheduler 的三层分布式调度架构（Dispatcher-Scheduler-Binder）为研究对象，针对其共享 Binder 单点瓶颈和绑定容错能力不足两个核心问题，提出了两项优化方案：
+> 随着云原生应用规模的持续增长，Kubernetes 集群调度系统面临吞吐量和可靠性的双重挑战。本文面向分布式调度系统中“调度-绑定协同效率不足”和“绑定阶段容错能力薄弱”两类共性问题，提出了两项架构与机制创新：
 >
-> （1）**嵌入式绑定架构**：将 Binder 从独立进程嵌入 Scheduler 进程内部，消除跨进程通信开销，实现绑定吞吐量随 Scheduler 实例数线性扩展。通过 CacheAdapter 实现 Scheduler-Binder 共享缓存的零拷贝适配，并设计 Feature Gate 机制确保架构向后兼容。
+> （1）**单 Dispatcher、多独立 Scheduler 分布式调度架构**：构建“单 Dispatcher 统一分发 + 多 Scheduler 独立并行执行”的协同模型，将绑定执行链路与调度实例同域化，减少跨组件通信与状态同步开销，实现系统吞吐能力随调度实例数近线性扩展。通过共享缓存适配层实现低拷贝状态复用，并引入特性开关保障新旧架构平滑切换与向后兼容。
 >
 > （2）**分层容错绑定策略**：构建四层容错链路——节点分区验证（预防层）、同步指数退避重试（即时恢复层）、异步 Reconciler 队列（后台恢复层）、Dispatcher 跨实例回退（全局恢复层），形成分布式调度系统中首个结构化的绑定容错模型。配套设计 8 个 Prometheus 指标实现分层可观测性。
 >
-> 在 5000 节点 KWOK 模拟集群上，与原始 Gödel 共享 Binder、kube-scheduler、Volcano、Koordinator 四个基线进行了六种工作负载下的系统性对比实验。实验结果表明：嵌入式绑定架构在绑定延迟 P99 方面较共享 Binder 降低 XX%，端到端调度吞吐量提升 XX%；分层容错机制在故障注入场景下实现 XX% 的绑定恢复成功率，显著优于其他调度器的单层容错策略。
+> 在 5000 节点 KWOK 模拟集群上，与共享 Binder 基线实现、kube-scheduler、Volcano、Koordinator 四个基线进行了六种工作负载下的系统性对比实验。实验结果表明：该分布式调度架构在绑定延迟 P99 方面较共享 Binder 降低 XX%，端到端调度吞吐量提升 XX%；分层容错机制在故障注入场景下实现 XX% 的绑定恢复成功率，显著优于其他调度器的单层容错策略。
