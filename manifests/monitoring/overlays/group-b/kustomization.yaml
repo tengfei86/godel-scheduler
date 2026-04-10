@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Group B — Embedded Binder (Proposed): Each Scheduler has its own Binder
+# Usage: kubectl apply -k manifests/monitoring/overlays/group-b/
+
+resources:
+  - ../../base
+  - godel-services.yaml
+  - prometheus-config.yaml

@@ -1,0 +1,156 @@
+# ================================================================
+# Prometheus config for Group D — Volcano (CNCF batch scheduler)
+#
+# Scrape targets:
+#   • volcano-scheduler          (volcano-system, HTTP port 8080)
+#   • volcano-controller-manager (volcano-system, HTTP port 8080)
+#
+# Volcano Scheduler Metrics:
+#   volcano_scheduler_schedule_count{result}
+#   volcano_scheduler_schedule_latency_millisecond
+#   volcano_scheduler_e2e_scheduling_latency_milliseconds
+#   volcano_scheduler_plugin_latency_millisecond{plugin,type}
+#   volcano_scheduler_pending_pod_count
+#   volcano_scheduler_unschedulable_pod_count
+# ================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    rule_files:
+      - "/etc/prometheus/rules.yml"
+
+    scrape_configs:
+      # ── Volcano Scheduler ──
+      - job_name: "volcano-scheduler"
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names: ["volcano-system"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: volcano-scheduler-metrics
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: metrics
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      # ── Volcano Controller Manager ──
+      - job_name: "volcano-controller"
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names: ["volcano-system"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: volcano-controller-metrics
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: metrics
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+  # ================================================================
+  # Recording rules for Group D — Volcano
+  #
+  # NOTE: Volcano metric names start with "volcano_" (not "volcano_scheduler_").
+  # The latency metrics are in milliseconds (not seconds).
+  # Recording rules convert to seconds for cross-group comparison.
+  #
+  # Verified actual metrics:
+  #   volcano_e2e_scheduling_latency_milliseconds_{bucket,sum,count}
+  #   volcano_action_scheduling_latency_milliseconds_{bucket,sum,count}
+  #   volcano_task_scheduling_latency_milliseconds_{bucket,sum,count}
+  #   volcano_plugin_scheduling_latency_milliseconds_{bucket,sum,count}
+  #   volcano_unschedule_task_count, volcano_unschedule_job_count
+  #   volcano_e2e_job_scheduling_duration, volcano_e2e_job_scheduling_latency_milliseconds
+  # ================================================================
+  rules.yml: |
+    groups:
+      # ──────────────────────────────────────────────────
+      #  Throughput
+      # ──────────────────────────────────────────────────
+      - name: volcano_throughput
+        interval: 15s
+        rules:
+          # Scheduling throughput (pods/s) — per-job completion rate
+          # Volcano observes each job twice, divide by 2 to get actual pod rate
+          - record: volcano:scheduling_throughput:rate1m
+            expr: sum(rate(volcano_e2e_job_scheduling_latency_milliseconds_count[1m])) / 2
+
+          - record: volcano:scheduling_throughput:rate5m
+            expr: sum(rate(volcano_e2e_job_scheduling_latency_milliseconds_count[5m])) / 2
+
+          # Session throughput (scheduling-cycles/s)
+          - record: volcano:session_throughput:rate1m
+            expr: sum(rate(volcano_e2e_scheduling_latency_milliseconds_count[1m]))
+
+          # Peak throughput
+          - record: volcano:scheduling_peak_throughput:30m
+            expr: max_over_time(sum(rate(volcano_e2e_job_scheduling_latency_milliseconds_count[1m]))[30m:])
+
+      # ──────────────────────────────────────────────────
+      #  Latency (convert ms → seconds)
+      # ──────────────────────────────────────────────────
+      - name: volcano_latency
+        interval: 15s
+        rules:
+          # E2E scheduling latency
+          - record: volcano:e2e_scheduling_latency:p50_seconds
+            expr: histogram_quantile(0.50, sum(rate(volcano_e2e_scheduling_latency_milliseconds_bucket[5m])) by (le)) / 1000
+
+          - record: volcano:e2e_scheduling_latency:p90_seconds
+            expr: histogram_quantile(0.90, sum(rate(volcano_e2e_scheduling_latency_milliseconds_bucket[5m])) by (le)) / 1000
+
+          - record: volcano:e2e_scheduling_latency:p99_seconds
+            expr: histogram_quantile(0.99, sum(rate(volcano_e2e_scheduling_latency_milliseconds_bucket[5m])) by (le)) / 1000
+
+          - record: volcano:e2e_scheduling_latency:avg_seconds
+            expr: >
+              (sum(rate(volcano_e2e_scheduling_latency_milliseconds_sum[5m]))
+              /
+              sum(rate(volcano_e2e_scheduling_latency_milliseconds_count[5m]))) / 1000
+
+          # Action scheduling latency (allocate, enqueue, backfill ...)
+          - record: volcano:action_scheduling_latency:p90_seconds
+            expr: histogram_quantile(0.90, sum(rate(volcano_action_scheduling_latency_milliseconds_bucket[5m])) by (le, action)) / 1000
+
+          - record: volcano:action_scheduling_latency:p99_seconds
+            expr: histogram_quantile(0.99, sum(rate(volcano_action_scheduling_latency_milliseconds_bucket[5m])) by (le, action)) / 1000
+
+          # Task scheduling latency
+          - record: volcano:task_scheduling_latency:p90_seconds
+            expr: histogram_quantile(0.90, sum(rate(volcano_task_scheduling_latency_milliseconds_bucket[5m])) by (le)) / 1000
+
+          - record: volcano:task_scheduling_latency:p99_seconds
+            expr: histogram_quantile(0.99, sum(rate(volcano_task_scheduling_latency_milliseconds_bucket[5m])) by (le)) / 1000
+
+          # Plugin latency
+          - record: volcano:plugin_scheduling_latency:p90_seconds
+            expr: histogram_quantile(0.90, sum(rate(volcano_plugin_scheduling_latency_milliseconds_bucket[5m])) by (le, plugin)) / 1000
+
+      # ──────────────────────────────────────────────────
+      #  Pending & Unschedulable
+      # ──────────────────────────────────────────────────
+      - name: volcano_scheduling_status
+        interval: 15s
+        rules:
+          - record: volcano:unschedule_task_rate:5m
+            expr: rate(volcano_unschedule_task_count[5m])
+          # Direct gauges to query:
+          #   volcano_unschedule_task_count
+          #   volcano_unschedule_job_count

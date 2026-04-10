@@ -2,5 +2,40 @@ kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
   - role: control-plane
+    extraPortMappings:
+      - containerPort: 30090
+        hostPort: 30090
+        protocol: TCP
+    kubeadmConfigPatches:
+      - |
+        kind: ClusterConfiguration
+        etcd:
+          local:
+            extraArgs:
+              quota-backend-bytes: "17179869184"
+              auto-compaction-mode: "revision"
+              auto-compaction-retention: "1000"
+              snapshot-count: "50000"
+        apiServer:
+          timeoutForControlPlane: 4m0s
+          extraArgs:
+            event-ttl: "10m"
+            max-mutating-requests-inflight: "10000"
+            max-requests-inflight: "20000"
+            default-watch-cache-size: "1000"
+            watch-cache-sizes: "pods#5000,nodes#1000"
+        controllerManager:
+          extraArgs:
+            allocate-node-cidrs: "true"
+            cluster-cidr: "10.244.0.0/16"
+            kube-api-qps: "10000"
+            kube-api-burst: "10000"
+            concurrent-deployment-syncs: "2000"
+            concurrent-namespace-syncs: "200"
+            concurrent-replicaset-syncs: "4000"
+        scheduler:
+          extraArgs:
+            kube-api-qps: "10000"
+            kube-api-burst: "10000"
   - role: worker
   - role: worker

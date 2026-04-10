@@ -1,10 +1,13 @@
 ## Gödel Unified Scheduling System
+
 Gödel represents a comprehensive scheduling and resource management platform designed for various business groups to efficiently operate their diverse cloud-native workloads. It features an integrated quota management system and a scheduler that administers a consolidated resource pool. The Gödel scheduling system is a critical component in the management of clusters.
 
 Thanks to the Gödel architecture, we can realize enhanced performance in terms of resource utilization, resource elasticity, and scheduling throughput, optimizing the overall functionality and efficiency of cluster management.
 
 ## Overall Architecture
+
 ![godel-arch](docs/images/godel-arch.png)
+
 - Drawing inspiration from the Kubernetes scheduler and incorporating the concept of optimistic concurrency, we have optimized the most time-intensive process of matching application nodes—encompassing both filtering and scoring—within the scheduler component. This approach allows for concurrent execution, enhancing the scheduling throughput for large-scale clusters.
 
 - Our two-tiered scheduling semantic abstraction, comprising Unit and Pod, along with its framework implementation, offers a more versatile "batch" scheduling capability. This significantly bolsters support for offline services while simultaneously enhancing throughput and scalability.
@@ -14,9 +17,11 @@ Thanks to the Gödel architecture, we can realize enhanced performance in terms 
 - While remaining compatible with the Kubernetes ecosystem and serving as a potential substitute for the Kubernetes scheduler, our framework distinguishes itself through performance and architectural advancements. Although the framework interface deviates slightly from that of the Kubernetes scheduler, its extensibility remains uncompromised. Scheduling plugins can be developed in a manner akin to Kubernetes.
 
 ## Local Gödel Environment Setup with KIND
+
 We offered a guide to set up a local Kubernetes cluster installed with Gödel. Please refer to [Local Gödel Environment Setup with KIND](./docs/features/kind-cluster-setup.md) for details.
 
 ## Quick Start Guide for Key Features
+
 Please refer to the below links for quick start guides on key features. Please note that Gödel supports Kubernetes versions from 1.21.4 up to 1.24.6. Using lower or higher Kubernetes versions may cause compatibility issues.
 
 - [Basic Pod Scheduling](./docs/features/basic-pod.md)
@@ -27,4 +32,48 @@ Please refer to the below links for quick start guides on key features. Please n
 - [Resource Reservation](./docs/features/resource-reservation.md)
 
 ## Contribution Guide
+
 Please refer to [Contribution](CONTRIBUTING.md).
+
+```bash
+# Change prefix from 'Ctrl+B' to 'Ctrl+A'
+set-option -g prefix C-a
+# set shell
+set -g default-shell /bin/bash
+bind c new-window -c "#{pane_current_path}"
+bind h split-window -h -c "#{pane_current_path}"
+bind v split-window -v -c "#{pane_current_path}"
+set -g mouse on
+setw -g mode-keys vi
+
+# 关键：让 tmux 通过 OSC52 同步到“本地终端”剪贴板
+set -s set-clipboard on
+set -as terminal-features ',*:clipboard'
+
+bind-key -T copy-mode-vi v send-keys -X begin-selection
+bind-key -T copy-mode-vi y send-keys -X copy-selection-and-cancel
+```
+
+
+```bash
+
+./run-all.sh --groups "a b" --scales "s3 s4 s5" --workloads "w3 w4" --instances "3" --setup-nodes  --runs 1
+
+```
+
+
+```bash
+1.  课题背景介绍 
+     1.1.  课题来源
+     1.2.  课题研究内容
+     1.3.  系统总体方案
+2.  论文工作是否按开题报告预定的内容及进度安排进行 
+     2.1.  开题报告工作计划
+     2.2.  实际工作计划
+     2.3.  说明
+3.  论文工作成果介绍 
+     3.1 课题所实施的解决方案介绍
+     3.2 开题报告中所列关键问题的解决情况
+     3.3 创新性的方法、技术、成果
+4.  论文后期工作及进度安排 
+```

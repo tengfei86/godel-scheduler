@@ -30,6 +30,10 @@ spec:
           image: godel-local:latest
           imagePullPolicy: Never
           command: ["/usr/local/bin/binder"]
+          ports:
+            - containerPort: 10451
+              name: metrics
+              protocol: TCP
           args:
             - "--leader-elect=false"
             - "--tracer=noop"
@@ -38,11 +42,11 @@ spec:
             - "--reservation-ttl=60"
           resources:
             limits:
-              cpu: "0.5"
-              memory: 500Mi
+              cpu: "2"
+              memory: 4G
             requests:
-              cpu: "0.5"
-              memory: 500Mi
+              cpu: "1"
+              memory: 2G
           volumeMounts:
             - mountPath: /config
               name: binder-config

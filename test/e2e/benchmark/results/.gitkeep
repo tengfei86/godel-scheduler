@@ -1,0 +1,6 @@
+# 实验结果输出目录
+# 结构: results/{group}/{workload}/run{id}/
+#   - metadata.txt        实验元数据
+#   - *.json              Prometheus 时间序列数据
+#   - utilization.csv     节点资源分布快照
+#   - pod-distribution.csv  Pod 分布快照

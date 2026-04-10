@@ -133,6 +133,16 @@ func divideNodesByRequireAffinity(
 	nodeCircle := nodeGroup.GetNodeCircles()[0] // the caller must ensure that the node group has at least one node circle.
 
 	var topologyElems []*topologyElem
+
+	// Log the total nodes visible to this scheduler instance from the Locating phase
+	allNodeNames := make([]string, 0)
+	for _, n := range nodeCircle.List() {
+		allNodeNames = append(allNodeNames, n.GetNodeName())
+	}
+	klog.V(4).InfoS("divideNodesByRequireAffinity input nodeCircle", "unitKey", unit.GetKey(),
+		"nodeCircleKey", nodeCircle.GetKey(), "totalNodes", nodeCircle.Len(), "nodes", allNodeNames,
+		"assignedNodes", assignedNodes.List())
+
 	if assignedNodes.Len() != 0 {
 		klog.V(4).InfoS("Unit has running pods on nodes", "unitKey", unit.GetKey(), "numNodes", len(assignedNodes))
 		// there are running pods in the unit, filter nodes matching the same affnity specs of these running pods
@@ -145,6 +155,23 @@ func divideNodesByRequireAffinity(
 			return nil, err
 		}
 		topologyElems = getTopologyElems(requiredNodeCircleList)
+
+		// Sort and mark cutOff for domains with insufficient resources, even when there are
+		// assigned nodes. Without this, domains that cannot hold the remaining pods would not
+		// be filtered out, causing pods to be scheduled to resource-insufficient domains and
+		// then fail at the binder stage.
+		sortRules := getSortRules(unit)
+		klog.V(4).InfoS("Started to sort node circles (with assigned nodes)", "unitKey", unit.GetKey(), "sortRules", sortRules)
+		sortAndMarkTopologyElems(ctx, unit, topologyElems, sortRules, request, false)
+
+		for idx, elem := range topologyElems {
+			nodeNames := make([]string, 0)
+			for _, n := range elem.nodeCircle.List() {
+				nodeNames = append(nodeNames, n.GetNodeName())
+			}
+			klog.V(4).InfoS("TopologyElem after sort (assigned)", "unitKey", unit.GetKey(), "index", idx,
+				"key", elem.nodeCircle.GetKey(), "cutOff", elem.cutOff, "nodeCount", elem.nodeCircle.Len(), "nodes", nodeNames)
+		}
 	} else {
 		klog.V(4).InfoS("Unit has no running pods", "unitKey", unit.GetKey())
 		// no running pods, then nodes should be grouped by affinity terms
@@ -157,6 +184,16 @@ func divideNodesByRequireAffinity(
 		sortRules := getSortRules(unit)
 		klog.V(4).InfoS("Started to sort node circles", "unitKey", unit.GetKey(), "sortRules", sortRules)
 		sortAndMarkTopologyElems(ctx, unit, topologyElems, sortRules, request, false)
+
+		for idx, elem := range topologyElems {
+			nodeNames := make([]string, 0)
+			for _, n := range elem.nodeCircle.List() {
+				nodeNames = append(nodeNames, n.GetNodeName())
+			}
+			klog.V(4).InfoS("TopologyElem after sort (no assigned)", "unitKey", unit.GetKey(), "index", idx,
+				"key", elem.nodeCircle.GetKey(), "cutOff", elem.cutOff, "nodeCount", elem.nodeCircle.Len(), "nodes", nodeNames)
+		}
+
 	}
 
 	sz := len(topologyElems)
@@ -241,6 +278,7 @@ func sortAndMarkTopologyElems(
 	unitRequest *preCheckResource,
 	isParentCutOff bool,
 ) {
+
 	if len(topologyElems) == 0 {
 		return
 	}
