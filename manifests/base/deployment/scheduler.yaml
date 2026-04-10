@@ -30,6 +30,10 @@ spec:
           image: godel-local:latest
           imagePullPolicy: Never
           command: ["/usr/local/bin/scheduler"]
+          ports:
+            - containerPort: 10251
+              name: metrics
+              protocol: TCP
           args:
             - "--leader-elect=false"
             - "--tracer=noop"
@@ -40,11 +44,11 @@ spec:
             - "--feature-gates=ResourceReservation=true"
           resources:
             limits:
-              cpu: "0.5"
-              memory: 500Mi
+              cpu: "2"
+              memory: 4G
             requests:
-              cpu: "0.5"
-              memory: 500Mi
+              cpu: "1"
+              memory: 2G
           volumeMounts:
             - mountPath: /config
               name: scheduler-config

@@ -1,0 +1,1 @@
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"attempts":"1","instance":"10.244.0.19:10251","job":"godel-scheduler","namespace":"godel-system","pod":"scheduler-5b45ddc45-z425x","qos":"guaranteed","scheduler":"godel-scheduler","service":"godel-scheduler-metrics","sub_cluster":"-"},"values":[[1773769095,"NaN"],[1773769110,"0.8152046242774567"]]}]}}

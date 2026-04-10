@@ -1,0 +1,1641 @@
+# 研究生论文 — 分布式调度器性能对比实验方案
+
+## 1. 实验总览
+
+### 1.1 研究目标
+
+验证**独立 Binder（Embedded Binder）架构**相较于**共享 Binder（Shared Binder）架构**在调度吞吐量、绑定延迟、容错能力、资源利用率、Pod 分布均衡度、稳定性与扩展性方面的系统性提升；同时与业界主流批量/混合调度器（**Volcano**、**Koordinator**）进行横向对比，定位论文方案在整体调度生态中的竞争力。
+
+### 1.2 对比组设计
+
+| 标识                                | 配置                                                                    | 说明                                                      |
+| ----------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------- |
+| **A — 共享 Binder（Baseline）**     | `--enable-embedded-binder=false` + 独立 Binder Deployment（replicas=1） | 共享 Binder 基线实现，所有 Scheduler 共用一个 Binder |
+| **B — 独立 Binder（Proposed）**     | `--enable-embedded-binder=true` + Binder Deployment replicas=0          | 论文提出的架构，每个 Scheduler 内嵌独立 Binder            |
+| **C — kube-scheduler（Reference）** | 原生 Kubernetes 调度器（单实例）                                        | 行业基准参考，用于凸显分布式架构的整体优势                |
+| **D — Volcano**                     | Volcano Scheduler（v1.9.x，单实例）                                     | CNCF 批量调度参考，擅长 Gang / Queue 场景                 |
+| **E — Koordinator**                 | Koordinator Scheduler（v1.5.x，单实例）                                 | 阿里巴巴混合调度参考，QoS 感知 + 精细化资源管理           |
+
+> **所有实验**至少执行 **3 次**，取**中位数 + 标准差**，确保统计显著性。
+
+### 1.3 部署命令
+
+```bash
+# 组 A：共享 Binder（基线架构）
+kubectl apply -k manifests/base/
+
+# 组 B：独立 Binder（论文架构）
+kubectl apply -k manifests/overlays/embedded-binder/
+
+# 组 C：kube-scheduler
+# 禁用自定义调度器，启用原生 kube-scheduler
+
+# 组 D：Volcano
+helm install volcano volcano-sh/volcano -n volcano-system --create-namespace \
+  --set scheduler.replicas=1
+# Pod 使用 schedulerName: volcano
+
+# 组 E：Koordinator
+helm install koordinator koordinator-sh/koordinator -n koordinator-system --create-namespace \
+  --set scheduler.replicas=1
+# Pod 使用 schedulerName: koord-scheduler
+```
+
+---
+
+## 2. 实验环境
+
+### 2.1 硬件配置
+
+| 项目   | 规格                                                |
+| ------ | --------------------------------------------------- |
+| 物理机 | 1 台                                                |
+| CPU    | Apple M3 Max（或 Intel Xeon Platinum 8260 48C/96T） |
+| 内存   | ≥ 64 GB                                             |
+| 存储   | NVMe SSD                                            |
+| 网络   | 千兆以太网（物理集群）/ loopback（kind 集群）       |
+
+### 2.2 软件环境
+
+| 项目            | 版本                                  |
+| --------------- | ------------------------------------- |
+| Kubernetes      | 1.29.x                                |
+| Gödel Scheduler | 当前 commit（含全部 7 个 Phase 改造） |
+| Volcano         | v1.9.x（CNCF 批量调度器）             |
+| Koordinator     | v1.5.x（阿里巴巴混合调度器）          |
+| KWOK            | 最新稳定版（模拟大规模节点）          |
+| Prometheus      | v2.51.0（已部署，NodePort 30090）     |
+| kind            | 最新版（本地集群）                    |
+| Go              | 1.21+                                 |
+
+### 2.3 集群规模梯度
+
+| 规模编号 | 节点数 | Scheduler 实例数 | 说明                               |
+| -------- | ------ | ---------------- | ---------------------------------- |
+| S1       | 100    | 1                | 小规模基线                         |
+| S2       | 1,000  | 3                | 中等规模                           |
+| S3       | 5,000  | 3                | 大规模                             |
+| S4       | 10,000 | 3                | 超大规模                           |
+| S5       | 30,000 | 3                | 极限规模（参照官方 best-practice） |
+
+> 使用 KWOK 模拟节点：`seq $N | xargs -I {} -P 50 bash -c "kubectl create -f docs/performance/node.yaml"`
+
+---
+
+## 3. 负载模型
+
+### 3.1 Pod 模板
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: bench-pod-${INDEX}
+  namespace: bench
+  annotations:
+    godel.bytedance.com/pod-state: pending
+    godel.bytedance.com/pod-resource-type: guaranteed
+    godel.bytedance.com/pod-launcher: kubelet
+spec:
+  schedulerName: godel-scheduler
+  containers:
+    - name: app
+      image: pause:3.9
+      resources:
+        requests:
+          cpu: "${CPU}m"
+          memory: "${MEM}Mi"
+```
+
+### 3.2 负载场景矩阵
+
+| 场景 ID | 场景名称   | Pod 创建速率    | 总 Pod 数   | Pod 资源规格        | PodGroup     | 说明                   |
+| ------- | ---------- | --------------- | ----------- | ------------------- | ------------ | ---------------------- |
+| W1      | 低负载稳态 | 100 pods/s      | 10,000      | cpu:100m, mem:128Mi | 无           | 基线性能               |
+| W2      | 中负载稳态 | 500 pods/s      | 50,000      | cpu:100m, mem:128Mi | 无           | 常规工作负载           |
+| W3      | 高负载稳态 | 1,000 pods/s    | 100,000     | cpu:100m, mem:128Mi | 无           | 高压场景               |
+| W4      | 极限负载   | 2,000 pods/s    | 200,000     | cpu:100m, mem:128Mi | 无           | 压力极限               |
+| W5      | 突发洪峰   | 0→2000→0 pods/s | 50,000      | cpu:100m, mem:128Mi | 无           | 阶梯式突发             |
+| W6      | Gang 调度  | 200 groups/s    | 10,000 pods | cpu:100m, mem:128Mi | 5 pods/group | 批量调度场景           |
+| W7      | 异构资源   | 500 pods/s      | 50,000      | 混合（见下）        | 无           | 资源碎片化测试         |
+| W8      | 大规模集群 | 2,000 pods/s    | 800,000     | cpu:100m, mem:128Mi | 无           | 参照官方 best-practice |
+
+> Pod 模板中 `schedulerName` 根据对比组切换：组 A/B 为 `godel-scheduler`，组 C 为 `default-scheduler`，组 D 为 `volcano`，组 E 为 `koord-scheduler`。
+
+**W7 异构资源混合比例：**
+
+- 30% 小规格：cpu:50m, mem:64Mi
+- 40% 中规格：cpu:200m, mem:256Mi
+- 20% 大规格：cpu:1000m, mem:1Gi
+- 10% 超大规格：cpu:4000m, mem:8Gi
+
+### 3.3 各组实验场景适用性
+
+#### 3.3.1 负载场景覆盖矩阵（Group × Workload）
+
+| 场景              | A (Shared Binder) | B (Embedded Binder) | C (kube-scheduler) | D (Volcano) | E (Koordinator) | 排除原因                                                                                      |
+| ----------------- | :---------------: | :-----------------: | :----------------: | :---------: | :-------------: | --------------------------------------------------------------------------------------------- |
+| **W1** 低负载稳态 |        ✅         |         ✅          |         ✅         |     ✅      |       ✅        | —                                                                                             |
+| **W2** 中负载稳态 |        ✅         |         ✅          |         ✅         |     ✅      |       ✅        | —                                                                                             |
+| **W3** 高负载稳态 |        ✅         |         ✅          |         ✅         |     ✅      |       ✅        | —                                                                                             |
+| **W4** 极限负载   |        ✅         |         ✅          |         ✅         |     ✅      |       ✅        | —                                                                                             |
+| **W5** 突发洪峰   |        ✅         |         ✅          |         ✅         |     ❌      |       ❌        | A/B/C 对比突发恢复能力，D/E 架构不同无对应机制                                                |
+| **W6** Gang 调度  |        ✅         |         ✅          |         ❌         |     ✅      |       ✅        | C 不支持 PodGroup/Gang 调度语义；D 原生支持，E 通过 PodGroup CRD 支持                         |
+| **W7** 异构资源   |        ✅         |         ✅          |         ❌         |     ❌      |       ❌        | 架构特定测试：验证 Binder 在资源碎片化场景下的绑定效率，C/D/E 不参与此对比                     |
+| **W8** 大规模集群 |        ✅         |         ✅          |         ❌         |     ❌      |       ❌        | 800K Pod 极限压力仅用于 A/B 对比（参照分布式调度 best-practice），D/E 在此规模下为单实例瓶颈   |
+
+> **脚本对应**: `run-all.sh` 中 `get_workloads_for_group()` 的映射：A/B → W1–W8，C → W1–W5，D/E → W1–W4 + W6。
+
+#### 3.3.2 实验维度覆盖矩阵（Group × Dimension）
+
+| 实验维度                     |  A  |  B  |  C  |  D  |  E  | 说明                                                                                   |
+| ---------------------------- | :-: | :-: | :-: | :-: | :-: | -------------------------------------------------------------------------------------- |
+| **吞吐量** (T-1~T-4)         | ✅  | ✅  | ✅  | ✅  | ✅  | 全组参与，核心横向对比                                                                 |
+| **延迟** (L-1~L-6)           | ✅  | ✅  | ✅  | ✅  | ✅  | 全组参与；L-2/L-6（绑定延迟分解）仅 A/B                                                |
+| **容错** (F-1~F-3)           | ✅  | ✅  | ❌  | ❌  | ❌  | Gödel 专有：验证 Embedded Binder 故障隔离 vs Shared Binder，D/E 架构不同无对应故障模式 |
+| **调度成功率** (S-1~S-4)     | ✅  | ✅  | ✅  | ✅  | ✅  | 全组参与；S-4（重试次数）仅 A/B                                                        |
+| **资源利用率** (U-1~U-4)     | ✅  | ✅  | ❌  | ✅  | ✅  | C 不参与利用率对比（单实例无意义）；D/E 参与                                           |
+| **资源碎片化** (R-1~R-3)     | ✅  | ✅  | ❌  | ✅  | ✅  | 同利用率                                                                               |
+| **Pod 分布均衡度** (D-1~D-3) | ✅  | ✅  | ❌  | ✅  | ✅  | D-2（Scheduler 分区 Pod 数）仅 A/B（多实例分区机制）                                   |
+| **稳定性** (ST-1~ST-4)       | ✅  | ✅  | ❌  | ✅  | ✅  | 全组参与（除 C）；ST 是长时间运行测试，D/E 需验证持续稳定性                            |
+| **水平扩展** (SC-1~SC-3)     | ✅  | ✅  | ❌  | ❌  | ❌  | 仅 A/B 参与：C/D/E 均为单实例架构，无 Scheduler 水平扩展能力                           |
+| **垂直扩展** (VS-1~VS-2)     | ✅  | ✅  | ✅  | ✅  | ✅  | 全组参与：验证不同集群规模下的性能变化                                                 |
+
+#### 3.3.3 Volcano (D) 与 Koordinator (E) 能力边界说明
+
+**Volcano (D)**：
+
+- **擅长**：Gang/批量调度（W6），原生 PodGroup + Queue 机制，CNCF 生态成熟
+- **约束**：单实例调度器，无水平扩展（SC-\*）；极限规模（W8）下受限于单队列吞吐
+- **KWOK 兼容**：KWOK 节点上可正常运行调度器，无 DaemonSet 依赖
+- **指标差异**：使用 `volcano_scheduler_*` 系列指标，需独立的 Prometheus scrape 配置
+
+**Koordinator (E)**：
+
+- **擅长**：QoS 感知调度、精细化资源管理、干扰检测（真实集群场景）
+- **约束**：`koordlet` DaemonSet 无法在 KWOK 节点上运行，测试以**纯调度器模式**进行（`--set koordlet.enabled=false`），QoS 画像功能不可用
+- **约束**：单实例调度器，无水平扩展（SC-\*）
+- **KWOK 兼容**：调度器本身可运行，但节点侧资源画像缺失，资源利用率数据仅反映调度分配层面
+- **指标差异**：使用 `koord_scheduler_*` 系列指标，需独立的 Prometheus scrape 配置
+
+#### 3.3.4 各组完整实验清单汇总
+
+| 组    | 负载场景          | 稳定性测试 | 扩展性测试      | 容错测试 | 预计实验数（×3 重复） |
+| ----- | ----------------- | ---------- | --------------- | -------- | --------------------- |
+| **A** | W1–W8 (8 个)      | ST-1~4     | SC-1~4 + VS-1~5 | F1–F6    | ~78                   |
+| **B** | W1–W8 (8 个)      | ST-1~4     | SC-1~4 + VS-1~5 | F1–F6    | ~78                   |
+| **C** | W1–W5 (5 个)      | —          | VS-1~5          | —        | ~30                   |
+| **D** | W1–W4 + W6 (5 个) | ST-1~4     | VS-1~5          | —        | ~42                   |
+| **E** | W1–W4 + W6 (5 个) | ST-1~4     | VS-1~5          | —        | ~42                   |
+
+### 3.4 Pod 创建工具
+
+使用批量 Pod 创建脚本（参考 `docs/performance/best-practice.md`），确保稳定的创建速率：
+
+```bash
+#!/bin/bash
+# bench-create-pods.sh
+RATE=${1:-500}        # pods/s
+TOTAL=${2:-50000}     # total pods
+NAMESPACE="bench"
+TEMPLATE="bench-pod-template.yaml"
+
+kubectl create namespace $NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
+
+for i in $(seq 1 $TOTAL); do
+  sed "s/\${INDEX}/$i/g; s/\${CPU}/100/g; s/\${MEM}/128/g" $TEMPLATE | \
+    kubectl apply -f - &
+  if (( i % RATE == 0 )); then
+    sleep 1
+  fi
+done
+wait
+```
+
+---
+
+## 4. 指标体系与采集方案
+
+### 4.1 指标总表
+
+以下所有指标均通过已部署的 Prometheus（NodePort 30090）采集，采集间隔 15s。
+
+---
+
+### 4.2 维度一：吞吐量 (Throughput)
+
+**论文意义**：直接衡量系统处理能力，是分布式调度器最核心的性能指标。
+
+| 指标                  | Prometheus 查询                                                                             | 单位    | 目标  |
+| --------------------- | ------------------------------------------------------------------------------------------- | ------- | ----- |
+| 调度吞吐量（E2E）     | `sum(rate(scheduler_pod_scheduling_attempts{result="scheduled"}[1m]))`                      | pods/s  | B > A |
+| 绑定吞吐量（Pod 级）  | `sum(godel:binder_embedded_bind_pods:rate1m{result="success"})`                             | pods/s  | B > A |
+| 绑定吞吐量（Unit 级） | `sum(godel:binder_embedded_bind_units:rate1m{result="success"})`                            | units/s | B > A |
+| 峰值吞吐量            | `max_over_time(sum(rate(scheduler_pod_scheduling_attempts{result="scheduled"}[1m]))[30m:])` | pods/s  | B > A |
+| 持续吞吐量            | 稳态期间的平均值                                                                            | pods/s  | B > A |
+
+**图表设计**：
+
+| 图表编号 | 图表类型 | X 轴                       | Y 轴                | 系列              |
+| -------- | -------- | -------------------------- | ------------------- | ----------------- |
+| T-1      | 折线图   | 时间 (s)                   | 调度吞吐量 (pods/s) | A / B / C / D / E |
+| T-2      | 柱状图   | 集群规模 (S1–S5)           | 峰值吞吐量 (pods/s) | A / B / C / D / E |
+| T-3      | 柱状图   | 负载场景 (W1–W3)           | 平均吞吐量 (pods/s) | A / B / D / E     |
+| T-4      | 折线图   | Scheduler 实例数 (1,2,3,5) | 吞吐量 (pods/s)     | A / B（扩展性）   |
+
+---
+
+### 4.3 维度二：延迟 (Latency)
+
+**论文意义**：衡量单个 Pod 从提交到完成调度/绑定的响应时间，反映实时性。
+
+| 指标                    | Prometheus 查询                                                                              | 单位 | 目标            |
+| ----------------------- | -------------------------------------------------------------------------------------------- | ---- | --------------- |
+| E2E 调度延迟 P50        | `godel:scheduler_e2e_scheduling_duration:p50`                                                | s    | B ≤ A           |
+| E2E 调度延迟 P90        | `godel:scheduler_e2e_scheduling_duration:p90`                                                | s    | B < A           |
+| E2E 调度延迟 P99        | `godel:scheduler_e2e_scheduling_duration:p99`                                                | s    | B < A           |
+| E2E 调度延迟 AVG        | `godel:scheduler_e2e_scheduling_duration:avg`                                                | s    | B < A           |
+| 绑定延迟 P50（Pod 级）  | `godel:binder_embedded_bind_pod_duration:p50`                                                | s    | B < A           |
+| 绑定延迟 P90（Pod 级）  | `godel:binder_embedded_bind_pod_duration:p90`                                                | s    | B < A           |
+| 绑定延迟 P99（Pod 级）  | `godel:binder_embedded_bind_pod_duration:p99`                                                | s    | B < A           |
+| 绑定延迟 AVG（Unit 级） | `godel:binder_embedded_bind_duration:avg`                                                    | s    | B < A           |
+| 调度+绑定组合 P90       | `godel:e2e_schedule_and_bind_duration:p90_estimate`                                          | s    | B < A           |
+| 调度+绑定组合 P99       | `godel:e2e_schedule_and_bind_duration:p99_estimate`                                          | s    | B < A           |
+| 核心算法延迟 P90        | `godel:scheduler_scheduling_algorithm_duration:p90`                                          | s    | B ≈ A（无退化） |
+| 核心算法延迟 P99        | `godel:scheduler_scheduling_algorithm_duration:p99`                                          | s    | B ≈ A（无退化） |
+| 队列等待时间            | `histogram_quantile(0.90, rate(scheduler_pod_pending_in_queue_duration_seconds_bucket[5m]))` | s    | B < A           |
+
+**图表设计**：
+
+| 图表编号 | 图表类型   | X 轴                           | Y 轴                     | 系列                          |
+| -------- | ---------- | ------------------------------ | ------------------------ | ----------------------------- |
+| L-1      | 折线图     | 时间 (s)                       | E2E 调度延迟 P99 (ms)    | A / B / C / D / E             |
+| L-2      | 柱状分组图 | 百分位数 (P50/P90/P99)         | 延迟 (ms)                | A / B（绑定延迟）             |
+| L-3      | 箱线图     | 配置组 (A/B/C/D/E)             | E2E 延迟 (ms)            | 分布对比                      |
+| L-4      | 折线图     | Pod 创建速率 (100–2000 pods/s) | P99 延迟 (ms)            | A / B / D / E（延迟 vs 负载） |
+| L-5      | CDF 曲线   | 延迟 (ms)                      | 累积概率                 | A / B / D / E                 |
+| L-6      | 堆积柱状图 | 配置组 (A/B)                   | 调度延迟 + 绑定延迟 (ms) | Pipeline 分解                 |
+
+---
+
+### 4.4 维度三：容错率 (Fault Tolerance)
+
+**论文意义**：验证独立 Binder 的故障隔离能力，证明架构在故障场景下的鲁棒性。
+
+#### 4.4.1 故障注入场景
+
+| 故障编号 | 故障类型              | 注入方式                              | 预期差异                                                       |
+| -------- | --------------------- | ------------------------------------- | -------------------------------------------------------------- |
+| F1       | Binder 进程崩溃       | `kubectl delete pod <binder-pod>`     | A：全局调度停止；B：仅影响一个 Scheduler                       |
+| F2       | 单个 Scheduler 崩溃   | `kubectl delete pod <scheduler-pod>`  | A：Binder 仍工作；B：该 Scheduler 的 Binder 同时停止但其他正常 |
+| F3       | 节点重新分区          | 触发 Node Shuffler 重新平衡           | B：NodeValidator 拦截过期绑定                                  |
+| F4       | API Server 短暂不可用 | `kubectl cordon` + 短暂网络隔离（3s） | B：指数退避重试 + 不丢失请求                                   |
+| F5       | API Server 高延迟     | 注入 100ms 网络延迟                   | B：重试计数增加但不崩溃                                        |
+| F6       | 单调度实例离线与重分发 | `kubectl delete pod <scheduler-pod>`（指定实例） | A：离线实例名下 Pod 重分发恢复较慢；B：重分发恢复更快且影响范围更小 |
+
+#### 4.4.2 容错指标
+
+| 指标                   | 采集方式                                                             | 单位   | 目标                  |
+| ---------------------- | -------------------------------------------------------------------- | ------ | --------------------- |
+| 故障恢复时间 (MTTR)    | `timestamp(binder_embedded_bind_inflight > 0) - timestamp(故障发生)` | s      | B < A                 |
+| 故障期间调度中断时长   | 观测 `rate(scheduler_pod_scheduling_attempts[1m]) == 0` 的持续时间   | s      | B < A                 |
+| 故障期间丢失绑定请求数 | `binder_embedded_bind_total{result="failure"}` 在故障窗口内的增量    | 个     | B < A                 |
+| Dispatcher 回退次数    | `godel:binder_dispatcher_fallback:rate5m`                            | pods/s | B 有此机制，A 无      |
+| 节点验证拦截次数       | `godel:binder_node_validation_failures:rate5m`                       | 次/s   | 仅 B 有               |
+| 并发 inflight 绑定     | `binder_embedded_bind_inflight`                                      | 个     | 故障时 B 仅影响单实例 |
+| Pod 重分发恢复时间     | 从调度实例离线时刻到该实例名下 Pod 完成重新分发（`selected-scheduler` 变更）并再次进入可调度状态的时长 | s      | B < A                 |
+| 离线实例遗留 Pod 清空时长 | 从离线时刻到离线实例对应待恢复 Pod 数量降为 0 的时长（基于 Pod 注解/状态采样） | s      | B < A                 |
+
+**图表设计**：
+
+| 图表编号 | 图表类型 | X 轴                           | Y 轴                  | 系列  |
+| -------- | -------- | ------------------------------ | --------------------- | ----- |
+| F-1      | 折线图   | 时间 (s)（故障注入点标记竖线） | 吞吐量 (pods/s)       | A / B |
+| F-2      | 柱状图   | 故障场景 (F1–F6)               | 恢复时间 (s)          | A / B |
+| F-3      | 热力图   | 时间 × Scheduler 实例          | 绑定状态（正常/故障） | A / B |
+| F-4      | 柱状图   | 配置组 (A/B)                   | 单实例离线重分发恢复时间 (s) | A / B |
+
+---
+
+### 4.5 维度四：调度成功率
+
+**论文意义**：衡量系统在高负载下的可靠性，失败率直接影响业务 SLA。
+
+| 指标                  | Prometheus 查询                                                                                                               | 单位   | 目标              |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------ | ----------------- |
+| 调度成功率            | `sum(rate(scheduler_pod_scheduling_attempts{result="scheduled"}[5m])) / sum(rate(scheduler_pod_scheduling_attempts[5m]))`     | %      | B ≥ A             |
+| 调度失败率            | `sum(rate(scheduler_pod_scheduling_attempts{result="error"}[5m])) / sum(rate(scheduler_pod_scheduling_attempts[5m]))`         | %      | B ≤ A             |
+| Unschedulable 比例    | `sum(rate(scheduler_pod_scheduling_attempts{result="unschedulable"}[5m])) / sum(rate(scheduler_pod_scheduling_attempts[5m]))` | %      | B ≤ A             |
+| 绑定成功率（Pod 级）  | `godel:binder_embedded_bind_pods:success_rate5m`                                                                              | %      | B > A             |
+| 绑定成功率（Unit 级） | `godel:binder_embedded_bind_units:success_rate5m`                                                                             | %      | B > A             |
+| API 重试速率          | `godel:binder_embedded_bind_retries:rate5m`                                                                                   | 次/s   | B < A             |
+| Dispatcher 回退速率   | `godel:binder_dispatcher_fallback:rate5m`                                                                                     | pods/s | 仅 B 有           |
+| Pending Pod 数量      | `sum(scheduler_pending_pods)`                                                                                                 | 个     | B < A（队列更短） |
+| Pending Pod 滞留时间  | `histogram_quantile(0.90, rate(scheduler_pod_pending_in_queue_duration_seconds_bucket[5m]))`                                  | s      | B < A             |
+
+**图表设计**：
+
+| 图表编号 | 图表类型   | X 轴     | Y 轴                            | 系列          |
+| -------- | ---------- | -------- | ------------------------------- | ------------- |
+| S-1      | 折线图     | 时间 (s) | 调度成功率 (%)                  | A / B / D / E |
+| S-2      | 柱状分组图 | 负载场景 | 成功率 / 失败率 / Unschedulable | A / B / D / E |
+| S-3      | 折线图     | 时间 (s) | Pending Pod 数量                | A / B / D / E |
+| S-4      | 柱状图     | 配置组   | 平均重试次数                    | A / B         |
+
+---
+
+### 4.6 维度五：资源利用率 — 集群均衡利用
+
+**论文意义**：独立 Binder 的低延迟使调度决策更及时，理论上可提升集群资源利用率的均衡度。
+
+#### 4.6.1 采集方式
+
+- **KWOK 模拟节点**：KWOK 节点无真实资源使用，通过 Scheduler Cache 中的 `Requested` vs `Allocatable` 计算
+- **真实 kind 节点**：通过 `metrics-server` 或 `node_exporter` + Prometheus 采集
+
+#### 4.6.2 指标
+
+| 指标                    | 计算方式                                                                                                                   | 单位 | 目标                |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------- | ---- | ------------------- |
+| 节点 CPU 利用率         | `sum(kube_pod_container_resource_requests{resource="cpu"}) by (node) / kube_node_status_allocatable{resource="cpu"}`       | %    | —                   |
+| 节点 Memory 利用率      | `sum(kube_pod_container_resource_requests{resource="memory"}) by (node) / kube_node_status_allocatable{resource="memory"}` | %    | —                   |
+| 平均 CPU 利用率         | `avg(上述)`                                                                                                                | %    | B ≥ A               |
+| CPU 利用率方差          | `stddev(节点CPU利用率)`                                                                                                    | —    | B < A（更均衡）     |
+| CPU 利用率变异系数 (CV) | `stddev / avg`                                                                                                             | —    | B < A               |
+| Memory 利用率方差       | `stddev(节点Memory利用率)`                                                                                                 | —    | B < A               |
+| 节点利用率基尼系数      | 离线计算                                                                                                                   | 0–1  | B < A（0=完全均衡） |
+
+> **注意**：KWOK 节点无真实资源消耗。资源利用率通过 `Requested / Allocatable` 计算（代表"调度层面的利用率"），这在调度器对比中是合理且常用的。
+
+#### 4.6.3 数据采集脚本
+
+```bash
+#!/bin/bash
+# collect-node-utilization.sh
+# 从 Scheduler Cache 指标中提取节点资源利用率
+
+echo "node,cpu_requested,cpu_allocatable,mem_requested,mem_allocatable" > utilization.csv
+
+# 通过 Prometheus API 查询
+CPU_REQ=$(curl -s "http://localhost:30090/api/v1/query?query=scheduler_cluster_pod_requested{resource='cpu'}" | jq -r '.data.result')
+CPU_ALLOC=$(curl -s "http://localhost:30090/api/v1/query?query=scheduler_cluster_allocatable{resource='cpu'}" | jq -r '.data.result')
+
+# ... 解析并写入 CSV
+```
+
+**图表设计**：
+
+| 图表编号 | 图表类型 | X 轴             | Y 轴                | 系列          |
+| -------- | -------- | ---------------- | ------------------- | ------------- |
+| U-1      | 箱线图   | 配置组 (A/B/D/E) | 节点 CPU 利用率 (%) | 分布对比      |
+| U-2      | 折线图   | 时间 (s)         | CPU 利用率方差      | A / B / D / E |
+| U-3      | 热力图   | 节点 ID × 时间   | CPU 利用率 (%)      | A vs B 对比   |
+| U-4      | 柱状图   | 配置组           | 变异系数 (CV)       | A / B / D / E |
+
+---
+
+### 4.7 维度六：资源碎片化
+
+**论文意义**：验证更快的绑定速度是否能减少调度"间隙"造成的资源碎片。
+
+| 指标                   | 计算方式                                                                       | 单位            | 目标  |
+| ---------------------- | ------------------------------------------------------------------------------ | --------------- | ----- |
+| 可分配资源 vs 实际使用 | `sum(Allocatable) - sum(Requested)`                                            | CPU cores / GiB | —     |
+| 资源浪费比例           | `(sum(Allocatable) - sum(Requested)) / sum(Allocatable)`                       | %               | B ≤ A |
+| 碎片化指数             | `count(node: Requested/Allocatable < 0.5 && Requested > 0) / count(all_nodes)` | %               | B < A |
+| 不可用资源占比         | `sum(node: free_cpu < min_pod_request) / sum(Allocatable)`                     | %               | B < A |
+| 最大可调度 Pod 数      | 在所有 Pod 调度完后，统计仍能放置标准 Pod 的数量                               | 个              | B ≥ A |
+
+**计算方式**：
+
+```python
+# fragmentation_analysis.py
+import pandas as pd
+import numpy as np
+
+def compute_fragmentation(utilization_csv):
+    df = pd.read_csv(utilization_csv)
+    df['cpu_util'] = df['cpu_requested'] / df['cpu_allocatable']
+    df['mem_util'] = df['mem_requested'] / df['mem_allocatable']
+
+    # 碎片化指数：有使用但利用率 < 50% 的节点比例
+    fragmented = df[(df['cpu_util'] > 0) & (df['cpu_util'] < 0.5)]
+    frag_index = len(fragmented) / len(df)
+
+    # 资源浪费比例
+    total_alloc = df['cpu_allocatable'].sum()
+    total_req = df['cpu_requested'].sum()
+    waste_ratio = (total_alloc - total_req) / total_alloc
+
+    # 基尼系数
+    util_values = df['cpu_util'].values
+    gini = compute_gini(util_values)
+
+    return {
+        'fragmentation_index': frag_index,
+        'waste_ratio': waste_ratio,
+        'gini_coefficient': gini,
+        'cv': np.std(util_values) / np.mean(util_values)
+    }
+```
+
+**图表设计**：
+
+| 图表编号 | 图表类型   | X 轴             | Y 轴               | 系列                      |
+| -------- | ---------- | ---------------- | ------------------ | ------------------------- |
+| R-1      | 堆积柱状图 | 配置组 (A/B/D/E) | 资源量 (CPU cores) | 已用 / 碎片 / 空闲        |
+| R-2      | 柱状图     | 负载场景         | 碎片化指数 (%)     | A / B / D / E             |
+| R-3      | 散点图     | CPU 利用率 (%)   | Memory 利用率 (%)  | 节点分布（A / B / D / E） |
+
+---
+
+### 4.8 维度七：Pod 分布均衡度
+
+**论文意义**：验证独立 Binder 是否影响 Dispatcher 的节点分区均衡效果。
+
+| 指标                     | 计算方式                                                   | 单位 | 目标     |
+| ------------------------ | ---------------------------------------------------------- | ---- | -------- |
+| 每节点 Pod 数方差        | `stddev(count(pods) group by node)`                        | —    | B ≤ A    |
+| 每节点 Pod 数变异系数    | `stddev / avg`                                             | —    | B ≤ A    |
+| 每 Scheduler 分区 Pod 数 | `count(pods) group by scheduler`                           | 个   | 各组均匀 |
+| Pod/节点比例最大偏差     | `max(node_pod_count) / avg(node_pod_count) - 1`            | —    | B ≤ A    |
+| Jain 公平性指数          | $J(x_1,...,x_n) = \frac{(\sum x_i)^2}{n \cdot \sum x_i^2}$ | 0–1  | B ≥ A    |
+
+**数据采集**：
+
+```bash
+# 采集每节点 Pod 数
+kubectl get pods -A -o json | jq -r '.items[] | select(.spec.nodeName != null) | .spec.nodeName' | sort | uniq -c | sort -n > pod-distribution.txt
+
+# 采集每 Scheduler 分区的 Pod 数
+for sched in scheduler-0 scheduler-1 scheduler-2; do
+  echo "$sched: $(kubectl get pods -A -o json | jq "[.items[] | select(.metadata.annotations[\"godel.bytedance.com/selected-scheduler\"]==\"$sched\")] | length")"
+done
+```
+
+**图表设计**：
+
+| 图表编号 | 图表类型   | X 轴             | Y 轴          | 系列               |
+| -------- | ---------- | ---------------- | ------------- | ------------------ |
+| D-1      | 箱线图     | 配置组 (A/B/D/E) | 每节点 Pod 数 | 分布对比           |
+| D-2      | 柱状分组图 | Scheduler 实例   | Pod 数        | A / B              |
+| D-3      | 直方图     | 每节点 Pod 数    | 节点数        | A / B / D / E 叠加 |
+
+---
+
+### 4.9 维度八：稳定性 & 抗压能力
+
+**论文意义**：证明系统在持续高负载下不退化，不存在性能悬崖。
+
+#### 4.9.1 实验设计
+
+| 测试编号 | 测试名称   | 方法                                            | 持续时间 |
+| -------- | ---------- | ----------------------------------------------- | -------- |
+| ST-1     | 持续高负载 | 以 W3（1000 pods/s）持续运行                    | 30 min   |
+| ST-2     | 阶梯式增压 | 每 5 min 增 200 pods/s（100→2000）              | 50 min   |
+| ST-3     | 突发洪峰   | 平稳 200 pods/s → 突发 2000 pods/s × 60s → 回落 | 10 min   |
+| ST-4     | 长时间运行 | W2（500 pods/s）持续运行                        | 120 min  |
+
+#### 4.9.2 指标
+
+| 指标               | 采集方式                             | 单位   | 目标                 |
+| ------------------ | ------------------------------------ | ------ | -------------------- |
+| P99 延迟随时间趋势 | 每分钟采样 P99                       | ms     | B：稳定；A：可能上升 |
+| 吞吐量随时间趋势   | 每分钟采样 throughput                | pods/s | B：稳定；A：可能下降 |
+| 延迟是否线性增长   | 线性回归延迟趋势斜率                 | ms/min | B ≈ 0；A > 0         |
+| Scheduler 阻塞检测 | `scheduler_goroutines` 是否异常增长  | 个     | B < A                |
+| Pending Pod 堆积   | `max(scheduler_pending_pods)`        | 个     | B < A                |
+| inflight 绑定峰值  | `max(binder_embedded_bind_inflight)` | 个     | B 可控               |
+| GC 暂停时间        | Go runtime metrics（如有）           | ms     | B ≤ A                |
+
+**图表设计**：
+
+| 图表编号 | 图表类型           | X 轴       | Y 轴                     | 系列                        |
+| -------- | ------------------ | ---------- | ------------------------ | --------------------------- |
+| ST-1     | 折线图             | 时间 (min) | P99 延迟 (ms)            | A / B / D / E（30min 持续） |
+| ST-2     | 双轴折线图         | 时间 (min) | 左：吞吐量；右：P99 延迟 | A / B / D / E（阶梯增压）   |
+| ST-3     | 折线图             | 时间 (s)   | 吞吐量 (pods/s)          | A / B / D / E（突发洪峰）   |
+| ST-4     | 折线图（带趋势线） | 时间 (min) | P99 延迟 (ms)            | A / B / D / E + 线性趋势线  |
+
+---
+
+### 4.10 维度九：扩展性 (Scalability)
+
+**论文意义**：核心论点 — 独立 Binder 使系统能力随 Scheduler 数量线性扩展。
+
+#### 4.10.1 水平扩展（Scheduler 实例数）
+
+| 实验编号 | Scheduler 实例数 | 集群规模    | 负载 |
+| -------- | ---------------- | ----------- | ---- |
+| SC-1     | 1                | 5,000 nodes | W3   |
+| SC-2     | 2                | 5,000 nodes | W3   |
+| SC-3     | 3                | 5,000 nodes | W3   |
+| SC-4     | 5                | 5,000 nodes | W3   |
+
+**关键观测**：
+
+| 指标         | 计算方式                              | 理想值      | 目标            |
+| ------------ | ------------------------------------- | ----------- | --------------- |
+| 吞吐量扩展比 | `throughput(N) / throughput(1)`       | N           | B 接近 N，A < N |
+| 延迟扩展比   | `latency(N) / latency(1)`             | 1（不增长） | B ≈ 1，A > 1    |
+| 扩展效率     | `throughput(N) / (N × throughput(1))` | 1           | B > A           |
+
+#### 4.10.2 垂直扩展（集群规模）
+
+| 实验编号 | 节点数 | Scheduler 实例数 | Pod 总数 |
+| -------- | ------ | ---------------- | -------- |
+| VS-1     | 100    | 3                | 5,000    |
+| VS-2     | 1,000  | 3                | 50,000   |
+| VS-3     | 5,000  | 3                | 200,000  |
+| VS-4     | 10,000 | 3                | 500,000  |
+| VS-5     | 30,000 | 3                | 800,000  |
+
+**图表设计**：
+
+| 图表编号 | 图表类型 | X 轴                   | Y 轴            | 系列               |
+| -------- | -------- | ---------------------- | --------------- | ------------------ |
+| SC-1     | 折线图   | Scheduler 实例数 (1–5) | 吞吐量 (pods/s) | A / B + 理想线性线 |
+| SC-2     | 折线图   | Scheduler 实例数 (1–5) | P99 延迟 (ms)   | A / B              |
+| SC-3     | 柱状图   | Scheduler 实例数       | 扩展效率 (%)    | A / B              |
+| VS-1     | 折线图   | 集群规模 (节点数)      | 吞吐量 (pods/s) | A / B / C / D / E  |
+| VS-2     | 折线图   | 集群规模 (节点数)      | P99 延迟 (ms)   | A / B / C / D / E  |
+
+---
+
+## 5. 实验执行步骤
+
+### 5.1 实验执行策略：两轮交叉设计
+
+> **核心原则**：不做全交叉（5组 × 5规模 × 8负载 × 3次 = 600次），而是**固定一个维度，变另一个**，用最小实验量覆盖全部论文结论。
+
+#### 第一轮：固定规模，变负载（核心实验）
+
+- **固定**：`s3`（5,000 节点）
+- **变量**：各组适用的全部负载（A/B: W1~W8，C: W1~W5，D/E: W1~W4+W6）
+- **重复**：3 次
+- **目的**：对比不同调度器在各种压力模式下的表现；5000 节点规模下单实例调度器开始出现瓶颈，分布式架构优势得以体现
+- **产出**：论文图 1~7（吞吐量柱状图、延迟折线、绑定对比、突发恢复、Gang、成功率、Pending）
+
+```bash
+./run-all.sh --scales "s3" --runs 3
+```
+
+#### 第二轮：固定负载，变规模（可扩展性实验）
+
+- **固定**：`w3`（高负载 1000 pods/s）
+- **变量**：`s1 s2 s3`（100 / 1,000 / 5,000 节点）
+- **重复**：3 次
+- **目的**：证明方案在不同集群规模下的扩展能力，凸显大规模场景优势
+- **产出**：论文图 8（规模 vs 吞吐量 / P99 延迟）
+
+```bash
+./run-all.sh --scales "s1 s2 s3" --workloads "w3" --runs 3
+```
+
+#### 实验量对比
+
+| 方案                 | 组合数          | 预计实验次数（×3 重复） |
+| -------------------- | --------------- | ----------------------- |
+| 全交叉               | 5×5×8           | ~600                    |
+| **两轮交叉（推荐）** | 第一轮 + 第二轮 | **~135**                |
+| 节省                 | —               | **77%**                 |
+
+> 两轮实验覆盖了论文所需的全部结论：第一轮产出核心对比数据（图 1~7），第二轮产出可扩展性数据（图 8）。
+
+### 5.2 完整实验流程
+
+```
+Phase 0: 环境准备 (1 天)
+├── 搭建 kind 集群 / 物理集群
+├── 部署 KWOK 模拟节点
+├── 验证 Prometheus 可达
+├── 准备 Pod 模板和创建脚本
+└── 编写数据采集自动化脚本
+
+Phase 1: 基线实验 — 组 A（共享 Binder）(2 天)
+├── 部署组 A 配置
+├── 依次执行 W1–W8 负载
+├── 每个场景采集全量指标
+├── 执行故障注入 F1–F6（含单调度实例离线重分发恢复时间对比）
+├── 执行扩展性测试 SC-1~4, VS-1~5
+└── 导出 Prometheus 快照
+
+Phase 2: 对比实验 — 组 B（独立 Binder）(2 天)
+├── 切换到组 B 配置
+├── 重复 Phase 1 全部实验
+├── 额外采集 embedded binder 专有指标
+└── 导出 Prometheus 快照
+
+Phase 3: 参考基线 — 组 C（kube-scheduler）(1 天)
+├── 禁用自定义调度器，启用 kube-scheduler
+├── 执行 W1–W4 + VS-1~5
+└── 导出 Prometheus 快照
+
+Phase 4: 行业对标 — 组 D（Volcano）(1.5 天)
+├── 部署 Volcano Scheduler
+├── 执行 W1–W4 + W6（Gang）负载场景
+├── 执行垂直扩展测试 VS-1~5
+├── 执行稳定性测试 ST-1~4
+├── 采集吞吐量/延迟/成功率/利用率/均衡度指标
+└── 导出 Prometheus 快照
+
+Phase 5: 行业对标 — 组 E（Koordinator）(1.5 天)
+├── 部署 Koordinator Scheduler（纯调度器模式，禁用 koordlet）
+├── 执行 W1–W4 + W6 负载场景
+├── 执行垂直扩展测试 VS-1~5
+├── 执行稳定性测试 ST-1~4
+├── 采集吞吐量/延迟/成功率/利用率/均衡度指标
+└── 导出 Prometheus 快照
+
+Phase 6: 数据分析与可视化 (2 天)
+├── 数据清洗与对齐
+├── 生成所有图表
+├── 统计显著性检验
+└── 撰写论文实验章节
+```
+
+### 5.2 单次实验标准操作流程 (SOP)
+
+```bash
+#!/bin/bash
+# run-experiment.sh <config> <workload> <run_id>
+CONFIG=$1    # a|b|c|d|e
+WORKLOAD=$2  # w1|w2|w3|w4|w5|w6|w7|w8
+RUN_ID=$3    # 1|2|3
+
+RESULTS_DIR="results/${CONFIG}/${WORKLOAD}/run${RUN_ID}"
+mkdir -p $RESULTS_DIR
+
+# 1. 清理环境
+kubectl delete namespace bench --ignore-not-found
+sleep 10
+
+# 2. 重置 Prometheus 指标（可选：重启 Prometheus）
+# kubectl rollout restart deployment/prometheus -n monitoring
+
+# 3. 等待系统稳定
+sleep 30
+
+# 4. 记录实验开始时间
+START_TIME=$(date +%s)
+echo "start_time=$START_TIME" > $RESULTS_DIR/metadata.txt
+
+# 5. 执行负载
+bash bench-create-pods.sh $RATE $TOTAL
+
+# 6. 等待所有 Pod 完成调度
+while [[ $(kubectl get pods -n bench --field-selector=status.phase=Pending --no-headers | wc -l) -gt 0 ]]; do
+  sleep 5
+done
+
+# 7. 记录实验结束时间
+END_TIME=$(date +%s)
+echo "end_time=$END_TIME" >> $RESULTS_DIR/metadata.txt
+echo "duration=$((END_TIME - START_TIME))" >> $RESULTS_DIR/metadata.txt
+
+# 8. 导出 Prometheus 数据
+bash export-prometheus-data.sh $START_TIME $END_TIME $RESULTS_DIR
+
+# 9. 采集节点资源分布快照
+bash collect-node-utilization.sh > $RESULTS_DIR/utilization.csv
+
+# 10. 采集 Pod 分布快照
+bash collect-pod-distribution.sh > $RESULTS_DIR/pod-distribution.csv
+```
+
+### 5.3 Prometheus 数据导出脚本
+
+```bash
+#!/bin/bash
+# export-prometheus-data.sh <start_ts> <end_ts> <output_dir>
+START=$1; END=$2; DIR=$3
+PROM="http://localhost:30090"
+STEP="15s"
+
+QUERIES=(
+  # 吞吐量
+  'sum(rate(scheduler_pod_scheduling_attempts{result="scheduled"}[1m]))'
+  'sum(rate(binder_embedded_bind_pods_total{result="success"}[1m]))'
+  # 延迟
+  'histogram_quantile(0.50,sum(rate(scheduler_e2e_scheduling_duration_seconds_bucket[1m]))by(le))'
+  'histogram_quantile(0.90,sum(rate(scheduler_e2e_scheduling_duration_seconds_bucket[1m]))by(le))'
+  'histogram_quantile(0.99,sum(rate(scheduler_e2e_scheduling_duration_seconds_bucket[1m]))by(le))'
+  'histogram_quantile(0.50,sum(rate(binder_embedded_bind_pod_duration_seconds_bucket[1m]))by(le))'
+  'histogram_quantile(0.90,sum(rate(binder_embedded_bind_pod_duration_seconds_bucket[1m]))by(le))'
+  'histogram_quantile(0.99,sum(rate(binder_embedded_bind_pod_duration_seconds_bucket[1m]))by(le))'
+  # 成功率
+  'sum(rate(scheduler_pod_scheduling_attempts{result="scheduled"}[5m]))/sum(rate(scheduler_pod_scheduling_attempts[5m]))'
+  'sum(rate(scheduler_pod_scheduling_attempts{result="error"}[5m]))/sum(rate(scheduler_pod_scheduling_attempts[5m]))'
+  # Pending
+  'sum(scheduler_pending_pods)'
+  # Binder 特有
+  'binder_embedded_bind_inflight'
+  'sum(rate(binder_embedded_bind_retries_total[5m]))'
+  'sum(rate(binder_dispatcher_fallback_total[5m]))'
+  # Goroutines
+  'sum(scheduler_goroutines) by (work)'
+)
+
+NAMES=(
+  "scheduling_throughput" "bind_throughput"
+  "scheduling_latency_p50" "scheduling_latency_p90" "scheduling_latency_p99"
+  "bind_latency_p50" "bind_latency_p90" "bind_latency_p99"
+  "scheduling_success_rate" "scheduling_error_rate"
+  "pending_pods"
+  "bind_inflight" "bind_retries" "dispatcher_fallback"
+  "goroutines"
+)
+
+for i in "${!QUERIES[@]}"; do
+  curl -s "$PROM/api/v1/query_range?query=${QUERIES[$i]}&start=$START&end=$END&step=$STEP" \
+    > "$DIR/${NAMES[$i]}.json"
+done
+```
+
+---
+
+## 6. 论文图表汇总
+
+### 6.1 图表清单（共 12 张）
+
+> 精简原则：每张图必须支撑一个独立论点，信息重复的合并或降级为表格/文字描述。
+
+| #   | 编号 | 图表名称                           | 类型        | 数据来源                       | 论文论点                 |
+| --- | ---- | ---------------------------------- | ----------- | ------------------------------ | ------------------------ |
+| 1   | T-1  | 吞吐量时间曲线 (W3 × A~E)          | 折线图      | `scheduling_throughput.json`   | 主结论：B > A > C/D/E    |
+| 2   | T-3  | 不同负载×吞吐量 (W1~W3 × A~E)      | 分组柱状图  | `scheduling_throughput.json`   | 各压力级别下的对比       |
+| 3   | T-4  | 实例数×吞吐量 (A/B + 理想线性线)   | 折线图      | SC-1~4 实验数据                | 水平扩展核心论点         |
+| 4   | L-1  | E2E P99 延迟时间序列 (W3 × A~E)    | 折线图      | `scheduling_latency_p99.json`  | 高压延迟表现             |
+| 5   | L-2  | 绑定延迟 P50/P90/P99 (A vs B)      | 分组柱状图  | `bind_latency_p*.json`         | 论文创新点：绑定延迟降低 |
+| 6   | L-6  | Pipeline 延迟分解 (A vs B)         | 堆积柱状图  | 调度+绑定延迟                  | 瓶颈从绑定转移到调度     |
+| 7   | F-1  | 故障吞吐量 + 恢复时间标注 (A vs B) | 折线图+标注 | 故障注入实验                   | 故障隔离与快速恢复       |
+| 8   | S-2  | 成功率/失败率 (W1~W4 × A~E)        | 分组柱状图  | `scheduling_success_rate.json` | 高负载下可靠性           |
+| 9   | S-3  | Pending Pod 堆积曲线 (W4 × A~E)    | 面积图      | `pending_pods.json`            | 瓶颈可视化               |
+| 10  | U-1  | 节点 CPU 利用率分布 (A/B/D/E)      | 箱线图      | `utilization.csv`              | 资源均衡度               |
+| 11  | ST-1 | 30min P99 延迟稳定性 (A/B/D/E)     | 折线图      | ST-1 实验数据                  | 长期运行无退化           |
+| 12  | VS-1 | 规模×吞吐量+P99 双Y轴 (A~E)        | 双Y轴折线图 | 第二轮实验 (W3 × s1/s2/s3)     | 垂直扩展能力             |
+
+### 6.2 降级为表格/文字的原图
+
+以下内容不再单独成图，改为论文正文中的表格或文字描述：
+
+| 原编号 | 原图表           | 降级方式        | 理由                        |
+| ------ | ---------------- | --------------- | --------------------------- |
+| T-2    | 规模×峰值吞吐量  | 合并到 VS-1     | 数据重复                    |
+| L-3    | E2E 延迟箱线图   | 文字描述        | 与 L-1/L-2 信息重叠         |
+| L-4    | 延迟 vs 负载趋势 | 文字描述        | 可从 T-3 + L-1 推导         |
+| L-5    | 延迟 CDF         | 文字描述        | P50/P90/P99 已足够直观      |
+| F-2    | 恢复时间柱状图   | 合并到 F-1 标注 | 在 F-1 上标注恢复时间即可   |
+| F-3    | 故障热力图       | 文字描述        | 信息密度低                  |
+| S-1    | 成功率时间序列   | 合并到 S-2      | 正常场景近 100%，图不直观   |
+| S-4    | 重试次数         | 表格            | 仅 A/B，一行数据            |
+| U-2~4  | 方差/热力图/CV   | 表格            | 合并到 U-1 描述             |
+| R-1~3  | 碎片化全部       | 表格            | KWOK 节点碎片化数据说服力弱 |
+| D-1~2  | Pod 分布         | 文字描述        | 与 U-1 角度重复             |
+| ST-2~4 | 其他稳定性       | 文字描述        | ST-1 代表即可               |
+| SC-2~3 | 延迟/效率扩展    | 文字描述        | SC-1=T-4 已包含核心信息     |
+
+---
+
+## 7. 结果展示方案
+
+### 7.1 展示维度与图表组织
+
+实验数据有 3 个维度：**组(A~E) × 负载(W1~W8) × 指标**。按以下策略组织图表，确保论文逻辑清晰且图表数量精简。
+
+#### 7.1.1 核心对比图（论文主体，第一轮数据）
+
+| 图表                     | 类型        | X 轴           | Y 轴                   | 系列             | 数据来源                                                |
+| ------------------------ | ----------- | -------------- | ---------------------- | ---------------- | ------------------------------------------------------- |
+| 图 1: 吞吐量对比         | 分组柱状图  | 负载场景 W1~W4 | pods/s                 | A/B/C/D/E 各一色 | `scheduling_throughput.json`                            |
+| 图 2: E2E 调度延迟 P99   | 折线图      | 时间           | seconds                | A~E 叠线         | `scheduling_latency_p99.json` (W3)                      |
+| 图 3: 绑定延迟对比       | 分组柱状图  | P50/P90/P99    | seconds                | A vs B           | `bind_latency_p*.json` (W3)                             |
+| 图 4: 突发洪峰恢复曲线   | 双Y轴折线图 | 时间           | 左：pods/s 右：pending | A/B/C            | `scheduling_throughput.json` + `pending_pods.json` (W5) |
+| 图 5: Gang 调度完成时间  | 柱状图      | 组             | 秒                     | A/B/D/E          | 计算自 `scheduling_throughput.json` (W6)                |
+| 图 6: 调度成功率 vs 负载 | 折线图      | 负载级别 W1~W4 | %                      | A~E              | `scheduling_success_rate.json`                          |
+| 图 7: Pending Pod 堆积   | 面积图      | 时间           | 个数                   | A~E              | `pending_pods.json` (W4)                                |
+
+> 以上图表均基于第一轮实验数据（s3 = 5,000 节点），该规模下分布式调度器的并行优势与单实例瓶颈均能充分体现。
+
+#### 7.1.2 可扩展性图（论文补充，第二轮数据）
+
+| 图表                   | 类型   | X 轴              | Y 轴    | 系列      | 数据来源                                      |
+| ---------------------- | ------ | ----------------- | ------- | --------- | --------------------------------------------- |
+| 图 8: 规模 vs 吞吐量   | 折线图 | 节点数 (100→5000) | pods/s  | A/B/C/D/E | `scheduling_throughput.json` (W3 × s1/s2/s3)  |
+| 图 9: 规模 vs P99 延迟 | 折线图 | 节点数            | seconds | A/B/C/D/E | `scheduling_latency_p99.json` (W3 × s1/s2/s3) |
+
+> 第二轮数据中 s3 与第一轮共用，不需重复实验。
+
+#### 7.1.3 场景专项图（按需选用）
+
+| 场景         | 推荐图表                                    | 展示重点                             |
+| ------------ | ------------------------------------------- | ------------------------------------ |
+| W5 突发洪峰  | 时间序列（throughput + pending_pods 双Y轴） | 恢复速度：下降→谷底→恢复到稳态的时间 |
+| W6 Gang 调度 | 柱状图：Gang 完成率 × 平均延迟              | 仅 A/B/D/E（C 不支持 Gang）          |
+| W7 异构资源  | 堆叠柱状图：节点利用率按资源规格分层        | A/B 专项对比                         |
+| W8 大规模    | 折线图：吞吐量随时间衰减曲线                | A/B 专项，观察是否有性能悬崖         |
+
+### 7.2 论文推荐图表精选（8~12 张）
+
+以下为论文正文建议图表，其余作为附录：
+
+```
+图 1: 吞吐量柱状图 (W1~W4 × A~E, s3)     ← 主结论：谁最快
+图 2: E2E 调度延迟 P99 折线 (W3 × A~E, s3) ← 高压下延迟表现
+图 3: 绑定延迟对比 (W3 × A vs B, s3)       ← 论文核心创新点
+图 4: 突发洪峰恢复曲线 (W5 × A/B/C, s3)    ← 弹性与恢复能力
+图 5: Gang 调度完成时间 (W6 × A/B/D/E, s3) ← 特性横向对比
+图 6: 成功率 vs 负载压力 (W1~W4 × A~E, s3) ← 可靠性
+图 7: Pending Pod 堆积曲线 (W4 × A~E, s3)  ← 瓶颈可视化
+图 8: 规模 vs 吞吐量 (s1~s3 × A~E)         ← 可扩展性
+```
+
+### 7.3 图表生成命令
+
+```bash
+# 单 run 绘图
+python3 test/e2e/benchmark/collect/plot-results.py results/a/s3/w1/run1
+
+# 跨组对比（同 scale/workload）
+python3 test/e2e/benchmark/collect/plot-results.py \
+  results/a/s3/w3/run1 results/b/s3/w3/run1 results/c/s3/w3/run1 \
+  results/d/s3/w3/run1 results/e/s3/w3/run1 --compare
+
+# 输出 PDF（论文格式）
+python3 test/e2e/benchmark/collect/plot-results.py \
+  results/a/s3/w3/run1 results/b/s3/w3/run1 --compare --format pdf --output ./charts
+```
+
+### 7.4 统计处理
+
+每个指标基于 3 次重复取以下统计量：
+
+| 统计量         | 用途          | 展示方式                             |
+| -------------- | ------------- | ------------------------------------ |
+| 中位数         | 主要报告值    | 柱状图高度 / 折线值                  |
+| 标准差         | 稳定性        | 误差线 (error bar)                   |
+| Mann-Whitney U | A vs B 显著性 | 表格中标注 \* (p<0.05) \*\* (p<0.01) |
+| 改善百分比     | 论文结论数字  | 文本描述 "B 比 A 提升 X%"            |
+
+---
+
+## 8. 预期结论与论文论证逻辑
+
+### 7.1 各维度预期结论
+
+| 维度       | 预期结论                                                                                | 论证依据                                               |
+| ---------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| **吞吐量** | B 吞吐量约为 A 的 **1.5–3×**（取决于 Scheduler 实例数）；B > D、E（多实例并行优势）     | 消除共享 Binder 的单点队列竞争瓶颈，绑定请求并行处理   |
+| **延迟**   | B 绑定延迟降低 **50%+**，E2E 延迟降低 **30–50%**；B 与 D/E 在 E2E 延迟上持平或更优      | 去除 Scheduler→Binder 的网络开销和队列等待时间         |
+| **容错**   | B 在故障隔离与任务恢复上优于 A；恢复时延受心跳/失活阈值配置影响                         | Binder 故障仅影响单个 Scheduler 分区，其他分区不受影响 |
+| **成功率** | B 的调度成功率在高负载下比 A 高 **2–5%**；B ≥ D/E                                       | 绑定更快完成 → Cache 更快更新 → 减少调度冲突           |
+| **利用率** | B 的资源利用率 CV 比 A 降低 **10–20%**；E 可能略优（QoS 感知）                          | 更及时的绑定使全局视图更准确，减少调度偏差             |
+| **碎片化** | B 的碎片化指数与 A **持平或略优**；E 的 QoS 策略可能进一步优化                          | 调度算法不变，但绑定更快减少“临时碎片”                 |
+| **均衡度** | B 与 A **持平**（Dispatcher 负载均衡机制不变）；D/E 依赖各自散布策略                    | 独立 Binder 不影响 Dispatcher 的 Pod 分发策略          |
+| **稳定性** | B 的 P99 延迟在 30min 内**无上升趋势**，A 可能有；D/E 在极高负载下可能出现性能播号      | 无队列积压，无 Binder 端的 back-pressure               |
+| **扩展性** | B 的吞吐量扩展效率 > **85%**（接近线性），A < **60%**；C/D/E 均为单实例，无水平扩展能力 | 独立 Binder 消除共享资源竞争，实现真正的水平扩展       |
+
+### 7.2 论文章节映射
+
+```
+第 4 章 系统设计与实现
+├── 4.1 共享 Binder 架构问题分析              → 架构对比图 (BINDER_ARCHITECTURE_REFACTORING.md §2)
+├── 4.2 独立 Binder 架构设计                  → 设计文档 Phase 1–4
+├── 4.3 容错机制（NodeValidator + Retry + Fallback） → Phase 4
+└── 4.4 可观测性设计                          → Phase 6–7
+
+第 5 章 实验评估
+├── 5.1 实验环境与方法                        → 本文档 §2–3
+├── 5.2 吞吐量评估                            → 图表 T-1~T-4
+├── 5.3 延迟评估                              → 图表 L-1~L-6
+├── 5.4 容错能力评估                          → 图表 F-1~F-3
+├── 5.5 调度可靠性评估                        → 图表 S-1~S-4
+├── 5.6 资源效率评估                          → 图表 U-1~U-4, R-1~R-3, D-1~D-2
+├── 5.7 稳定性与抗压评估                      → 图表 ST-1~ST-4
+├── 5.8 扩展性评估                            → 图表 SC-1~SC-3, VS-1~VS-2
+├── 5.9 与行业方案横向对比（Volcano / Koordinator） → 各维度图表中的 D/E 系列
+└── 5.10 实验结论                            → §7.1 汇总表
+```
+
+### 7.3 关键问题四：故障恢复与任务重分配机制（与当前实现一致）
+
+解决情况：已基本解决。当前实现采用 **Scheduler CRD 心跳 + Dispatcher 重置回收** 的故障恢复机制，而非 etcd Lease。每个 Scheduler 实例会按固定周期更新 `Scheduler.status.lastUpdateTime`；当某实例停止更新并超过失活阈值后，会被 Dispatcher 侧判定为 inactive。随后，Dispatcher 的 PodStateReconciler 会识别该失活实例名下仍处于 `Dispatched` 状态的 Pod，将其状态重置为 `Pending`，并清理 `scheduler/assumed/nominated` 等注解，使其重新进入标准调度流程并被健康实例接管。并发场景下，多个实例可能竞争处理同一工作负载，但在绑定阶段通过 Kubernetes API 的冲突语义（如 `Bind` 返回 `Conflict`）保证最终只有一个成功提交，满足幂等要求。需要注意的是，故障检测与恢复总时延由心跳周期、失活判定窗口及同步周期共同决定，默认配置下不应固定表述为 3-5 秒，应以实测结果为准。
+
+---
+
+## 9. 数据可视化工具建议
+
+| 工具                          | 用途                                     | 适用图表              |
+| ----------------------------- | ---------------------------------------- | --------------------- |
+| **Grafana**                   | 实时监控仪表盘 + 截图                    | T-1, L-1, S-1, ST-1~4 |
+| **Python matplotlib/seaborn** | 论文级出版质量图表                       | 所有图表              |
+| **Prometheus HTTP API**       | 数据导出                                 | 全部时间序列数据      |
+| **pandas + numpy**            | 数据分析（方差、基尼系数、CV）           | U-_, R-_, D-\*        |
+| **scipy.stats**               | 统计显著性检验（t-test, Mann-Whitney U） | 全维度                |
+
+### 8.1 Python 绘图框架
+
+```python
+# thesis_plots.py — 论文图表统一风格
+import matplotlib.pyplot as plt
+import matplotlib
+import seaborn as sns
+
+# 论文级图表设置
+matplotlib.rcParams.update({
+    'font.family': 'serif',
+    'font.serif': ['Times New Roman'],
+    'font.size': 12,
+    'axes.labelsize': 14,
+    'axes.titlesize': 14,
+    'legend.fontsize': 11,
+    'xtick.labelsize': 12,
+    'ytick.labelsize': 12,
+    'figure.figsize': (8, 5),
+    'figure.dpi': 300,
+    'savefig.dpi': 300,
+    'savefig.bbox': 'tight',
+})
+
+COLORS = {
+    'A (Shared Binder)': '#E74C3C',
+    'B (Embedded Binder)': '#2ECC71',
+    'C (kube-scheduler)': '#3498DB',
+    'D (Volcano)': '#F39C12',
+    'E (Koordinator)': '#9B59B6',
+}
+
+def plot_throughput_timeseries(data_a, data_b, data_c=None, data_d=None, data_e=None, output='T-1.pdf'):
+    """图表 T-1: 调度吞吐量随时间变化"""
+    fig, ax = plt.subplots()
+    ax.plot(data_a['time'], data_a['throughput'], label='A (Shared Binder)', color=COLORS['A (Shared Binder)'])
+    ax.plot(data_b['time'], data_b['throughput'], label='B (Embedded Binder)', color=COLORS['B (Embedded Binder)'])
+    if data_c is not None:
+        ax.plot(data_c['time'], data_c['throughput'], label='C (kube-scheduler)', color=COLORS['C (kube-scheduler)'], linestyle='--')
+    if data_d is not None:
+        ax.plot(data_d['time'], data_d['throughput'], label='D (Volcano)', color=COLORS['D (Volcano)'], linestyle='-.')
+    if data_e is not None:
+        ax.plot(data_e['time'], data_e['throughput'], label='E (Koordinator)', color=COLORS['E (Koordinator)'], linestyle=':')
+    ax.set_xlabel('Time (s)')
+    ax.set_ylabel('Scheduling Throughput (pods/s)')
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    fig.savefig(output)
+    plt.close()
+```
+
+---
+
+## 10. 实验注意事项
+
+### 9.1 实验控制变量
+
+| 变量            | 保持一致                                                               |
+| --------------- | ---------------------------------------------------------------------- |
+| Kubernetes 版本 | 所有组使用同一版本                                                     |
+| API Server 配置 | `--max-mutating-requests-inflight=10000 --max-requests-inflight=20000` |
+| 节点规格        | KWOK 模拟节点使用相同模板（CPU: 32, Memory: 64Gi）                     |
+| Pod 模板        | 相同的 resource requests（仅 `schedulerName` 按组切换）                |
+| 网络条件        | 相同网络环境                                                           |
+| 系统负载        | 实验前清理其他进程                                                     |
+| Pod 创建速率    | 使用相同工具和参数                                                     |
+| 日志级别        | 统一设置为 4                                                           |
+| QPS/Burst       | 统一设置为 10000                                                       |
+| 调度器实例数    | 组 C/D/E 为单实例；组 A/B 按设计矩阵设置                               |
+
+### 9.2 常见陷阱
+
+1. **KWOK 节点的资源利用率**：KWOK 节点无真实资源消耗，"利用率"基于 `Requested/Allocatable` 计算，需在论文中说明
+2. **API Server 瓶颈**：高负载实验中 API Server 可能成为瓶颈，需确保其有充足资源
+3. **Prometheus 采集间隔**：15s 间隔在突发场景下可能丢失瞬态变化，可临时降至 5s
+4. **kind 集群限制**：kind 集群性能受宿主机限制，超大规模测试建议使用物理集群
+5. **冷启动效应**：每次实验前等待 30s 让系统稳定，正式数据排除前 60s
+6. **GC 干扰**：Go 的 GC 可能导致延迟尖刺，多次测量取中位数
+7. **Volcano 部署注意**：Volcano 的 `vc-controller-manager` 和 `vc-scheduler` 需充足 CPU/内存，若与 Gödel 共存需确保 CRD 不冲突
+8. **Koordinator 部署注意**：Koordinator 依赖 `koordlet`（DaemonSet）在真实节点上采集资源画像，KWOK 节点上无法运行，需以纯调度器模式测试
+9. **调度器指标差异**：Volcano 和 Koordinator 的 Prometheus 指标名与 Gödel 不同，需分别配置采集规则并做指标映射
+
+### 9.3 统计显著性
+
+每个实验重复 **3–5 次**，报告：
+
+- **中位数**（主要值）
+- **标准差**（误差线）
+- **Mann-Whitney U 检验**（p < 0.05 为显著）
+- **效应量**（Cohen's d 或改善百分比）
+
+---
+
+## 11. 时间规划
+
+| 阶段                     | 工作内容                                                | 预计时间     |
+| ------------------------ | ------------------------------------------------------- | ------------ |
+| 环境准备                 | 集群搭建、脚本编写、验证、部署 Volcano/Koordinator      | 1.5 天       |
+| 组 A 实验                | 全部场景 × 3 次重复                                     | 2 天         |
+| 组 B 实验                | 全部场景 × 3 次重复                                     | 2 天         |
+| 组 C 实验                | 核心场景 W1–W5 × 3 次重复                               | 1 天         |
+| 组 D 实验（Volcano）     | W1–W4 + W6 + VS-1~5 + ST-1~4 × 3 次重复                 | 1.5 天       |
+| 组 E 实验（Koordinator） | W1–W4 + W6 + VS-1~5 + ST-1~4 × 3 次重复（纯调度器模式） | 1.5 天       |
+| 数据分析                 | 清洗、统计、可视化                                      | 2 天         |
+| 论文撰写                 | 实验章节（含图表）                                      | 2 天         |
+| **总计**                 |                                                         | **~13.5 天** |
+
+---
+
+## 12. 自动化脚本体系
+
+### 11.1 目录结构
+
+```
+test/e2e/benchmark/
+├── config.sh                    # 全局配置（集群名、镜像、路径等常量）
+├── lib/
+│   ├── utils.sh                 # 通用函数（日志、等待、颜色输出）
+│   ├── cluster.sh               # 集群管理（创建/销毁 kind、KWOK 节点）
+│   └── prometheus.sh            # Prometheus 操作（部署、等待就绪、数据导出）
+│
+├── setup-cluster.sh             # Phase 0: 一键搭建集群 + KWOK 节点
+│
+├── schedulers/
+│   ├── deploy-group-a.sh        # 部署组 A（共享 Binder）
+│   ├── deploy-group-b.sh        # 部署组 B（独立 Binder）
+│   ├── deploy-group-c.sh        # 部署组 C（kube-scheduler，仅需禁用自定义调度器）
+│   ├── deploy-group-d.sh        # 部署组 D（Volcano）
+│   ├── deploy-group-e.sh        # 部署组 E（Koordinator）
+│   └── teardown.sh              # 通用卸载（按组清理调度器 + monitoring）
+│
+├── workloads/
+│   ├── templates/               # Pod 模板（schedulerName 作为变量）
+│   │   ├── basic-pod.yaml.tpl
+│   │   └── gang-pod.yaml.tpl
+│   ├── create-pods.sh           # 按固定速率批量创建 Pod
+│   └── workload-matrix.sh       # W1~W8 参数定义（速率、总量、规格）
+│
+├── run-experiment.sh            # 单次实验 SOP（清理→部署→压测→采集→导出）
+├── run-all.sh                   # 全量实验入口（遍历 A~E × W1~W4 × 3 次）
+│
+├── collect/
+│   ├── export-prometheus.sh     # 从 Prometheus API 导出时间序列 JSON
+│   ├── collect-utilization.sh   # kubectl 采集节点资源分布
+│   └── collect-distribution.sh  # kubectl 采集 Pod 分布
+│
+└── results/                     # 实验输出（自动按 group/workload/run 分目录）
+```
+
+### 11.2 核心脚本职责
+
+| 脚本                     | 做什么                         | 关键逻辑                                                                                                                                               |
+| ------------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **config.sh**            | 定义所有常量                   | 集群名、KWOK 版本、节点数梯度 S1–S5、Prometheus 地址、镜像 tag、超时                                                                                   |
+| **setup-cluster.sh**     | 一键建集群                     | `kind create` → 部署 KWOK → 创建 N 个模拟节点 → 等待 Ready                                                                                             |
+| **deploy-group-X.sh**    | 部署第 X 组调度器 + Prometheus | ① 清理上一组残留 ② `kubectl apply -k` 部署调度器 ③ `kubectl apply -k manifests/monitoring/overlays/group-X/` 切换 Prometheus 配置 ④ 等待所有组件 Ready |
+| **create-pods.sh**       | 可控速率创建 Pod               | 参数：`RATE TOTAL SCHEDULER_NAME CPU MEM`；用 `sleep` + 后台并发控制速率                                                                               |
+| **run-experiment.sh**    | 单次完整 SOP                   | 参数：`GROUP WORKLOAD RUN_ID`；清理 bench NS → 等待稳定 → 记录 start → 创建 Pod → 等待全部调度完成 → 记录 end → 导出数据                               |
+| **run-all.sh**           | 全量编排                       | 外层循环组 A–E → 调用 `deploy-group-X.sh` → 内层循环 W1–W4 × 3 runs → 调用 `run-experiment.sh`                                                         |
+| **export-prometheus.sh** | 导出指标                       | 按组选择不同的 PromQL 查询集（A/B 用 Gödel 指标名，C 用 kube 指标名，D 用 volcano 指标名，E 用 koord 指标名）                                          |
+
+### 11.3 每组调度器部署差异
+
+| 组    | 调度器部署命令                                         | Prometheus overlay | `schedulerName`     | 特殊处理                                                   |
+| ----- | ------------------------------------------------------ | ------------------ | ------------------- | ---------------------------------------------------------- |
+| **A** | `kubectl apply -k manifests/base/`                     | `group-a`          | `godel-scheduler`   | 确保 `binder replicas=1`                                   |
+| **B** | `kubectl apply -k manifests/overlays/embedded-binder/` | `group-b`          | `godel-scheduler`   | 确保 `--enable-embedded-binder=true` + `binder replicas=0` |
+| **C** | 无需额外部署（kind 自带）                              | `group-c`          | `default-scheduler` | 确保已卸载 Gödel                                           |
+| **D** | `helm install volcano ...`                             | `group-d`          | `volcano`           | 需要 `volcano-system` NS + CRDs                            |
+| **E** | `helm install koordinator ...`                         | `group-e`          | `koord-scheduler`   | 需要 `koordinator-system` NS                               |
+
+### 11.4 单次实验执行流（run-experiment.sh）
+
+```bash
+#!/bin/bash
+# run-experiment.sh <group> <workload> <run_id>
+# 示例: ./run-experiment.sh b w3 2
+
+# ── Step 1: 清理上一轮测试环境 ──
+kubectl delete ns bench --ignore-not-found
+sleep 10
+
+# ── Step 2: 等待系统冷却 ──
+sleep 30
+
+# ── Step 3: 记录实验开始时间 ──
+START_TIME=$(date +%s)
+
+# ── Step 4: 执行负载（按 workload 参数选择速率和总量） ──
+bash workloads/create-pods.sh $RATE $TOTAL $SCHEDULER_NAME $CPU $MEM
+
+# ── Step 5: 轮询等待所有 Pod 调度完成 ──
+while [[ $(kubectl get pods -n bench --field-selector=status.phase=Pending \
+           --no-headers 2>/dev/null | wc -l) -gt 0 ]]; do
+  sleep 5
+done
+
+# ── Step 6: 记录实验结束时间 ──
+END_TIME=$(date +%s)
+
+# ── Step 7: 导出 Prometheus 数据 ──
+bash collect/export-prometheus.sh $GROUP $START_TIME $END_TIME $RESULTS_DIR
+
+# ── Step 8: 采集节点资源分布快照 ──
+bash collect/collect-utilization.sh > $RESULTS_DIR/utilization.csv
+
+# ── Step 9: 采集 Pod 分布快照 ──
+bash collect/collect-distribution.sh > $RESULTS_DIR/pod-distribution.csv
+
+# ── Step 10: 写入元数据 ──
+cat > $RESULTS_DIR/metadata.txt <<EOF
+group=$GROUP
+workload=$WORKLOAD
+run_id=$RUN_ID
+start_time=$START_TIME
+end_time=$END_TIME
+duration=$((END_TIME - START_TIME))
+EOF
+```
+
+### 11.5 关键设计决策
+
+1. **每组部署前先执行 teardown** — 确保上一组的调度器完全清除，避免调度冲突和资源竞争
+2. **Prometheus 配置跟随调度器切换** — 通过 `manifests/monitoring/overlays/group-X/` kustomize overlay 自动切换 scrape 目标和 recording rules
+3. **Pod 模板用 `envsubst` 渲染** — `schedulerName`、CPU、MEM 作为环境变量注入，同一模板适配所有组
+4. **导出脚本按组选择 PromQL 查询集** — 因为各调度器指标名不同（`scheduler_pod_scheduling_attempts` vs `volcano_scheduler_schedule_count` 等）
+5. **结果目录结构固定** — `results/{group}/{workload}/run{id}/`，方便后续 Python 脚本自动扫描分析
+
+---
+
+## 12. 数据质量报告（基于当前 results 目录）
+
+> **统计时间**: 2026-03-19
+> **统计范围**: `test/e2e/benchmark/results/*/s3/w*/run1`
+> **口径说明**: “无数据指标数”按 Prometheus JSON 中 `data.result` 无有效数据点统计，不仅是 0B 文件。
+
+### 12.1 数据完整性总览（S3, Run1）
+
+| 组                  | 负载 | 实验时长 | JSON 文件数 | 无数据指标数 | 完整性    | 备注                                    |
+| ------------------- | ---- | -------- | ----------- | ------------ | --------- | --------------------------------------- |
+| A (Shared Binder)   | W1   | 1m44s    | 16          | 0            | ✅ 完整   |                                         |
+| A                   | W2   | 3m3s     | 16          | 0            | ✅ 完整   |                                         |
+| A                   | W3   | 6m5s     | 16          | 0            | ✅ 完整   |                                         |
+| A                   | W4   | 10m48s   | 16          | 0            | ✅ 完整   |                                         |
+| A                   | W5   | 3m10s    | 16          | 0            | ✅ 完整   |                                         |
+| A                   | W6   | 33s      | 16          | 0            | ✅ 完整   |                                         |
+| A                   | W7   | 2m51s    | 16          | 0            | ✅ 完整   |                                         |
+| B (Embedded Binder) | W1   | 1m43s    | 20          | 4            | ⚠️ 部分   | 4 个指标未触发（见 §12.4）              |
+| B                   | W2   | 2m8s     | 20          | 4            | ⚠️ 部分   | 同上                                    |
+| B                   | W3   | 4m8s     | 20          | 4            | ⚠️ 部分   | 同上                                    |
+| B                   | W4   | 12m5s    | 20          | 4            | ⚠️ 部分   | 同上                                    |
+| B                   | W5   | 2m14s    | 20          | 4            | ⚠️ 部分   | 同上                                    |
+| B                   | W6   | 25s      | 20          | 4            | ⚠️ 部分   | 同上                                    |
+| B                   | W7   | 2m7s     | 20          | 4            | ⚠️ 部分   | 同上                                    |
+| C (kube-scheduler)  | W1   | 1m43s    | 15          | 0            | ✅ 完整   |                                         |
+| C                   | W2   | 2m2s     | 15          | 0            | ✅ 完整   |                                         |
+| C                   | W3   | 3m23s    | 15          | 0            | ✅ 完整   |                                         |
+| C                   | W4   | 8m41s    | 15          | 0            | ✅ 完整   |                                         |
+| C                   | W5   | 2m13s    | 15          | 0            | ✅ 完整   |                                         |
+| D (Volcano)         | W1   | 3m25s    | 18          | 0            | ✅ 完整   | 当前目录校验为 18/18 可用                |
+| D                   | W2   | 17m41s   | 18          | 11           | ❌ 大量缺失 | 当前目录校验为 7/18 可用（见下方明细）   |
+| D                   | W3   | 35m8s    | 18          | 12           | ❌ 大量缺失 | 高负载下过载，关键指标大面积缺失        |
+| D                   | W4   | 1h10m7s  | 16          | 1            | ❌ 大量缺失   | 高负载下过载，关键指标大面积缺失`scheduling_success_rate` 无数据         |
+| D                   | W6   | 3m25s    | 18          | 1            | ⚠️ 部分   | 当前目录校验为 17/18 可用（仅 1 项缺失） |
+| E (Koordinator)     | W1   | 3m24s    | 18          | 0            | ✅ 完整   |                                         |
+| E                   | W2   | 17m13s   | 18          | 0            | ✅ 完整   |                                         |
+| E                   | W3   | 35m27s   | 18          | 0            | ✅ 完整   |                                         |
+| E                   | W4   | 1h12m24s | 18          | 0            | ✅ 完整   |                                         |
+| E                   | W6   | 7m29s    | 18          | 0            | ✅ 完整   | Gang 数据已补齐                          |
+
+Volcano 目录复核（`test/e2e/benchmark/results/d/s3/*/run1`）：
+
+- `W1`: `18/18` 可用（无缺失）。
+- `W2`: `7/18` 可用，缺失 11 项：`goroutines.json`、`job_scheduling_duration.json`、`job_scheduling_duration_avg.json`、`job_scheduling_duration_max.json`、`pending_pods.json`、`plugin_latency_p90.json`、`scheduling_success_rate.json`、`scheduling_throughput.json`、`session_throughput.json`、`task_latency_p90.json`、`task_latency_p99.json`。
+- `W6`: `17/18` 可用，仅缺失 `job_scheduling_duration.json`。
+
+### 12.2 Volcano (D) 数据缺失现状
+
+基于 `12.1` 的目录级复核结果（`test/e2e/benchmark/results/d/s3/*/run1`），Volcano 当前数据状态如下：
+
+- `W1`: `18/18` 可用（无缺失）。
+- `W2`: `7/18` 可用（缺失 11 项），为当前主要风险场景之一。
+- `W3`: `6/18` 可用（缺失 12 项），高负载下存在明显过载。
+- `W4`: `15/16` 可用（缺失 1 项：`scheduling_success_rate.json`）。
+- `W6`: `17/18` 可用（缺失 1 项：`job_scheduling_duration.json`）。
+
+结论：Volcano 的主要数据质量风险集中在 `W2/W3`；`W1` 数据完整，`W4/W6` 为轻度缺失。论文主图中如使用 `W2/W3`，应明确标注 `overloaded / data unavailable`，并避免对缺失指标作强结论。
+
+### 12.3 导出脚本修复后的实际效果
+
+| 修复项                                                               | 当前状态 | 说明                                                                                   |
+| -------------------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------- |
+| Volcano 裸指标聚合（`sum(...)` / `avg(...)` / `max(...)`）            | ✅ 部分生效 | W2/W4 已可产出多数指标；W3/W6 仍有大量无数据，说明除脚本外还存在调度器过载或场景适配问题 |
+| Prometheus `query_range` 重试（4 次 + step 退避）                     | ✅ 生效   | A/B/C/E 组 JSON 基本完整，未再出现系统性导出失败                                       |
+| Koordinator `extension_point_latency_p99` 改为 `[5m]` 查询窗口         | ✅ 生效   | E 组 W1/W2/W3/W4/W6 全部 18/18 指标可用                                                |
+
+### 12.4 Group B 固定无数据指标说明
+
+Group B (Embedded Binder) 在 W1-W7 均固定出现 4 个“无数据指标”，属正常“未触发”场景，不视为实验失败：
+
+| 指标文件                          | 说明                                               |
+| --------------------------------- | -------------------------------------------------- |
+| `bind_retries.json`               | 未发生绑定重试                                     |
+| `dispatcher_fallback.json`        | 未触发 Dispatcher 回退                             |
+| `node_validation_failures.json`   | 未出现节点分区校验失败                             |
+| `goroutines.json`                 | Embedded 模式下 `scheduler_goroutines` 指标未采集 |
+
+### 12.5 待完成项（按当前 results 目录）
+
+- [x] **D/W2、D/W3、D/W4、 (S3/run1)**: 不再重跑；论文中按 “overloaded / data unavailable” 标注并解释口径
+
+
+
+
+---
+
+## 13. 论文创新点定义与章节结构
+
+### 13.1 两个创新点概览
+
+| # | 创新点 | 类型 | 核心贡献 | 已实现 |
+|---|--------|------|----------|--------|
+| 1 | **单 Dispatcher、多独立 Scheduler 分布式调度架构 (Single-Dispatcher Multi-Scheduler Architecture)** | 架构创新 | 构建单 Dispatcher 统一分发、Scheduler 实例独立并行执行的扩展架构，降低中心化链路竞争并提升整体吞吐 | ✅ Phase 1-7 |
+| 2 | **分层容错绑定策略 (Hierarchical Fault-Tolerant Binding Strategy)** | 机制创新 | 四层容错链路：预防→同步重试→异步恢复→跨实例逃逸，构建分布式调度中首个结构化绑定容错模型 | ✅ Phase 2-4 |
+
+### 13.2 创新点 1：单 Dispatcher、多独立 Scheduler 分布式调度架构
+
+**创新目标**：提出一种可扩展的分布式调度架构范式，通过“单 Dispatcher 统一分发 + 多独立 Scheduler 并行执行”实现控制面解耦与能力横向扩展，为高并发场景提供更稳定的吞吐与时延表现。
+
+**核心设计**：
+
+```
+共享 Binder（原始）                    嵌入式 Binder（改进）
+═════════════════                     ═══════════════════
+
+Sched-A ──┐                           Sched-A + Binder-A ──→ API Server
+Sched-B ──┼──→ Shared Binder ──→ AS   Sched-B + Binder-B ──→ API Server
+Sched-C ──┘    (单点瓶颈)             Sched-C + Binder-C ──→ API Server
+
+通信方式: PatchPod → Informer → RPC   通信方式: 进程内函数调用
+绑定扩展: 不随 Scheduler 扩展         绑定扩展: 线性扩展
+故障影响: Binder 挂 → 全部停止        故障影响: 故障隔离到单实例
+```
+
+**技术要点**：
+
+| 组件 | 文件 | 作用 |
+|------|------|------|
+| `BinderInterface` | `binder_interface.go` | 统一接口抽象，支持嵌入/独立两种模式 |
+| `EmbeddedBinder` | `embedded_binder.go` | 核心实现：BindUnit → 验证 → 绑定 → 缓存完成 |
+| `CacheAdapter` | `cache_adapter.go` | 包装 SchedulerCache 为 BinderCache，共享内存零拷贝 |
+| `PodGroupController` 迁移 | `podgroup.go` | 分区感知的 PodGroup 状态管理 |
+| Feature Gate | `options.go` | `--enable-embedded-binder` 一键切换，向后兼容 |
+| Kustomize Overlay | `manifests/overlays/embedded-binder/` | 声明式部署模式切换 |
+
+**实验验证指标**：
+
+| 指标 | 含义 | 对比维度 |
+|------|------|----------|
+| `binder_embedded_bind_pod_duration_seconds` P99 | 单 Pod 绑定延迟 | A vs B |
+| `binder_embedded_bind_pods_total` rate | 绑定吞吐量 (pods/s) | A vs B |
+| `scheduler_e2e_scheduling_duration_seconds` P99 | 端到端调度延迟 | A vs B vs C vs D vs E |
+| `scheduler_pod_scheduling_attempts` rate | 调度吞吐量 | 五组横向对比 |
+
+### 13.3 创新点 2：分层容错绑定策略
+
+**解决的问题**：分布式调度系统中，绑定阶段面临多种故障源（API Server 过载、节点分区变更、资源冲突等），现有调度器（kube-scheduler、Volcano、Koordinator）均缺乏结构化的绑定容错机制。
+
+**四层容错架构**：
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                                                                      │
+│  Layer 0: 预防层 — NodeValidator                                     │
+│  ─────────────────────────────────                                   │
+│  绑定前验证目标节点仍属于本 Scheduler 分区                           │
+│  拦截 reshuffle 期间的过期绑定请求                                   │
+│  → 避免必定失败的 API 调用，降低 API Server 负载                     │
+│  指标: binder_node_validation_failures_total                         │
+│                                                                      │
+│  Layer 1: 同步重试层 — bindPodToNode()                               │
+│  ─────────────────────────────────────                               │
+│  识别 Conflict/Timeout/TooManyRequests 等瞬态错误                    │
+│  指数退避重试（100ms × attempt），最多 MaxBindRetries 次              │
+│  → 应对 API Server 短暂过载或网络抖动                                │
+│  指标: binder_embedded_bind_retries_total                            │
+│                                                                      │
+│  Layer 2: 异步恢复层 — BinderTasksReconciler                         │
+│  ──────────────────────────────────────────                          │
+│  绑定失败的 Pod 加入 RateLimiting WorkQueue                          │
+│  后台 Worker 按指数退避间隔（5ms~10s）异步重试                       │
+│  → 不阻塞调度主循环，异步恢复绑定                                    │
+│  指标: binder_embedded_bind_inflight (Gauge)                         │
+│                                                                      │
+│  Layer 3: 跨实例逃逸层 — Dispatcher Fallback                         │
+│  ──────────────────────────────────────────                          │
+│  Pod 注解记录累计失败次数 (bind-failure-count)                        │
+│  累计失败 ≥ MaxLocalRetries → 清除调度注解 → 回退到 Dispatcher       │
+│  Dispatcher 重新分发 Pod 到其他 Scheduler 实例                        │
+│  → 持续故障场景下的自动跨实例恢复                                    │
+│  指标: binder_dispatcher_fallback_total                              │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+
+故障处理升级路径:
+  L0 拦截 ──失败──→ L1 同步重试 ──失败──→ L2 异步重试 ──失败──→ L3 跨实例逃逸
+  (预防)             (即时恢复)            (后台恢复)           (全局恢复)
+```
+
+**与其他调度器的容错对比**：
+
+| 调度器 | 绑定失败处理 | 层级 |
+|--------|-------------|------|
+| kube-scheduler | 绑定失败 → Pod 回队列重调度 | 单层（无重试） |
+| Volcano | 绑定失败 → Task 状态置为 Error → 重入队 | 单层（无重试） |
+| Koordinator | 同 kube-scheduler | 单层（无重试） |
+| Shared Binder Baseline | Binder 内部有限重试 → 无跨实例恢复 | 两层（无逃逸） |
+| **Embedded Binder Design** | **预防 → 同步重试 → 异步恢复 → 跨实例逃逸** | **四层（完整）** |
+
+**技术要点**：
+
+| 组件 | 文件 | 作用 |
+|------|------|------|
+| `NodeValidator` | `node_validator.go` | Layer 0：分区归属验证 + 类型化错误 |
+| `bindPodToNode` 重试 | `embedded_binder.go` | Layer 1：瞬态错误指数退避 |
+| `BinderTasksReconciler` | `binder_reconciler.go` | Layer 2：异步 RateLimiting 重试队列 |
+| `retry.go` | `utils/retry.go` | Layer 3：失败计数 + `ShouldDispatchToAnotherScheduler` |
+| `CleanupPodAnnotationsWithRetryCount` | `utils/util.go` | Layer 3：注解清除 + Dispatcher 回退触发 |
+
+**实验验证**：
+
+| 实验场景 | 做法 | 验证的层 | 工作量 |
+|---------|------|---------|--------|
+| 正常运行 | 现有 W1-W6 实验 | 基线：四个指标均为 0 或极低 | ✅ 已有 |
+| API Server 高延迟 | `tc netem delay 200ms` | L1：bind_retries 上升 | 小 |
+| 节点 reshuffle | 实验中途修改 Node 分区注解 | L0：node_validation_failures 上升 | 小 |
+| 持续绑定失败 | ResourceQuota 限制 namespace | L2→L3：reconciler → fallback | 小 |
+
+### 13.4 建议论文章节结构
+
+```
+第1章 绪论
+  1.1 研究背景与意义
+  1.2 研究现状与不足
+  1.3 主要工作与创新点
+  1.4 论文组织结构
+
+第2章 相关工作
+  2.1 Kubernetes 调度架构
+  2.2 Gödel Scheduler 三层架构分析
+  2.3 Volcano 批量调度器
+  2.4 Koordinator 混合调度器
+  2.5 现有方案对比与不足总结
+
+第3章 分布式调度绑定瓶颈分析
+  3.1 共享 Binder 性能瓶颈（定量分析）
+  3.2 绑定容错能力缺失（故障场景枚举）
+  3.3 优化目标与约束
+
+第4章 单 Dispatcher、多独立 Scheduler 分布式调度架构设计与实现（创新点1）
+  4.1 架构设计
+    4.1.1 总体架构对比（共享 vs 嵌入）
+    4.1.2 Cache 共享与状态一致性设计
+    4.1.3 PodGroupController 分区迁移
+  4.2 关键实现
+    4.2.1 BinderInterface 统一抽象
+    4.2.2 EmbeddedBinder 核心逻辑
+    4.2.3 CacheAdapter 零拷贝包装
+  4.3 部署与兼容性
+    4.3.1 Feature Gate 机制
+    4.3.2 Kustomize 声明式切换
+
+第5章 分层容错绑定策略设计与实现（创新点2）
+  5.1 分布式调度绑定故障分类
+    5.1.1 节点分区变更（reshuffle）
+    5.1.2 API Server 瞬态过载
+    5.1.3 资源冲突与竞争
+    5.1.4 持续性故障
+  5.2 四层容错架构设计
+    5.2.1 Layer 0：节点分区验证（预防层）
+    5.2.2 Layer 1：同步指数退避重试
+    5.2.3 Layer 2：异步 Reconciler 恢复队列
+    5.2.4 Layer 3：Dispatcher 跨实例回退
+  5.3 可观测性设计
+    5.3.1 分层指标体系（8 个 Prometheus 指标）
+    5.3.2 Recording Rules 与告警规则
+
+第6章 实验评估
+  6.1 实验环境
+  6.2 吞吐量与延迟对比（A/B/C/D/E × W1-W6）
+  6.3 嵌入式 vs 共享 Binder 绑定性能（A vs B）
+  6.4 容错能力验证（故障注入实验）
+  6.5 水平扩展性验证
+  6.6 Gang 调度场景对比
+
+第7章 总结与展望
+  7.1 主要工作总结
+  7.2 未来工作（多 Worker 并发调度、资源感知分区等）
+```
+
+### 13.5 摘要参考模板
+
+> 随着云原生应用规模的持续增长，Kubernetes 集群调度系统面临吞吐量和可靠性的双重挑战。本文面向分布式调度系统中“调度-绑定协同效率不足”和“绑定阶段容错能力薄弱”两类共性问题，提出了两项架构与机制创新：
+>
+> （1）**单 Dispatcher、多独立 Scheduler 分布式调度架构**：构建“单 Dispatcher 统一分发 + 多 Scheduler 独立并行执行”的协同模型，将绑定执行链路与调度实例同域化，减少跨组件通信与状态同步开销，实现系统吞吐能力随调度实例数近线性扩展。通过共享缓存适配层实现低拷贝状态复用，并引入特性开关保障新旧架构平滑切换与向后兼容。
+>
+> （2）**分层容错绑定策略**：构建四层容错链路——节点分区验证（预防层）、同步指数退避重试（即时恢复层）、异步 Reconciler 队列（后台恢复层）、Dispatcher 跨实例回退（全局恢复层），形成分布式调度系统中首个结构化的绑定容错模型。配套设计 8 个 Prometheus 指标实现分层可观测性。
+>
+> 在 5000 节点 KWOK 模拟集群上，与共享 Binder 基线实现、kube-scheduler、Volcano、Koordinator 四个基线进行了六种工作负载下的系统性对比实验。实验结果表明：该分布式调度架构在绑定延迟 P99 方面较共享 Binder 降低 XX%，端到端调度吞吐量提升 XX%；分层容错机制在故障注入场景下实现 XX% 的绑定恢复成功率，显著优于其他调度器的单层容错策略。
+
+
+---
+
+## 13. 论文创新点定义与章节结构
+
+### 13.1 两个创新点概览
+
+| # | 创新点 | 类型 | 核心贡献 | 已实现 |
+|---|--------|------|----------|--------|
+| 1 | **单 Dispatcher、多独立 Scheduler 分布式调度架构 (Single-Dispatcher Multi-Scheduler Architecture)** | 架构创新 | 构建单 Dispatcher 统一分发、Scheduler 实例独立并行执行的扩展架构，降低中心化链路竞争并提升整体吞吐 | ✅ Phase 1-7 |
+| 2 | **分层容错绑定策略 (Hierarchical Fault-Tolerant Binding Strategy)** | 机制创新 | 四层容错链路：预防→同步重试→异步恢复→跨实例逃逸，构建分布式调度中首个结构化绑定容错模型 | ✅ Phase 2-4 |
+
+### 13.2 创新点 1：单 Dispatcher、多独立 Scheduler 分布式调度架构
+
+**创新目标**：提出一种可扩展的分布式调度架构范式，通过“单 Dispatcher 统一分发 + 多独立 Scheduler 并行执行”实现控制面解耦与能力横向扩展，为高并发场景提供更稳定的吞吐与时延表现。
+
+**核心设计**：
+
+```
+共享 Binder（原始）                    嵌入式 Binder（改进）
+═════════════════                     ═══════════════════
+
+Sched-A ──┐                           Sched-A + Binder-A ──→ API Server
+Sched-B ──┼──→ Shared Binder ──→ AS   Sched-B + Binder-B ──→ API Server
+Sched-C ──┘    (单点瓶颈)             Sched-C + Binder-C ──→ API Server
+
+通信方式: PatchPod → Informer → RPC   通信方式: 进程内函数调用
+绑定扩展: 不随 Scheduler 扩展         绑定扩展: 线性扩展
+故障影响: Binder 挂 → 全部停止        故障影响: 故障隔离到单实例
+```
+
+**技术要点**：
+
+| 组件 | 文件 | 作用 |
+|------|------|------|
+| `BinderInterface` | `binder_interface.go` | 统一接口抽象，支持嵌入/独立两种模式 |
+| `EmbeddedBinder` | `embedded_binder.go` | 核心实现：BindUnit → 验证 → 绑定 → 缓存完成 |
+| `CacheAdapter` | `cache_adapter.go` | 包装 SchedulerCache 为 BinderCache，共享内存零拷贝 |
+| `PodGroupController` 迁移 | `podgroup.go` | 分区感知的 PodGroup 状态管理 |
+| Feature Gate | `options.go` | `--enable-embedded-binder` 一键切换，向后兼容 |
+| Kustomize Overlay | `manifests/overlays/embedded-binder/` | 声明式部署模式切换 |
+
+**实验验证指标**：
+
+| 指标 | 含义 | 对比维度 |
+|------|------|----------|
+| `binder_embedded_bind_pod_duration_seconds` P99 | 单 Pod 绑定延迟 | A vs B |
+| `binder_embedded_bind_pods_total` rate | 绑定吞吐量 (pods/s) | A vs B |
+| `scheduler_e2e_scheduling_duration_seconds` P99 | 端到端调度延迟 | A vs B vs C vs D vs E |
+| `scheduler_pod_scheduling_attempts` rate | 调度吞吐量 | 五组横向对比 |
+
+### 13.3 创新点 2：分层容错绑定策略
+
+**解决的问题**：分布式调度系统中，绑定阶段面临多种故障源（API Server 过载、节点分区变更、资源冲突等），现有调度器（kube-scheduler、Volcano、Koordinator）均缺乏结构化的绑定容错机制。
+
+**四层容错架构**：
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                                                                      │
+│  Layer 0: 预防层 — NodeValidator                                     │
+│  ─────────────────────────────────                                   │
+│  绑定前验证目标节点仍属于本 Scheduler 分区                           │
+│  拦截 reshuffle 期间的过期绑定请求                                   │
+│  → 避免必定失败的 API 调用，降低 API Server 负载                     │
+│  指标: binder_node_validation_failures_total                         │
+│                                                                      │
+│  Layer 1: 同步重试层 — bindPodToNode()                               │
+│  ─────────────────────────────────────                               │
+│  识别 Conflict/Timeout/TooManyRequests 等瞬态错误                    │
+│  指数退避重试（100ms × attempt），最多 MaxBindRetries 次              │
+│  → 应对 API Server 短暂过载或网络抖动                                │
+│  指标: binder_embedded_bind_retries_total                            │
+│                                                                      │
+│  Layer 2: 异步恢复层 — BinderTasksReconciler                         │
+│  ──────────────────────────────────────────                          │
+│  绑定失败的 Pod 加入 RateLimiting WorkQueue                          │
+│  后台 Worker 按指数退避间隔（5ms~10s）异步重试                       │
+│  → 不阻塞调度主循环，异步恢复绑定                                    │
+│  指标: binder_embedded_bind_inflight (Gauge)                         │
+│                                                                      │
+│  Layer 3: 跨实例逃逸层 — Dispatcher Fallback                         │
+│  ──────────────────────────────────────────                          │
+│  Pod 注解记录累计失败次数 (bind-failure-count)                        │
+│  累计失败 ≥ MaxLocalRetries → 清除调度注解 → 回退到 Dispatcher       │
+│  Dispatcher 重新分发 Pod 到其他 Scheduler 实例                        │
+│  → 持续故障场景下的自动跨实例恢复                                    │
+│  指标: binder_dispatcher_fallback_total                              │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+
+故障处理升级路径:
+  L0 拦截 ──失败──→ L1 同步重试 ──失败──→ L2 异步重试 ──失败──→ L3 跨实例逃逸
+  (预防)             (即时恢复)            (后台恢复)           (全局恢复)
+```
+
+**与其他调度器的容错对比**：
+
+| 调度器 | 绑定失败处理 | 层级 |
+|--------|-------------|------|
+| kube-scheduler | 绑定失败 → Pod 回队列重调度 | 单层（无重试） |
+| Volcano | 绑定失败 → Task 状态置为 Error → 重入队 | 单层（无重试） |
+| Koordinator | 同 kube-scheduler | 单层（无重试） |
+| Shared Binder Baseline | Binder 内部有限重试 → 无跨实例恢复 | 两层（无逃逸） |
+| **Embedded Binder Design** | **预防 → 同步重试 → 异步恢复 → 跨实例逃逸** | **四层（完整）** |
+
+**技术要点**：
+
+| 组件 | 文件 | 作用 |
+|------|------|------|
+| `NodeValidator` | `node_validator.go` | Layer 0：分区归属验证 + 类型化错误 |
+| `bindPodToNode` 重试 | `embedded_binder.go` | Layer 1：瞬态错误指数退避 |
+| `BinderTasksReconciler` | `binder_reconciler.go` | Layer 2：异步 RateLimiting 重试队列 |
+| `retry.go` | `utils/retry.go` | Layer 3：失败计数 + `ShouldDispatchToAnotherScheduler` |
+| `CleanupPodAnnotationsWithRetryCount` | `utils/util.go` | Layer 3：注解清除 + Dispatcher 回退触发 |
+
+**实验验证**：
+
+| 实验场景 | 做法 | 验证的层 | 工作量 |
+|---------|------|---------|--------|
+| 正常运行 | 现有 W1-W6 实验 | 基线：四个指标均为 0 或极低 | ✅ 已有 |
+| API Server 高延迟 | `tc netem delay 200ms` | L1：bind_retries 上升 | 小 |
+| 节点 reshuffle | 实验中途修改 Node 分区注解 | L0：node_validation_failures 上升 | 小 |
+| 持续绑定失败 | ResourceQuota 限制 namespace | L2→L3：reconciler → fallback | 小 |
+
+### 13.4 建议论文章节结构
+
+```
+第1章 绪论
+  1.1 研究背景与意义
+  1.2 研究现状与不足
+  1.3 主要工作与创新点
+  1.4 论文组织结构
+
+第2章 相关工作
+  2.1 Kubernetes 调度架构
+  2.2 Gödel Scheduler 三层架构分析
+  2.3 Volcano 批量调度器
+  2.4 Koordinator 混合调度器
+  2.5 现有方案对比与不足总结
+
+第3章 分布式调度绑定瓶颈分析
+  3.1 共享 Binder 性能瓶颈（定量分析）
+  3.2 绑定容错能力缺失（故障场景枚举）
+  3.3 优化目标与约束
+
+第4章 单 Dispatcher、多独立 Scheduler 分布式调度架构设计与实现（创新点1）
+  4.1 架构设计
+    4.1.1 总体架构对比（共享 vs 嵌入）
+    4.1.2 Cache 共享与状态一致性设计
+    4.1.3 PodGroupController 分区迁移
+  4.2 关键实现
+    4.2.1 BinderInterface 统一抽象
+    4.2.2 EmbeddedBinder 核心逻辑
+    4.2.3 CacheAdapter 零拷贝包装
+  4.3 部署与兼容性
+    4.3.1 Feature Gate 机制
+    4.3.2 Kustomize 声明式切换
+
+第5章 分层容错绑定策略设计与实现（创新点2）
+  5.1 分布式调度绑定故障分类
+    5.1.1 节点分区变更（reshuffle）
+    5.1.2 API Server 瞬态过载
+    5.1.3 资源冲突与竞争
+    5.1.4 持续性故障
+  5.2 四层容错架构设计
+    5.2.1 Layer 0：节点分区验证（预防层）
+    5.2.2 Layer 1：同步指数退避重试
+    5.2.3 Layer 2：异步 Reconciler 恢复队列
+    5.2.4 Layer 3：Dispatcher 跨实例回退
+  5.3 可观测性设计
+    5.3.1 分层指标体系（8 个 Prometheus 指标）
+    5.3.2 Recording Rules 与告警规则
+
+第6章 实验评估
+  6.1 实验环境
+  6.2 吞吐量与延迟对比（A/B/C/D/E × W1-W6）
+  6.3 嵌入式 vs 共享 Binder 绑定性能（A vs B）
+  6.4 容错能力验证（故障注入实验）
+  6.5 水平扩展性验证
+  6.6 Gang 调度场景对比
+
+第7章 总结与展望
+  7.1 主要工作总结
+  7.2 未来工作（多 Worker 并发调度、资源感知分区等）
+```
+
+### 13.5 摘要参考模板
+
+> 随着云原生应用规模的持续增长，Kubernetes 集群调度系统面临吞吐量和可靠性的双重挑战。本文面向分布式调度系统中“调度-绑定协同效率不足”和“绑定阶段容错能力薄弱”两类共性问题，提出了两项架构与机制创新：
+>
+> （1）**单 Dispatcher、多独立 Scheduler 分布式调度架构**：构建“单 Dispatcher 统一分发 + 多 Scheduler 独立并行执行”的协同模型，将绑定执行链路与调度实例同域化，减少跨组件通信与状态同步开销，实现系统吞吐能力随调度实例数近线性扩展。通过共享缓存适配层实现低拷贝状态复用，并引入特性开关保障新旧架构平滑切换与向后兼容。
+>
+> （2）**分层容错绑定策略**：构建四层容错链路——节点分区验证（预防层）、同步指数退避重试（即时恢复层）、异步 Reconciler 队列（后台恢复层）、Dispatcher 跨实例回退（全局恢复层），形成分布式调度系统中首个结构化的绑定容错模型。配套设计 8 个 Prometheus 指标实现分层可观测性。
+>
+> 在 5000 节点 KWOK 模拟集群上，与共享 Binder 基线实现、kube-scheduler、Volcano、Koordinator 四个基线进行了六种工作负载下的系统性对比实验。实验结果表明：该分布式调度架构在绑定延迟 P99 方面较共享 Binder 降低 XX%，端到端调度吞吐量提升 XX%；分层容错机制在故障注入场景下实现 XX% 的绑定恢复成功率，显著优于其他调度器的单层容错策略。

@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Group E — Koordinator (Alibaba hybrid scheduler reference)
+# Usage: kubectl apply -k manifests/monitoring/overlays/group-e/
+
+resources:
+  - ../../base
+  - koordinator-services.yaml
+  - prometheus-config.yaml

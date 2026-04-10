@@ -1,0 +1,71 @@
+flowchart TD
+    A([Dispatcher 启动\nLeader Election]) --> B{Leader?}
+    B -- 否 --> C[等待 Leader 推选\n监听 etcd Election]
+    C --> B
+    B -- 是 --> D[启动任务处理\nWatch Pod 事件]
+
+    D --> E[优先级排序阶段\nSortedPodsQueue FIFO]
+    E --> F[Pop 第一个 Pod]
+    
+    F --> G[异步启动分发\ngo dispatchingPod]
+    
+    G --> H[策略分发阶段\nselectScheduler]
+    H --> I{Pod 类型}
+
+    I -- PodGroup --> J[selectSchedulerForUnit\n缓存重用已选 Scheduler]
+    I -- 普通 Pod --> K{选择策略}
+
+    K -- 基于 Owner\n亲和性 --> L[SelectSchedulerAndSetDispatchedUnboundPod\n同一 Owner 路由同一实例]
+    K -- 负载均衡\n默认路径 --> M[GetMostIdleSchedulerAndAddPodInAdvance\n加权轮询]
+
+    M --> N{有可用\nScheduler?}
+    N -- 否 --> O[记录失败指标\nPending 保留队列]
+    N -- 是 --> P[候选集合\nfilter by capacity]
+
+    P --> Q{是否需要\n资源预检?}
+    Q -- 是 --> R[前置过滤\n检查实例余量]
+    Q -- 否 --> S[直接轮询选择\n按处理能力权重]
+
+    R --> S
+    S --> T[确定目标 Scheduler]
+
+    J --> U[PatchPod 注解\nScheduler名写入]
+    L --> U
+    T --> U
+
+    U --> V{Patch 成功?}
+    V -- 是 --> W[记录分发成功\nPod 进入 Scheduler]
+    V -- 否 --> X{错误类型}
+
+    X -- 409/Conflict --> Y[失败回退\n重新加入队列]
+    X -- NotFound --> Z[Pod 被删除\n忽略]
+    X -- 网络/超时 --> Y
+
+    Y --> AA{重试次数}
+    AA -- 未超阈值 --> AB[等待后重新入队]
+    AA -- 超阈值 --> AC[清理注解\n回到 Pending]
+
+    AB --> E
+    AC --> E
+    W --> E
+    Z --> E
+    O --> E
+
+    classDef startup fill:#2c3e50,color:#ffffff,stroke:#2c3e50,stroke-width:2px;
+    classDef sort fill:#ecf0f1,color:#34495e,stroke:#95a5a6,stroke-width:1.5px;
+    classDef strategy1 fill:#e8f4f8,color:#0c2340,stroke:#0099ff,stroke-width:1.5px;
+    classDef strategy2 fill:#e8f5e9,color:#1b5e20,stroke:#4caf50,stroke-width:1.5px;
+    classDef decision fill:#fff3e0,color:#e65100,stroke:#ff9800,stroke-width:2px;
+    classDef filter fill:#f3e5f5,color:#4a148c,stroke:#9c27b0,stroke-width:1.5px;
+    classDef critical fill:#fce4ec,color:#880e4f,stroke:#e91e63,stroke-width:2px;
+    classDef success fill:#e8f5e9,color:#1b5e20,stroke:#66bb6a,stroke-width:1.5px;
+
+    class A,B,C,D startup;
+    class E,F,G sort;
+    class H,I sort;
+    class J strategy1;
+    class L,K strategy2;
+    class M,N,P decision;
+    class Q,R,S filter;
+    class U,V,X critical;
+    class W success;

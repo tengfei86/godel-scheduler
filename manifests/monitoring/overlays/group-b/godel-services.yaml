@@ -1,0 +1,42 @@
+# Headless Services that expose /metrics endpoints of Gödel components.
+#
+# Group B: Embedded Binder — scheduler (includes binder metrics) + dispatcher
+# NOTE: Standalone binder service is NOT needed because binder runs inside
+# each Scheduler process. The scheduler metrics port (10251) serves both
+# scheduler and embedded-binder metrics.
+
+# Scheduler metrics (includes embedded binder metrics, default insecure port: 10251)
+apiVersion: v1
+kind: Service
+metadata:
+  name: godel-scheduler-metrics
+  namespace: godel-system
+  labels:
+    component: scheduler
+spec:
+  clusterIP: None
+  selector:
+    app: godel-scheduler
+  ports:
+    - name: metrics
+      port: 10251
+      targetPort: 10251
+      protocol: TCP
+---
+# Dispatcher metrics (default insecure port: 10351)
+apiVersion: v1
+kind: Service
+metadata:
+  name: godel-dispatcher-metrics
+  namespace: godel-system
+  labels:
+    component: dispatcher
+spec:
+  clusterIP: None
+  selector:
+    app: godel-dispatcher
+  ports:
+    - name: metrics
+      port: 10351
+      targetPort: 10351
+      protocol: TCP

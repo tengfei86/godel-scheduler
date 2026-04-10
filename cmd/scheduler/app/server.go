@@ -30,6 +30,9 @@ import (
 	schedulerserverconfig "github.com/kubewharf/godel-scheduler/cmd/scheduler/app/config"
 	"github.com/kubewharf/godel-scheduler/cmd/scheduler/app/options"
 	"github.com/kubewharf/godel-scheduler/cmd/scheduler/app/util/configz"
+	"github.com/kubewharf/godel-scheduler/pkg/binder"
+	pgcontroller "github.com/kubewharf/godel-scheduler/pkg/binder/controller"
+	bindermetrics "github.com/kubewharf/godel-scheduler/pkg/binder/metrics"
 	godelscheduler "github.com/kubewharf/godel-scheduler/pkg/scheduler"
 	godelschedulerconfig "github.com/kubewharf/godel-scheduler/pkg/scheduler/apis/config"
 	cmdutil "github.com/kubewharf/godel-scheduler/pkg/util/cmd"
@@ -37,6 +40,7 @@ import (
 	"github.com/kubewharf/godel-scheduler/pkg/util/tracing"
 	"github.com/kubewharf/godel-scheduler/pkg/version/verflag"
 
+	v1 "k8s.io/api/core/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
@@ -181,6 +185,38 @@ func Run(ctx context.Context, cc schedulerserverconfig.CompletedConfig) error {
 		return err
 	}
 
+	// Optionally attach an embedded Binder.
+	if cc.EnableEmbeddedBinder {
+		// Register binder metrics into the global Prometheus registry so they
+		// are exposed on the same /metrics endpoint as scheduler metrics.
+		bindermetrics.Register()
+		// Build a NodeGetter from the shared informer's Node lister.
+		// This is used by the NodeValidator to verify node ownership
+		// before binding (guards against stale binds during reshuffles).
+		nodeLister := cc.InformerFactory.Core().V1().Nodes().Lister()
+		nodeGetter := binder.NodeGetter(func(nodeName string) (*v1.Node, error) {
+			return nodeLister.Get(nodeName)
+		})
+
+		eb := binder.NewEmbeddedBinder(
+			cc.Client,
+			cc.GodelCrdClient,
+			sched.GetCache(),
+			*cc.ComponentConfig.SchedulerName,
+			&cc.EmbeddedBinderConfig,
+			nodeGetter,
+		)
+		if err := eb.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start embedded binder: %v", err)
+		}
+		sched.SetEmbeddedBinder(eb)
+		klog.InfoS("Embedded binder enabled",
+			"maxBindRetries", cc.EmbeddedBinderConfig.MaxBindRetries,
+			"bindTimeout", cc.EmbeddedBinderConfig.BindTimeout,
+			"maxLocalRetries", cc.EmbeddedBinderConfig.MaxLocalRetries,
+		)
+	}
+
 	// Prepare the event broadcaster.
 	cc.EventBroadcaster.StartRecordingToSink(ctx.Done())
 
@@ -229,6 +265,21 @@ func Run(ctx context.Context, cc schedulerserverconfig.CompletedConfig) error {
 			ComponentName,
 			cc.ComponentConfig.Tracer)
 		defer closer.Close()
+
+		// When embedded binder is enabled, start a PodGroupController
+		// with partition filtering so it only processes PodGroups whose
+		// member pods belong to this scheduler's partition.
+		if cc.EnableEmbeddedBinder {
+			pgInformer := cc.GodelCrdInformerFactory.Scheduling().V1alpha1().PodGroups()
+			pgcontroller.SetupPodGroupControllerWithOptions(ctx, cc.Client, cc.GodelCrdClient, pgInformer,
+				pgcontroller.PodGroupControllerOptions{
+					SchedulerName: *cc.ComponentConfig.SchedulerName,
+				},
+			)
+			klog.InfoS("Started embedded PodGroupController with partition filtering",
+				"schedulerName", *cc.ComponentConfig.SchedulerName,
+			)
+		}
 
 		// Start the scheduler.
 		sched.Run(ctx)

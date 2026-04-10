@@ -1,0 +1,198 @@
+# ================================================================
+# Prometheus config for Group A — Shared Binder (Baseline)
+#
+# Scrape targets:
+#   • godel-scheduler  (godel-system, port 10251)
+#   • godel-dispatcher (godel-system, port 10351)
+#   • godel-binder     (godel-system, port 10451, standalone)
+# ================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    rule_files:
+      - "/etc/prometheus/rules.yml"
+
+    scrape_configs:
+      # ── Gödel Scheduler ──
+      - job_name: "godel-scheduler"
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names: ["godel-system"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: godel-scheduler-metrics
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: metrics
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_service_name]
+            target_label: service
+
+      # ── Gödel Dispatcher ──
+      - job_name: "godel-dispatcher"
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names: ["godel-system"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: godel-dispatcher-metrics
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: metrics
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      # ── Standalone Binder (shared by all Schedulers) ──
+      - job_name: "godel-binder"
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names: ["godel-system"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: godel-binder-metrics
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: metrics
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+  # ================================================================
+  # Recording rules for Group A
+  # ================================================================
+  rules.yml: |
+    groups:
+      # ──────────────────────────────────────────────────
+      #  Scheduler pipeline — throughput & latency
+      # ──────────────────────────────────────────────────
+      - name: scheduler_pipeline
+        interval: 15s
+        rules:
+          # Scheduling throughput (pods/s) by result
+          - record: godel:scheduler_pod_scheduling_attempts:rate1m
+            expr: rate(scheduler_pod_scheduling_attempts[1m])
+
+          - record: godel:scheduler_pod_scheduling_attempts:rate5m
+            expr: rate(scheduler_pod_scheduling_attempts[5m])
+
+          # ----- E2E scheduling latency -----
+          - record: godel:scheduler_e2e_scheduling_duration:p50
+            expr: histogram_quantile(0.50, rate(scheduler_e2e_scheduling_duration_seconds_bucket[5m]))
+
+          - record: godel:scheduler_e2e_scheduling_duration:p90
+            expr: histogram_quantile(0.90, rate(scheduler_e2e_scheduling_duration_seconds_bucket[5m]))
+
+          - record: godel:scheduler_e2e_scheduling_duration:p99
+            expr: histogram_quantile(0.99, rate(scheduler_e2e_scheduling_duration_seconds_bucket[5m]))
+
+          - record: godel:scheduler_e2e_scheduling_duration:avg
+            expr: >
+              rate(scheduler_e2e_scheduling_duration_seconds_sum[5m])
+              /
+              rate(scheduler_e2e_scheduling_duration_seconds_count[5m])
+
+          # ----- Core algorithm latency -----
+          - record: godel:scheduler_scheduling_algorithm_duration:p90
+            expr: histogram_quantile(0.90, rate(scheduler_scheduling_algorithm_duration_seconds_bucket[5m]))
+
+          - record: godel:scheduler_scheduling_algorithm_duration:p99
+            expr: histogram_quantile(0.99, rate(scheduler_scheduling_algorithm_duration_seconds_bucket[5m]))
+
+      # ──────────────────────────────────────────────────
+      #  Standalone Binder — throughput & latency
+      # ──────────────────────────────────────────────────
+      - name: standalone_binder
+        interval: 15s
+        rules:
+          # Binding pod attempts (pods/s) by result
+          - record: godel:binder_binding_pod_attempts:rate1m
+            expr: rate(binder_binding_pod_attempts[1m])
+
+          - record: godel:binder_binding_pod_attempts:rate5m
+            expr: rate(binder_binding_pod_attempts[5m])
+
+          # Binding success rate
+          - record: godel:binder_binding_pod_attempts:success_rate5m
+            expr: >
+              rate(binder_binding_pod_attempts{result="bound"}[5m])
+              /
+              rate(binder_binding_pod_attempts[5m])
+
+          # ----- Binding phase latency -----
+          - record: godel:binder_pod_binding_phase_duration:p50
+            expr: histogram_quantile(0.50, rate(binder_pod_binding_phase_duration_seconds_bucket{phase="binding"}[5m]))
+
+          - record: godel:binder_pod_binding_phase_duration:p90
+            expr: histogram_quantile(0.90, rate(binder_pod_binding_phase_duration_seconds_bucket{phase="binding"}[5m]))
+
+          - record: godel:binder_pod_binding_phase_duration:p99
+            expr: histogram_quantile(0.99, rate(binder_pod_binding_phase_duration_seconds_bucket{phase="binding"}[5m]))
+
+          - record: godel:binder_pod_binding_phase_duration:avg
+            expr: >
+              rate(binder_pod_binding_phase_duration_seconds_sum{phase="binding"}[5m])
+              /
+              rate(binder_pod_binding_phase_duration_seconds_count{phase="binding"}[5m])
+
+          # ----- Unit E2E latency -----
+          - record: godel:binder_unit_e2e_duration:p90
+            expr: histogram_quantile(0.90, rate(binder_unit_e2e_duration_seconds_bucket[5m]))
+
+          - record: godel:binder_unit_e2e_duration:p99
+            expr: histogram_quantile(0.99, rate(binder_unit_e2e_duration_seconds_bucket[5m]))
+
+          # Pod rejection / failure counters
+          - record: godel:binder_pod_rejection:rate5m
+            expr: rate(binder_pod_rejection[5m])
+
+          - record: godel:binder_pod_binding_failure:rate5m
+            expr: rate(binder_pod_binding_failure[5m])
+
+      # ──────────────────────────────────────────────────
+      #  E2E pipeline (Gödel pod lifecycle)
+      # ──────────────────────────────────────────────────
+      - name: e2e_pipeline
+        interval: 15s
+        rules:
+          # Gödel pod E2E latency (dispatcher → scheduler → binder → done)
+          - record: godel:pod_e2e_duration:p50
+            expr: histogram_quantile(0.50, rate(godel_pod_e2e_duration_seconds_bucket[5m]))
+
+          - record: godel:pod_e2e_duration:p90
+            expr: histogram_quantile(0.90, rate(godel_pod_e2e_duration_seconds_bucket[5m]))
+
+          - record: godel:pod_e2e_duration:p99
+            expr: histogram_quantile(0.99, rate(godel_pod_e2e_duration_seconds_bucket[5m]))
+
+          # Combined schedule + bind P90 estimate
+          - record: godel:e2e_schedule_and_bind_duration:p90_estimate
+            expr: >
+              godel:scheduler_e2e_scheduling_duration:p90
+              +
+              godel:binder_pod_binding_phase_duration:p90
+
+          - record: godel:e2e_schedule_and_bind_duration:p99_estimate
+            expr: >
+              godel:scheduler_e2e_scheduling_duration:p99
+              +
+              godel:binder_pod_binding_phase_duration:p99

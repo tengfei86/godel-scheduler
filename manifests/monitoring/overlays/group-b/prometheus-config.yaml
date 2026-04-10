@@ -1,0 +1,218 @@
+# ================================================================
+# Prometheus config for Group B — Embedded Binder (Proposed)
+#
+# Scrape targets:
+#   • godel-scheduler  (godel-system, port 10251, includes embedded binder metrics)
+#   • godel-dispatcher (godel-system, port 10351)
+#
+# NOTE: The scheduler /metrics endpoint exposes BOTH scheduler metrics
+# and embedded binder metrics (binder_embedded_*) when
+# --enable-embedded-binder=true.
+# ================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    rule_files:
+      - "/etc/prometheus/rules.yml"
+
+    scrape_configs:
+      # ── Gödel Scheduler (includes embedded binder metrics) ──
+      - job_name: "godel-scheduler"
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names: ["godel-system"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: godel-scheduler-metrics
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: metrics
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_service_name]
+            target_label: service
+
+      # ── Gödel Dispatcher ──
+      - job_name: "godel-dispatcher"
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names: ["godel-system"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: godel-dispatcher-metrics
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: metrics
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+  # ================================================================
+  # Recording rules for Group B — Embedded Binder
+  # ================================================================
+  rules.yml: |
+    groups:
+      # ──────────────────────────────────────────────────
+      #  Embedded Binder — throughput & latency
+      # ──────────────────────────────────────────────────
+      - name: embedded_binder
+        interval: 15s
+        rules:
+          # ── Throughput ──
+
+          # Pod bind throughput (pods/s) over 1m window, by scheduler & result
+          - record: godel:binder_embedded_bind_pods:rate1m
+            expr: rate(binder_embedded_bind_pods_total[1m])
+
+          # Pod bind throughput (pods/s) over 5m window, by scheduler & result
+          - record: godel:binder_embedded_bind_pods:rate5m
+            expr: rate(binder_embedded_bind_pods_total[5m])
+
+          # Unit bind throughput (units/s) over 1m window
+          - record: godel:binder_embedded_bind_units:rate1m
+            expr: rate(binder_embedded_bind_total[1m])
+
+          # Unit bind throughput (units/s) over 5m window
+          - record: godel:binder_embedded_bind_units:rate5m
+            expr: rate(binder_embedded_bind_total[5m])
+
+          # ── Latency — Unit level ──
+
+          - record: godel:binder_embedded_bind_duration:p50
+            expr: histogram_quantile(0.50, rate(binder_embedded_bind_duration_seconds_bucket[5m]))
+
+          - record: godel:binder_embedded_bind_duration:p90
+            expr: histogram_quantile(0.90, rate(binder_embedded_bind_duration_seconds_bucket[5m]))
+
+          - record: godel:binder_embedded_bind_duration:p99
+            expr: histogram_quantile(0.99, rate(binder_embedded_bind_duration_seconds_bucket[5m]))
+
+          - record: godel:binder_embedded_bind_duration:avg
+            expr: >
+              rate(binder_embedded_bind_duration_seconds_sum[5m])
+              /
+              rate(binder_embedded_bind_duration_seconds_count[5m])
+
+          # ── Latency — Pod level ──
+
+          - record: godel:binder_embedded_bind_pod_duration:p50
+            expr: histogram_quantile(0.50, rate(binder_embedded_bind_pod_duration_seconds_bucket[5m]))
+
+          - record: godel:binder_embedded_bind_pod_duration:p90
+            expr: histogram_quantile(0.90, rate(binder_embedded_bind_pod_duration_seconds_bucket[5m]))
+
+          - record: godel:binder_embedded_bind_pod_duration:p99
+            expr: histogram_quantile(0.99, rate(binder_embedded_bind_pod_duration_seconds_bucket[5m]))
+
+          - record: godel:binder_embedded_bind_pod_duration:avg
+            expr: >
+              rate(binder_embedded_bind_pod_duration_seconds_sum[5m])
+              /
+              rate(binder_embedded_bind_pod_duration_seconds_count[5m])
+
+          # ── Success rate ──
+
+          - record: godel:binder_embedded_bind_pods:success_rate5m
+            expr: >
+              rate(binder_embedded_bind_pods_total{result="success"}[5m])
+              /
+              rate(binder_embedded_bind_pods_total[5m])
+
+          - record: godel:binder_embedded_bind_units:success_rate5m
+            expr: >
+              rate(binder_embedded_bind_total{result="success"}[5m])
+              /
+              rate(binder_embedded_bind_total[5m])
+
+          # ── Retries & fallback ──
+
+          - record: godel:binder_embedded_bind_retries:rate5m
+            expr: rate(binder_embedded_bind_retries_total[5m])
+
+          - record: godel:binder_dispatcher_fallback:rate5m
+            expr: rate(binder_dispatcher_fallback_total[5m])
+
+          - record: godel:binder_node_validation_failures:rate5m
+            expr: rate(binder_node_validation_failures_total[5m])
+
+          # ── Concurrency ──
+          # Query directly: binder_embedded_bind_inflight
+
+      # ──────────────────────────────────────────────────
+      #  Scheduler pipeline — throughput & latency
+      # ──────────────────────────────────────────────────
+      - name: scheduler_pipeline
+        interval: 15s
+        rules:
+          - record: godel:scheduler_pod_scheduling_attempts:rate1m
+            expr: rate(scheduler_pod_scheduling_attempts[1m])
+
+          - record: godel:scheduler_pod_scheduling_attempts:rate5m
+            expr: rate(scheduler_pod_scheduling_attempts[5m])
+
+          # ----- E2E scheduling latency -----
+          - record: godel:scheduler_e2e_scheduling_duration:p50
+            expr: histogram_quantile(0.50, rate(scheduler_e2e_scheduling_duration_seconds_bucket[5m]))
+
+          - record: godel:scheduler_e2e_scheduling_duration:p90
+            expr: histogram_quantile(0.90, rate(scheduler_e2e_scheduling_duration_seconds_bucket[5m]))
+
+          - record: godel:scheduler_e2e_scheduling_duration:p99
+            expr: histogram_quantile(0.99, rate(scheduler_e2e_scheduling_duration_seconds_bucket[5m]))
+
+          - record: godel:scheduler_e2e_scheduling_duration:avg
+            expr: >
+              rate(scheduler_e2e_scheduling_duration_seconds_sum[5m])
+              /
+              rate(scheduler_e2e_scheduling_duration_seconds_count[5m])
+
+          # ----- Core algorithm latency -----
+          - record: godel:scheduler_scheduling_algorithm_duration:p90
+            expr: histogram_quantile(0.90, rate(scheduler_scheduling_algorithm_duration_seconds_bucket[5m]))
+
+          - record: godel:scheduler_scheduling_algorithm_duration:p99
+            expr: histogram_quantile(0.99, rate(scheduler_scheduling_algorithm_duration_seconds_bucket[5m]))
+
+      # ──────────────────────────────────────────────────
+      #  E2E pipeline (schedule + bind combined)
+      # ──────────────────────────────────────────────────
+      - name: e2e_pipeline
+        interval: 15s
+        rules:
+          # Gödel pod E2E latency (dispatcher → scheduler → binder → done)
+          - record: godel:pod_e2e_duration:p50
+            expr: histogram_quantile(0.50, rate(godel_pod_e2e_duration_seconds_bucket[5m]))
+
+          - record: godel:pod_e2e_duration:p90
+            expr: histogram_quantile(0.90, rate(godel_pod_e2e_duration_seconds_bucket[5m]))
+
+          - record: godel:pod_e2e_duration:p99
+            expr: histogram_quantile(0.99, rate(godel_pod_e2e_duration_seconds_bucket[5m]))
+
+          # Combined schedule + bind P90 estimate
+          - record: godel:e2e_schedule_and_bind_duration:p90_estimate
+            expr: >
+              godel:scheduler_e2e_scheduling_duration:p90
+              +
+              godel:binder_embedded_bind_duration:p90
+
+          - record: godel:e2e_schedule_and_bind_duration:p99_estimate
+            expr: >
+              godel:scheduler_e2e_scheduling_duration:p99
+              +
+              godel:binder_embedded_bind_duration:p99
