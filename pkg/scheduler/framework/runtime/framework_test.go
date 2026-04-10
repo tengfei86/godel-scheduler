@@ -83,8 +83,8 @@ func newTestSchedulerFramework(
 	scorePlugins []framework.ScorePlugin,
 	scoreWeightMap map[string]int64,
 	crossNodesPlugins []framework.CrossNodesPlugin,
-) *GodelSchedulerFramework {
-	f := &GodelSchedulerFramework{
+) *EnoSchedulerFramework {
+	f := &EnoSchedulerFramework{
 		preFilterPlugins:     preFilterPlugins,
 		filterPlugins:        filterPlugins,
 		preScorePlugins:      preScorePlugins,
@@ -134,7 +134,7 @@ func TestSchedulerFrameworkAddFilterPlugins(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		framework       *GodelSchedulerFramework
+		framework       *EnoSchedulerFramework
 		toAddPlugins    []*framework.PluginSpec
 		expectedPlugins string
 	}{
@@ -235,7 +235,7 @@ func TestSchedulerFrameworkAddScorePlugins(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		framework       *GodelSchedulerFramework
+		framework       *EnoSchedulerFramework
 		toAddPlugins    []*framework.PluginSpec
 		expectedPlugins string
 	}{
@@ -338,10 +338,10 @@ func TestSchedulerFrameworkAddScorePlugins(t *testing.T) {
 	}
 }
 
-func TestGodelSchedulerFrameworkOrderFilterPlugins(t *testing.T) {
+func TestEnoSchedulerFrameworkOrderFilterPlugins(t *testing.T) {
 	tests := []struct {
 		name            string
-		framework       *GodelSchedulerFramework
+		framework       *EnoSchedulerFramework
 		orderedPlugin   framework.PluginList
 		expectedPlugins string
 	}{

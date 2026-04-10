@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -232,17 +232,17 @@ func TestOperateOwnerInfo(t *testing.T) {
 	p3 := testing_helper.MakePod().Namespace("default").Name("p3").UID("p3").
 		ControllerRef(v1.OwnerReference{Kind: podutil.ReplicaSetKind, Name: "rs2", UID: "rs2"}).Obj()
 	originOwnerInfo := NewOwnerInfo()
-	originOwnerInfo.AddDispatchedUnboundPod(p1, "godel-scheduler-0")
-	originOwnerInfo.AddDispatchedUnboundPod(p2, "godel-scheduler-0")
-	originOwnerInfo.AddDispatchedUnboundPod(p3, "godel-scheduler-1")
+	originOwnerInfo.AddDispatchedUnboundPod(p1, "eno-scheduler-0")
+	originOwnerInfo.AddDispatchedUnboundPod(p2, "eno-scheduler-0")
+	originOwnerInfo.AddDispatchedUnboundPod(p3, "eno-scheduler-1")
 	expectedOwnerInfo := &ownerInfo{
 		ownerToUnboundPods: map[string]*ownerPodsInfo{
 			"ReplicaSet/default/rs1/rs1": {
-				schedulerName: "godel-scheduler-0",
+				schedulerName: "eno-scheduler-0",
 				unBoundPods:   sets.NewString("default/p1/p1", "default/p2/p2"),
 			},
 			"ReplicaSet/default/rs2/rs2": {
-				schedulerName: "godel-scheduler-1",
+				schedulerName: "eno-scheduler-1",
 				unBoundPods:   sets.NewString("default/p3/p3"),
 			},
 		},
@@ -259,11 +259,11 @@ func TestOperateOwnerInfo(t *testing.T) {
 	expectedOwnerInfo = &ownerInfo{
 		ownerToUnboundPods: map[string]*ownerPodsInfo{
 			"ReplicaSet/default/rs1/rs1": {
-				schedulerName: "godel-scheduler-0",
+				schedulerName: "eno-scheduler-0",
 				unBoundPods:   sets.NewString("default/p2/p2"),
 			},
 			"ReplicaSet/default/rs2/rs2": {
-				schedulerName: "godel-scheduler-1",
+				schedulerName: "eno-scheduler-1",
 				unBoundPods:   sets.NewString("default/p3/p3"),
 			},
 		},
@@ -279,7 +279,7 @@ func TestOperateOwnerInfo(t *testing.T) {
 	expectedOwnerInfo = &ownerInfo{
 		ownerToUnboundPods: map[string]*ownerPodsInfo{
 			"ReplicaSet/default/rs2/rs2": {
-				schedulerName: "godel-scheduler-1",
+				schedulerName: "eno-scheduler-1",
 				unBoundPods:   sets.NewString("default/p3/p3"),
 			},
 		},
@@ -291,8 +291,8 @@ func TestOperateOwnerInfo(t *testing.T) {
 		t.Errorf("expect to get owner info: %v, but got: %v", expectedOwnerInfo, originOwnerInfo)
 	}
 	gotScheduler := originOwnerInfo.SelectSchedulerAndSetDispatchedUnboundPod(p3)
-	if gotScheduler != "godel-scheduler-1" {
-		t.Errorf("expect to get scheduler: godel-scheduler-1, but got: %s", gotScheduler)
+	if gotScheduler != "eno-scheduler-1" {
+		t.Errorf("expect to get scheduler: eno-scheduler-1, but got: %s", gotScheduler)
 	}
 	gotScheduler = originOwnerInfo.SelectSchedulerAndSetDispatchedUnboundPod(p1)
 	if gotScheduler != "" {
@@ -306,11 +306,11 @@ func TestSetDispatchedUnboundPod(t *testing.T) {
 	p2 := testing_helper.MakePod().Namespace("default").Name("p2").UID("p2").
 		ControllerRef(v1.OwnerReference{Kind: podutil.ReplicaSetKind, Name: "rs1", UID: "rs1"}).Obj()
 	originOwnerInfo := NewOwnerInfo()
-	originOwnerInfo.AddDispatchedUnboundPod(p1, "godel-scheduler-0")
+	originOwnerInfo.AddDispatchedUnboundPod(p1, "eno-scheduler-0")
 	expectedOwnerInfo := &ownerInfo{
 		ownerToUnboundPods: map[string]*ownerPodsInfo{
 			"ReplicaSet/default/rs1/rs1": {
-				schedulerName: "godel-scheduler-0",
+				schedulerName: "eno-scheduler-0",
 				unBoundPods:   sets.NewString("default/p1/p1"),
 			},
 		},
@@ -322,14 +322,14 @@ func TestSetDispatchedUnboundPod(t *testing.T) {
 		t.Errorf("expect to get owner info: %v, but got: %v", expectedOwnerInfo, originOwnerInfo)
 	}
 
-	gotScheduler := originOwnerInfo.SetDispatchedUnboundPod(p2, "godel-scheduler-1")
-	if gotScheduler != "godel-scheduler-0" {
+	gotScheduler := originOwnerInfo.SetDispatchedUnboundPod(p2, "eno-scheduler-1")
+	if gotScheduler != "eno-scheduler-0" {
 		t.Errorf("unexpected scheduler: %s", gotScheduler)
 	}
 	expectedOwnerInfo = &ownerInfo{
 		ownerToUnboundPods: map[string]*ownerPodsInfo{
 			"ReplicaSet/default/rs1/rs1": {
-				schedulerName: "godel-scheduler-0",
+				schedulerName: "eno-scheduler-0",
 				unBoundPods:   sets.NewString("default/p1/p1", "default/p2/p2"),
 			},
 		},
@@ -342,14 +342,14 @@ func TestSetDispatchedUnboundPod(t *testing.T) {
 		t.Errorf("expect to get owner info: %v, but got: %v", expectedOwnerInfo, originOwnerInfo)
 	}
 
-	gotScheduler = originOwnerInfo.SetDispatchedUnboundPod(p2, "godel-scheduler-0")
-	if gotScheduler != "godel-scheduler-0" {
+	gotScheduler = originOwnerInfo.SetDispatchedUnboundPod(p2, "eno-scheduler-0")
+	if gotScheduler != "eno-scheduler-0" {
 		t.Errorf("unexpected scheduler: %s", gotScheduler)
 	}
 	expectedOwnerInfo = &ownerInfo{
 		ownerToUnboundPods: map[string]*ownerPodsInfo{
 			"ReplicaSet/default/rs1/rs1": {
-				schedulerName: "godel-scheduler-0",
+				schedulerName: "eno-scheduler-0",
 				unBoundPods:   sets.NewString("default/p1/p1", "default/p2/p2"),
 			},
 		},

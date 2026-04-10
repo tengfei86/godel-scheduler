@@ -6,5 +6,5 @@ kind: Kustomization
 
 resources:
   - ../../base
-  - godel-services.yaml
+  - eno-services.yaml
   - prometheus-config.yaml

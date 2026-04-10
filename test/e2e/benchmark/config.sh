@@ -9,7 +9,7 @@ _CONFIG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$_CONFIG_DIR/../../.." && pwd)"
 
 # ── kind 集群 ──
-KIND_CLUSTER_NAME="godel-bench"
+KIND_CLUSTER_NAME="eno-bench"
 KIND_CONFIG="${PROJECT_ROOT}/e2e-cluster/kind-config.yml"
 KIND_KUBECONFIG="${HOME}/.kube/kind-${KIND_CLUSTER_NAME}"
 
@@ -39,11 +39,11 @@ PROMETHEUS_QUERY_TIMEOUT="${PROMETHEUS_QUERY_TIMEOUT:-300}"  # 单次查询超�
 PROMETHEUS_MAX_POINTS=11000                                  # 超过此数据点自动放大 step
 
 # ── 镜像 ──
-GODEL_IMAGE="godel-local:latest"
+ENO_IMAGE="eno-local:latest"
 PAUSE_IMAGE="registry.k8s.io/pause:3.9"
 
 # ── 调度器配置 ──
-GODEL_NAMESPACE="godel-system"
+ENO_NAMESPACE="eno-system"
 VOLCANO_NAMESPACE="volcano-system"
 KOORDINATOR_NAMESPACE="koordinator-system"
 
@@ -71,8 +71,8 @@ BENCH_DISPATCHER_LIM_MEM="${BENCH_DISPATCHER_LIM_MEM:-${BENCH_SCHED_LIM_MEM}}"
 
 # ── 组标识 → schedulerName 映射 ──
 declare -A SCHEDULER_NAMES=(
-  [a]="godel-scheduler"
-  [b]="godel-scheduler"
+  [a]="eno-scheduler"
+  [b]="eno-scheduler"
   [c]="default-scheduler"
   [d]="volcano"
   [e]="koord-scheduler"

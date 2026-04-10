@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,4 +17,4 @@ limitations under the License.
 package config
 
 // DefaultSchedulerName defines the default scheduler used by pod
-const DefaultSchedulerName = "godel-scheduler"
+const DefaultSchedulerName = "eno-scheduler"

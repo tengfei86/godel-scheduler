@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -329,7 +329,7 @@ func TestNodeMetricEstimatorEstimatePod(t *testing.T) {
 func makeBasicPod(key string) *v1.Pod {
 	p := testinghelper.MakePod().Name(key).UID(key).
 		Annotation(podutil.PodResourceTypeAnnotationKey, string(podutil.BestEffortPod)).
-		Annotation(podutil.PodStateAnnotationKey, string(podutil.PodAssumed)).Annotation(podutil.SchedulerAnnotationKey, "godel-scheduler").
+		Annotation(podutil.PodStateAnnotationKey, string(podutil.PodAssumed)).Annotation(podutil.SchedulerAnnotationKey, "eno-scheduler").
 		Annotation(podutil.AssumedNodeAnnotationKey, defaultNodeName).Req(map[v1.ResourceName]string{v1.ResourceCPU: "100m", v1.ResourceMemory: "100"}).
 		Obj()
 	return p

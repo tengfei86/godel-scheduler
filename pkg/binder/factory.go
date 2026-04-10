@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -56,12 +56,12 @@ func DefaultQueueSortFunc() framework.LessFunc {
 
 func DefaultUnitQueueSortFunc() framework.UnitLessFunc {
 	// TODO: discuss the AttemptImpactFactorOnPriority in binder, use 1e9 for now.
-	godelUnitSort, err := godelunitqueuesort.New(nil)
+	enoUnitSort, err := godelunitqueuesort.New(nil)
 	if err != nil {
 		klog.ErrorS(err, "Failed to create default queue sorting function")
 		klog.FlushAndExit(klog.ExitFlushTimeout, 1)
 	}
-	return godelUnitSort.(framework.UnitQueueSortPlugin).Less
+	return enoUnitSort.(framework.UnitQueueSortPlugin).Less
 }
 
 func NewBasePlugins(victimsCheckingPlugins []*framework.VictimCheckingPluginCollectionSpec) *apis.BinderPluginCollection {

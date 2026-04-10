@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ import (
 	godelvalidation "github.com/kubewharf/godel-scheduler/pkg/util/validation"
 )
 
-func ValidateGodelDispatcherConfiguration(cc *config.GodelDispatcherConfiguration) field.ErrorList {
+func ValidateEnoDispatcherConfiguration(cc *config.EnoDispatcherConfiguration) field.ErrorList {
 	errs := field.ErrorList{}
 	errs = append(errs, godelvalidation.ValidateClientConnectionConfiguration(&cc.ClientConnection, field.NewPath("clientConnection"))...)
 	errs = append(errs, godelvalidation.ValidateLeaderElectionConfiguration(&cc.LeaderElection, field.NewPath("leaderElection"))...)

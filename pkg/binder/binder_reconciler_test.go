@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -44,10 +44,10 @@ func makeReconcilerPod(name string) *v1.Pod {
 			Namespace: "default",
 			UID:       types.UID("uid-" + name),
 			Annotations: map[string]string{
-				"godel.bytedance.com/pod-state":         "assumed",
-				"godel.bytedance.com/assumed-node":      "node-1",
-				"godel.bytedance.com/pod-resource-type": "guaranteed",
-				"godel.bytedance.com/pod-launcher":      "kubelet",
+				"eno.io/pod-state":         "assumed",
+				"eno.io/assumed-node":      "node-1",
+				"eno.io/pod-resource-type": "guaranteed",
+				"eno.io/pod-launcher":      "kubelet",
 			},
 		},
 	}
@@ -230,8 +230,8 @@ func TestReconciler_ConcurrentAdd(t *testing.T) {
 func TestReconciler_WithRetry_DispatcherFallback(t *testing.T) {
 	// Pod has bind-failure-count = 5 (>= maxLocalRetries=5)
 	pod := makeReconcilerPod("pod-fallback")
-	pod.Annotations["godel.bytedance.com/bind-failure-count"] = "5"
-	pod.Annotations["godel.bytedance.com/selected-scheduler"] = "scheduler-A"
+	pod.Annotations["eno.io/bind-failure-count"] = "5"
+	pod.Annotations["eno.io/selected-scheduler"] = "scheduler-A"
 	client := fake.NewSimpleClientset(pod)
 
 	var patchedState string
@@ -246,7 +246,7 @@ func TestReconciler_WithRetry_DispatcherFallback(t *testing.T) {
 		} else if containsString(patchStr, `"dispatched"`) {
 			patchedState = "dispatched"
 		}
-		if containsString(patchStr, `"godel.bytedance.com/selected-scheduler":null`) {
+		if containsString(patchStr, `"eno.io/selected-scheduler":null`) {
 			patchedSchedulerRemoved = true
 		}
 		return false, nil, nil // let default handler proceed
@@ -276,8 +276,8 @@ func TestReconciler_WithRetry_DispatcherFallback(t *testing.T) {
 func TestReconciler_WithRetry_LocalRetry(t *testing.T) {
 	// Pod has bind-failure-count = 2 (< maxLocalRetries=5) — should return to same scheduler
 	pod := makeReconcilerPod("pod-local-retry")
-	pod.Annotations["godel.bytedance.com/bind-failure-count"] = "2"
-	pod.Annotations["godel.bytedance.com/selected-scheduler"] = "scheduler-A"
+	pod.Annotations["eno.io/bind-failure-count"] = "2"
+	pod.Annotations["eno.io/selected-scheduler"] = "scheduler-A"
 	client := fake.NewSimpleClientset(pod)
 
 	var patchedState string

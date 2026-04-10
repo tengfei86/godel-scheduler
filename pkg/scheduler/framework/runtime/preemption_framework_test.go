@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -194,7 +194,7 @@ func TestRunSearchingPlugins(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := &GodelSchedulerPreemptionFramework{
+			f := &EnoSchedulerPreemptionFramework{
 				victimSearchingPlugins: tt.collections,
 			}
 			preemptionState := framework.NewCycleState()
@@ -250,7 +250,7 @@ func TestRunVictimSearchingPluginCollection(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pluginCollection := framework.NewVictimSearchingPluginCollection(tt.plugins, true, false, false)
-			f := &GodelSchedulerPreemptionFramework{}
+			f := &EnoSchedulerPreemptionFramework{}
 			gotCode, gotMsg := f.runVictimSearchingPluginCollection(pluginCollection, nil, nil, nil, nil, nil)
 			gotStatus := framework.NewStatus(gotCode, gotMsg)
 			if !reflect.DeepEqual(tt.expectedStatus, gotStatus) {

@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,8 +29,8 @@ import (
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// GodelBinderConfiguration configures a godel binder.
-type GodelBinderConfiguration struct {
+// EnoBinderConfiguration configures a eno binder.
+type EnoBinderConfiguration struct {
 	metav1.TypeMeta `json:",inline"`
 
 	// DebuggingConfiguration holds configuration for Debugging related features
@@ -64,13 +64,13 @@ type GodelBinderConfiguration struct {
 	// reserved resources will be released after a period of time.
 	ReservationTimeOutSeconds int64
 
-	Profile *GodelBinderProfile `json:"profile"`
+	Profile *EnoBinderProfile `json:"profile"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// GodelBinderProfile is a scheduling profile.
-type GodelBinderProfile struct {
+// EnoBinderProfile is a scheduling profile.
+type EnoBinderProfile struct {
 	metav1.TypeMeta `json:",inline"`
 
 	Plugins *Plugins `json:"plugins"`
@@ -112,8 +112,8 @@ type Plugin struct {
 }
 
 // DecodeNestedObjects decodes plugin args for known types.
-func (in *GodelBinderConfiguration) DecodeNestedObjects(d runtime.Decoder) error {
-	decodeProfile := func(prof *GodelBinderProfile) error {
+func (in *EnoBinderConfiguration) DecodeNestedObjects(d runtime.Decoder) error {
+	decodeProfile := func(prof *EnoBinderProfile) error {
 		if prof == nil {
 			return nil
 		}
@@ -139,8 +139,8 @@ func (in *GodelBinderConfiguration) DecodeNestedObjects(d runtime.Decoder) error
 }
 
 // EncodeNestedObjects encodes plugin args.
-func (in *GodelBinderConfiguration) EncodeNestedObjects(e runtime.Encoder) error {
-	encodeProfile := func(prof *GodelBinderProfile) error {
+func (in *EnoBinderConfiguration) EncodeNestedObjects(e runtime.Encoder) error {
+	encodeProfile := func(prof *EnoBinderProfile) error {
 		if prof == nil {
 			return nil
 		}

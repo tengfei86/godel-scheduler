@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: res-dp
   annotations:
-    godel.bytedance.com/reservation: "true"
+    eno.io/reservation: "true"
 spec:
   replicas: 3
   selector:
@@ -14,11 +14,11 @@ spec:
       labels:
         name: res-dp
       annotations:
-        godel.bytedance.com/pod-resource-type: guaranteed
-        godel.bytedance.com/pod-launcher: kubelet
+        eno.io/pod-resource-type: guaranteed
+        eno.io/pod-launcher: kubelet
     spec:
       terminationGracePeriodSeconds: 0
-      schedulerName: godel-scheduler
+      schedulerName: eno-scheduler
       containers:
         - name: nginx
           image: nginx:1.14.2

@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,29 +28,29 @@ import (
 var (
 	podE2ELatency = metrics.NewHistogramVec(
 		&metrics.HistogramOpts{
-			Subsystem: "godel",
+			Subsystem: "eno",
 			Name:      "pod_e2e_duration_seconds",
-			Help: "pod e2e latency for pod in Godel Scheduler, in seconds. This duration is calculated from the time " +
-				"the pod is first handled by Godel Scheduler(including dispatcher, scheduler and binder) " +
-				"to the time the pod leaves Godel Scheduler.",
+			Help: "pod e2e latency for pod in Eno Scheduler, in seconds. This duration is calculated from the time " +
+				"the pod is first handled by Eno Scheduler(including dispatcher, scheduler and binder) " +
+				"to the time the pod leaves Eno Scheduler.",
 			Buckets:        metrics.ExponentialBuckets(0.001, 2, 20),
 			StabilityLevel: metrics.ALPHA,
 		}, []string{pkgmetrics.QosLabel, pkgmetrics.SubClusterLabel, pkgmetrics.PriorityLabel})
 
 	podE2ELatencyQuantile = metrics.NewSummaryVec(
 		&metrics.SummaryOpts{
-			Subsystem: "godel",
+			Subsystem: "eno",
 			Name:      "pod_e2e_duration_quantile",
-			Help: "pod e2e latency quantiles for pod in Godel Scheduler. The quantile is calculated from the time " +
-				"the pod is first handled by Godel Scheduler(including dispatcher, scheduler and binder) " +
-				"to the time the pod leaves Godel Scheduler.",
+			Help: "pod e2e latency quantiles for pod in Eno Scheduler. The quantile is calculated from the time " +
+				"the pod is first handled by Eno Scheduler(including dispatcher, scheduler and binder) " +
+				"to the time the pod leaves Eno Scheduler.",
 			Objectives:     map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.95: 0.001, 0.99: 0.001},
 			StabilityLevel: metrics.ALPHA,
 		}, []string{pkgmetrics.QosLabel, pkgmetrics.SubClusterLabel, pkgmetrics.PriorityLabel})
 
 	podGroupE2ELatency = metrics.NewHistogramVec(
 		&metrics.HistogramOpts{
-			Subsystem:      "godel",
+			Subsystem:      "eno",
 			Name:           "podgroup_e2e_duration_seconds",
 			Help:           "E2e scheduling latency for podgroups in seconds, which is the time from the prescheduling state to the scheduled state",
 			Buckets:        metrics.ExponentialBuckets(0.001, 2, 20),
@@ -93,7 +93,7 @@ func observePodE2ELatency(podProperty *api.PodProperty, duration float64) {
 	podE2ELatencyQuantileObserve(labels, priority, duration)
 }
 
-func ObservePodGodelE2E(podInfo *api.QueuedPodInfo) {
+func ObservePodEnoE2E(podInfo *api.QueuedPodInfo) {
 	if podInfo.Pod == nil || len(podInfo.Pod.Annotations) == 0 {
 		return
 	}

@@ -65,16 +65,16 @@ bash "${SCRIPT_DIR}/cluster/deploy-etcd-events.sh" "${KIND_CLUSTER_NAME}"
 
 # ── Step 6: 构建 Gödel 镜像并加载到 kind ──
 log_step "Step 6/8: 构建 Gödel 镜像"
-if [[ "$REBUILD_IMAGE" == true ]] || ! docker image inspect "${GODEL_IMAGE}" &>/dev/null; then
+if [[ "$REBUILD_IMAGE" == true ]] || ! docker image inspect "${ENO_IMAGE}" &>/dev/null; then
   log_info "编译 Gödel (linux/amd64)..."
   (cd "${PROJECT_ROOT}" && GO_BUILD_PLATFORMS=linux/amd64 make build)
-  log_info "构建 Docker 镜像 ${GODEL_IMAGE}..."
-  docker build --no-cache -f "${PROJECT_ROOT}/docker/godel-local.Dockerfile" -t "${GODEL_IMAGE}" "${PROJECT_ROOT}"
+  log_info "构建 Docker 镜像 ${ENO_IMAGE}..."
+  docker build --no-cache -f "${PROJECT_ROOT}/docker/eno-local.Dockerfile" -t "${ENO_IMAGE}" "${PROJECT_ROOT}"
   log_info "✓ 镜像构建完成"
 else
-  log_info "镜像 ${GODEL_IMAGE} 已存在，跳过构建（使用 --rebuild-image 强制重建）"
+  log_info "镜像 ${ENO_IMAGE} 已存在，跳过构建（使用 --rebuild-image 强制重建）"
 fi
-ensure_image_loaded "${GODEL_IMAGE}"
+ensure_image_loaded "${ENO_IMAGE}"
 
 # ── Step 7: 提示 Prometheus 安装方式 ──
 log_step "Step 7/8: Prometheus 说明"

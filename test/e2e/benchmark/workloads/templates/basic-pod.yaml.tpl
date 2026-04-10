@@ -4,9 +4,9 @@ metadata:
   name: bench-pod-${INDEX}
   namespace: ${NAMESPACE}
   annotations:
-    godel.bytedance.com/pod-state: pending
-    godel.bytedance.com/pod-resource-type: guaranteed
-    godel.bytedance.com/pod-launcher: kubelet
+    eno.io/pod-state: pending
+    eno.io/pod-resource-type: guaranteed
+    eno.io/pod-launcher: kubelet
 spec:
   schedulerName: ${SCHEDULER_NAME}
   terminationGracePeriodSeconds: 0

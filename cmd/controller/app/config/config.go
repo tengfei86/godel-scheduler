@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Godel Scheduler Authors.
+Copyright 2024 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import (
 
 // Config is the main context object for the controller manager.
 type Config struct {
-	ComponentConfig *controllermanagerconfig.GodelControllerManagerConfiguration
+	ComponentConfig *controllermanagerconfig.EnoControllerManagerConfiguration
 
 	SecureServing   *apiserver.SecureServingInfo
 	InsecureServing *apiserver.DeprecatedInsecureServingInfo // nil will disable serving on an insecure port
@@ -41,7 +41,7 @@ type Config struct {
 
 	// the general kube client
 	Client      *clientset.Clientset
-	GodelClient *godelclient.Clientset
+	EnoClient *godelclient.Clientset
 
 	// the rest config for the master
 	Kubeconfig    *restclient.Config

@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -34,14 +34,14 @@ import (
 
 type Config struct {
 	// config is the scheduler server's configuration object.
-	ComponentConfig config.GodelSchedulerConfiguration
+	ComponentConfig config.EnoSchedulerConfiguration
 
 	Client          clientset.Interface
 	InformerFactory informers.SharedInformerFactory
 
-	// godel crd client & informer
-	GodelCrdClient          godelclient.Interface
-	GodelCrdInformerFactory crdinformers.SharedInformerFactory
+	// eno crd client & informer
+	EnoCrdClient          godelclient.Interface
+	EnoCrdInformerFactory crdinformers.SharedInformerFactory
 
 	KatalystCrdClient          katalystclient.Interface
 	KatalystCrdInformerFactory katalystinformers.SharedInformerFactory

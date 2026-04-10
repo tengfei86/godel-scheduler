@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ const (
 	// owner: @zhangrenyu
 	// alpha: for now
 	//
-	// Allows to scrape metrics from godel scheduler cache.
+	// Allows to scrape metrics from eno scheduler cache.
 	SchedulerCacheScrape featuregate.Feature = "SchedulerCacheScrape"
 
 	// owner: @songxinyi.echo
@@ -82,7 +82,7 @@ const (
 	// owner: @liuzhilei
 	// alpha: for now
 	//
-	// Allows to trigger resource reservation in Godel.
+	// Allows to trigger resource reservation in Eno.
 	ResourceReservation featuregate.Feature = "ResourceReservation"
 )
 

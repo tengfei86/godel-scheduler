@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	DefaultGodelPackage    = "github.com/kubewharf/scheduler"
+	DefaultEnoPackage      = "github.com/kubewharf/scheduler"
 	DefaultCAdvisorPackage = "github.com/google/cadvisor"
 )
 
@@ -36,7 +36,7 @@ func GetK8sRootDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, fmt.Sprintf("%s/", DefaultGodelPackage)), nil
+	return filepath.Join(dir, fmt.Sprintf("%s/", DefaultEnoPackage)), nil
 }
 
 // GetCAdvisorRootDir returns the root directory for cAdvisor, if present in the gopath.
@@ -55,8 +55,8 @@ func RootDir() (string, error) {
 	path := filepath.Dir(testExec)
 
 	// Look for the kubernetes source root directory
-	if strings.Contains(path, DefaultGodelPackage) {
-		splitPath := strings.Split(path, DefaultGodelPackage)
+	if strings.Contains(path, DefaultEnoPackage) {
+		splitPath := strings.Split(path, DefaultEnoPackage)
 		return splitPath[0], nil
 	}
 

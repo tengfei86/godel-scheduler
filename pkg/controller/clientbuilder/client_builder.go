@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Godel Scheduler Authors.
+Copyright 2024 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -106,38 +106,38 @@ func (b SimpleControllerClientBuilder) DiscoveryClientOrDie(name string) discove
 	return client
 }
 
-type GodelClientBuilder interface {
+type EnoClientBuilder interface {
 	Config(name string) (*restclient.Config, error)
 	ConfigOrDie(name string) *restclient.Config
 	Client(name string) (godelclient.Interface, error)
 	ClientOrDie(name string) godelclient.Interface
 }
 
-// SimpleGodelClientBuilder returns a fixed client with different user agents
-type SimpleGodelClientBuilder struct {
+// SimpleEnoClientBuilder returns a fixed client with different user agents
+type SimpleEnoClientBuilder struct {
 	// ClientConfig is a skeleton config to clone and use as the basis for each controller client
 	ClientConfig *restclient.Config
 }
 
 // Config returns a client config for a fixed client
-func (b SimpleGodelClientBuilder) Config(name string) (*restclient.Config, error) {
+func (b SimpleEnoClientBuilder) Config(name string) (*restclient.Config, error) {
 	clientConfig := *b.ClientConfig
 	return restclient.AddUserAgent(&clientConfig, name), nil
 }
 
 // ConfigOrDie returns a client config if no error from previous config func.
 // If it gets an error getting the client, it will log the error and kill the process it's running in.
-func (b SimpleGodelClientBuilder) ConfigOrDie(name string) *restclient.Config {
+func (b SimpleEnoClientBuilder) ConfigOrDie(name string) *restclient.Config {
 	clientConfig, err := b.Config(name)
 	if err != nil {
-		klog.ErrorS(err, "failed to build godel rest client.")
+		klog.ErrorS(err, "failed to build eno rest client.")
 		klog.FlushAndExit(klog.ExitFlushTimeout, 1)
 	}
 	return clientConfig
 }
 
 // Client returns a clientset.Interface built from the ClientBuilder
-func (b SimpleGodelClientBuilder) Client(name string) (godelclient.Interface, error) {
+func (b SimpleEnoClientBuilder) Client(name string) (godelclient.Interface, error) {
 	clientConfig, err := b.Config(name)
 	if err != nil {
 		return nil, err
@@ -147,10 +147,10 @@ func (b SimpleGodelClientBuilder) Client(name string) (godelclient.Interface, er
 
 // ClientOrDie returns a clientset.interface built from the ClientBuilder with no error.
 // If it gets an error getting the client, it will log the error and kill the process it's running in.
-func (b SimpleGodelClientBuilder) ClientOrDie(name string) godelclient.Interface {
+func (b SimpleEnoClientBuilder) ClientOrDie(name string) godelclient.Interface {
 	client, err := b.Client(name)
 	if err != nil {
-		klog.ErrorS(err, "failed to build godel client.")
+		klog.ErrorS(err, "failed to build eno client.")
 		klog.FlushAndExit(klog.ExitFlushTimeout, 1)
 	}
 	return client

@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -165,8 +165,8 @@ var (
 	testPreemptionPluginConfigs = []schedulerconfig.PluginConfig{}
 )
 
-func getSubClusterProfile(compomentConfig schedulerconfig.GodelSchedulerConfiguration, subCluster string) *schedulerconfig.GodelSchedulerProfile {
-	var ret *schedulerconfig.GodelSchedulerProfile
+func getSubClusterProfile(compomentConfig schedulerconfig.EnoSchedulerConfiguration, subCluster string) *schedulerconfig.EnoSchedulerProfile {
+	var ret *schedulerconfig.EnoSchedulerProfile
 	for i, p := range compomentConfig.SubClusterProfiles {
 		if p.SubClusterName == subCluster {
 			if ret == nil {
@@ -486,7 +486,7 @@ func TestLoadAndRenderFileV1beta1PreemptionDefault(t *testing.T) {
 	defaultProfile := newDefaultSubClusterConfig(cfg.ComponentConfig.DefaultProfile)
 	// DefaultProfile
 	{
-		expectedProfile := &schedulerconfig.GodelSchedulerProfile{
+		expectedProfile := &schedulerconfig.EnoSchedulerProfile{
 			CandidatesSelectPolicy: utilpointer.String(schedulerconfig.CandidateSelectPolicyRandom),
 			BetterSelectPolicies: &schedulerconfig.StringSlice{
 				schedulerconfig.BetterPreemptionPolicyAscending,
@@ -504,7 +504,7 @@ func TestLoadAndRenderFileV1beta1PreemptionDefault(t *testing.T) {
 
 	// SubClusterProfiles: subCluster 1
 	{
-		expectedProfile := &schedulerconfig.GodelSchedulerProfile{
+		expectedProfile := &schedulerconfig.EnoSchedulerProfile{
 			CandidatesSelectPolicy: utilpointer.String(schedulerconfig.CandidateSelectPolicyRandom),
 			BetterSelectPolicies: &schedulerconfig.StringSlice{
 				schedulerconfig.BetterPreemptionPolicyAscending,
@@ -523,7 +523,7 @@ func TestLoadAndRenderFileV1beta1PreemptionDefault(t *testing.T) {
 
 	// SubClusterProfiles: subCluster 2
 	{
-		expectedProfile := &schedulerconfig.GodelSchedulerProfile{
+		expectedProfile := &schedulerconfig.EnoSchedulerProfile{
 			CandidatesSelectPolicy: utilpointer.String(schedulerconfig.CandidateSelectPolicyBetter),
 			BetterSelectPolicies: &schedulerconfig.StringSlice{
 				schedulerconfig.BetterPreemptionPolicyDichotomy,
@@ -564,7 +564,7 @@ func TestLoadAndRenderFileV1beta1PreemptionProfileConfig(t *testing.T) {
 	defaultProfile := newDefaultSubClusterConfig(cfg.ComponentConfig.DefaultProfile)
 	// DefaultProfile
 	{
-		expectedProfile := &schedulerconfig.GodelSchedulerProfile{
+		expectedProfile := &schedulerconfig.EnoSchedulerProfile{
 			CandidatesSelectPolicy: utilpointer.String(schedulerconfig.CandidateSelectPolicyRandom),
 			BetterSelectPolicies: &schedulerconfig.StringSlice{
 				schedulerconfig.BetterPreemptionPolicyDichotomy,
@@ -582,7 +582,7 @@ func TestLoadAndRenderFileV1beta1PreemptionProfileConfig(t *testing.T) {
 
 	// SubClusterProfiles: subCluster 1
 	{
-		expectedProfile := &schedulerconfig.GodelSchedulerProfile{
+		expectedProfile := &schedulerconfig.EnoSchedulerProfile{
 			CandidatesSelectPolicy: utilpointer.String(schedulerconfig.CandidateSelectPolicyBest),
 			BetterSelectPolicies: &schedulerconfig.StringSlice{
 				schedulerconfig.BetterPreemptionPolicyAscending,
@@ -601,7 +601,7 @@ func TestLoadAndRenderFileV1beta1PreemptionProfileConfig(t *testing.T) {
 
 	// SubClusterProfiles: subCluster 2
 	{
-		expectedProfile := &schedulerconfig.GodelSchedulerProfile{
+		expectedProfile := &schedulerconfig.EnoSchedulerProfile{
 			CandidatesSelectPolicy: utilpointer.String(schedulerconfig.CandidateSelectPolicyRandom),
 			BetterSelectPolicies: &schedulerconfig.StringSlice{
 				schedulerconfig.BetterPreemptionPolicyDichotomy,

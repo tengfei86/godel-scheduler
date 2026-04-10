@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Godel Scheduler Authors.
+Copyright 2024 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -30,24 +30,24 @@ import (
 )
 
 const (
-	GodelControllerManagerSecurePort   = 10659
-	GodelControllerManagerInSecurePort = 10651
+	EnoControllerManagerSecurePort   = 10659
+	EnoControllerManagerInSecurePort = 10651
 	// DefaultClientConnectionQPS is default scheduler qps
 	DefaultClientConnectionQPS = 10000.0
 	// DefaultClientConnectionBurst is default scheduler burst
 	DefaultClientConnectionBurst = 10000
-	// DefaultGodelControllerManagerAddress is the default address for the scheduler status server.
+	// DefaultEnoControllerManagerAddress is the default address for the scheduler status server.
 	// May be overridden by a flag at startup.
-	DefaultGodelControllerManagerAddress = "0.0.0.0"
+	DefaultEnoControllerManagerAddress = "0.0.0.0"
 )
 
-var DefaultBindAddress = net.JoinHostPort(DefaultGodelControllerManagerAddress, strconv.Itoa(GodelControllerManagerInSecurePort))
+var DefaultBindAddress = net.JoinHostPort(DefaultEnoControllerManagerAddress, strconv.Itoa(EnoControllerManagerInSecurePort))
 
 func addDefaultingFuncs(scheme *runtime.Scheme) error {
 	return RegisterDefaults(scheme)
 }
 
-func SetDefaults_GodelControllerManagerConfiguration(obj *GodelControllerManagerConfiguration) {
+func SetDefaults_EnoControllerManagerConfiguration(obj *EnoControllerManagerConfiguration) {
 	if obj.Generic == nil {
 		obj.Generic = &GenericControllerManagerConfiguration{}
 	}
@@ -72,7 +72,7 @@ func SetDefaults_GodelControllerManagerConfiguration(obj *GodelControllerManager
 		} else {
 			if host, port, err := net.SplitHostPort(obj.HealthzBindAddress); err == nil {
 				if len(host) == 0 {
-					host = DefaultGodelControllerManagerAddress
+					host = DefaultEnoControllerManagerAddress
 				}
 				hostPort := net.JoinHostPort(host, port)
 				obj.HealthzBindAddress = hostPort
@@ -80,7 +80,7 @@ func SetDefaults_GodelControllerManagerConfiguration(obj *GodelControllerManager
 				// Something went wrong splitting the host/port, could just be a missing port so check if the
 				// existing value is a valid IP address. If so, use that with the default scheduler port
 				if host := net.ParseIP(obj.HealthzBindAddress); host != nil {
-					hostPort := net.JoinHostPort(obj.HealthzBindAddress, strconv.Itoa(GodelControllerManagerInSecurePort))
+					hostPort := net.JoinHostPort(obj.HealthzBindAddress, strconv.Itoa(EnoControllerManagerInSecurePort))
 					obj.HealthzBindAddress = hostPort
 				} else {
 					// TODO: in godelschedulerconfig we should let this error instead of stomping with a default value
@@ -94,7 +94,7 @@ func SetDefaults_GodelControllerManagerConfiguration(obj *GodelControllerManager
 		} else {
 			if host, port, err := net.SplitHostPort(obj.MetricsBindAddress); err == nil {
 				if len(host) == 0 {
-					host = DefaultGodelControllerManagerAddress
+					host = DefaultEnoControllerManagerAddress
 				}
 				hostPort := net.JoinHostPort(host, port)
 				obj.MetricsBindAddress = hostPort
@@ -102,7 +102,7 @@ func SetDefaults_GodelControllerManagerConfiguration(obj *GodelControllerManager
 				// Something went wrong splitting the host/port, could just be a missing port so check if the
 				// existing value is a valid IP address. If so, use that with the default scheduler port
 				if host := net.ParseIP(obj.MetricsBindAddress); host != nil {
-					hostPort := net.JoinHostPort(obj.MetricsBindAddress, strconv.Itoa(GodelControllerManagerInSecurePort))
+					hostPort := net.JoinHostPort(obj.MetricsBindAddress, strconv.Itoa(EnoControllerManagerInSecurePort))
 					obj.MetricsBindAddress = hostPort
 				} else {
 					// TODO: in godelschedulerconfig we should let this error instead of stomping with a default value

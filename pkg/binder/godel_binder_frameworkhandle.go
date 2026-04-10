@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ type frameworkHandleImpl struct {
 	binderCache        godelcache.BinderCache
 
 	// VolumeBinder handles PVC/PV binding for the pod.
-	volumeBinder scheduling.GodelVolumeBinder
+	volumeBinder scheduling.EnoVolumeBinder
 
 	// basePlugins is the collection of all plugins supposed to run when a pod is scheduled
 	basePlugins *apis.BinderPluginCollection
@@ -82,16 +82,16 @@ func NewFrameworkHandle(
 
 	pluginMaps, err := binderframework.NewPluginsRegistry(binderframework.NewInTreeRegistry(), options.pluginConfigs, h)
 	if err != nil {
-		klog.ErrorS(err, "Failed to initialize GodelBinder")
+		klog.ErrorS(err, "Failed to initialize EnoBinder")
 		klog.FlushAndExit(klog.ExitFlushTimeout, 1)
 	}
 	if pluginMaps == nil {
-		klog.ErrorS(nil, "Failed to initialize GodelBinder as plugins registry is not defined")
+		klog.ErrorS(nil, "Failed to initialize EnoBinder as plugins registry is not defined")
 		klog.FlushAndExit(klog.ExitFlushTimeout, 1)
 	}
 	preemptionPluginsMaps, err := binderframework.NewPluginsRegistry(binderframework.NewInTreePreemptionRegistry(), options.preemptionPluginConfigs, h)
 	if err != nil {
-		klog.ErrorS(err, "Failed to initialize GodelBinder")
+		klog.ErrorS(err, "Failed to initialize EnoBinder")
 		klog.FlushAndExit(klog.ExitFlushTimeout, 1)
 	}
 
@@ -124,7 +124,7 @@ func (h *frameworkHandleImpl) CRDSharedInformerFactory() crdinformers.SharedInfo
 	return h.crdInformerFactory
 }
 
-func (h *frameworkHandleImpl) VolumeBinder() scheduling.GodelVolumeBinder {
+func (h *frameworkHandleImpl) VolumeBinder() scheduling.EnoVolumeBinder {
 	return h.volumeBinder
 }
 

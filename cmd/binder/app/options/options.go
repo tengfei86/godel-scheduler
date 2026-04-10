@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ import (
 const DefaultLeaderElectionName = "binder"
 
 type Options struct {
-	BinderConfig binderconfig.GodelBinderConfiguration
+	BinderConfig binderconfig.EnoBinderConfiguration
 
 	// ConfigFile is the location of the scheduler server's configuration file.
 	ConfigFile string
@@ -106,10 +106,10 @@ func splitHostIntPort(s string) (string, int, error) {
 	return host, portInt, err
 }
 
-func newDefaultBinderConfig() *binderconfig.GodelBinderConfiguration {
-	cfg := binderconfig.GodelBinderConfiguration{}
+func newDefaultBinderConfig() *binderconfig.EnoBinderConfiguration {
+	cfg := binderconfig.EnoBinderConfiguration{}
 
-	binderconfig.SetDefaults_GodelBinderConfiguration(&cfg)
+	binderconfig.SetDefaults_EnoBinderConfiguration(&cfg)
 	return &cfg
 }
 
@@ -149,7 +149,7 @@ func (o *Options) ApplyTo(c *binderappconfig.Config) error {
 			return err
 		}
 
-		if err := validation.ValidateGodelBinderConfiguration(cfg).ToAggregate(); err != nil {
+		if err := validation.ValidateEnoBinderConfiguration(cfg).ToAggregate(); err != nil {
 			return err
 		}
 
@@ -197,7 +197,7 @@ func (o *Options) ApplyTo(c *binderappconfig.Config) error {
 		// 3. DebuggingConfiguration
 		// do nothing
 
-		// 4. Godel Binder
+		// 4. Eno Binder
 		{
 			// use the loaded config file if options are not set to default
 			if *o.BinderConfig.SchedulerName != binderconfig.DefaultSchedulerName {
@@ -216,14 +216,14 @@ func (o *Options) ApplyTo(c *binderappconfig.Config) error {
 				toUse.ReservationTimeOutSeconds = o.BinderConfig.ReservationTimeOutSeconds
 			}
 		}
-		// 5. Godel Profiles (Default)
+		// 5. Eno Profiles (Default)
 		// nothing to overwrite in this version.
 
 		c.BinderConfig = *toUse
 
 		// check listen port and override is not default
 		if o.CombinedInsecureServing.BindPort != binderconfig.DefaultInsecureBinderPort ||
-			o.CombinedInsecureServing.BindAddress != binderconfig.DefaultGodelBinderAddress {
+			o.CombinedInsecureServing.BindAddress != binderconfig.DefaultEnoBinderAddress {
 			if err := o.CombinedInsecureServing.ApplyTo(c, &c.BinderConfig); err != nil {
 				return err
 			}
@@ -238,7 +238,7 @@ func (o *Options) ApplyTo(c *binderappconfig.Config) error {
 // Validate validates all the required options.
 func (o *Options) Validate() []error {
 	var errs []error
-	if err := validation.ValidateGodelBinderConfiguration(&o.BinderConfig).ToAggregate(); err != nil {
+	if err := validation.ValidateEnoBinderConfiguration(&o.BinderConfig).ToAggregate(); err != nil {
 		errs = append(errs, err.Errors()...)
 	}
 	return errs
@@ -252,7 +252,7 @@ func (o *Options) Config() (*binderappconfig.Config, error) {
 	}
 
 	// Prepare kube clients.
-	client, leaderElectionClient, eventClient, godelCrdClient, katalystCrdClient, err := createClients(c.BinderConfig.ClientConnection, o.Master, c.BinderConfig.LeaderElection.RenewDeadline.Duration)
+	client, leaderElectionClient, eventClient, enoCrdClient, katalystCrdClient, err := createClients(c.BinderConfig.ClientConnection, o.Master, c.BinderConfig.LeaderElection.RenewDeadline.Duration)
 	if err != nil {
 		return nil, err
 	}
@@ -273,8 +273,8 @@ func (o *Options) Config() (*binderappconfig.Config, error) {
 	c.Client = client
 
 	c.InformerFactory = cmdutil.NewInformerFactory(client, 0)
-	c.GodelCrdClient = godelCrdClient
-	c.GodelCrdInformerFactory = crdinformers.NewSharedInformerFactory(c.GodelCrdClient, 0)
+	c.EnoCrdClient = enoCrdClient
+	c.EnoCrdInformerFactory = crdinformers.NewSharedInformerFactory(c.EnoCrdClient, 0)
 
 	c.KatalystCrdClient = katalystCrdClient
 	c.KatalystCrdInformerFactory = katalystinformers.NewSharedInformerFactory(c.KatalystCrdClient, 0)
@@ -370,7 +370,7 @@ func createClients(config componentbaseconfig.ClientConnectionConfiguration, mas
 	// TODO make config struct use int instead of int32?
 	crdKubeConfig.Burst = int(config.Burst)
 
-	godelCrdClient, err := godelclient.NewForConfig(restclient.AddUserAgent(crdKubeConfig, "binder"))
+	enoCrdClient, err := godelclient.NewForConfig(restclient.AddUserAgent(crdKubeConfig, "binder"))
 	if err != nil {
 		return nil, nil, nil, nil, nil, err
 	}
@@ -380,5 +380,5 @@ func createClients(config componentbaseconfig.ClientConnectionConfiguration, mas
 		return nil, nil, nil, nil, nil, err
 	}
 
-	return client, leaderElectionClient, eventClient, godelCrdClient, katalystCrdClient, nil
+	return client, leaderElectionClient, eventClient, enoCrdClient, katalystCrdClient, nil
 }

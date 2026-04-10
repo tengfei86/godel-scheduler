@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ import (
 )
 
 func TestSyncMovement(t *testing.T) {
-	godelSchedulerName := "godel-scheduler-0"
+	enoSchedulerName := "eno-scheduler-0"
 
 	tests := []struct {
 		name             string
@@ -105,7 +105,7 @@ func TestSyncMovement(t *testing.T) {
 							},
 						},
 					},
-					NotifiedSchedulers: []string{godelSchedulerName},
+					NotifiedSchedulers: []string{enoSchedulerName},
 				},
 			},
 		},
@@ -135,7 +135,7 @@ func TestSyncMovement(t *testing.T) {
 				movementQueue,
 				stopCh,
 				movementInformer.Lister(),
-				godelSchedulerName,
+				enoSchedulerName,
 				crdClient,
 			}
 			mq.syncMovement(tt.movementName)
@@ -160,7 +160,7 @@ func TestSyncMovement(t *testing.T) {
 }
 
 func TestProcessNextMovement(t *testing.T) {
-	godelSchedulerName := "godel-scheduler-0"
+	enoSchedulerName := "eno-scheduler-0"
 
 	tests := []struct {
 		name             string
@@ -219,7 +219,7 @@ func TestProcessNextMovement(t *testing.T) {
 			movementQueue,
 			stopCh,
 			movementInformer.Lister(),
-			godelSchedulerName,
+			enoSchedulerName,
 			crdClient,
 		}
 		defer mq.Close()

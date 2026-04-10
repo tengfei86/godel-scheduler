@@ -27,7 +27,7 @@
 #   - 存储: ≥ 500 GB NVMe SSD
 #
 # 测试完成后的下一步:
-#   1. git clone <repo> && cd tong-godel
+#   1. git clone <repo> && cd tong-eno
 #   2. cd test/e2e/benchmark
 #   3. bash setup-cluster.sh --rebuild-image s2
 #   4. bash schedulers/deploy-group-b.sh
@@ -231,7 +231,7 @@ log_info "✓ Python 数据分析包安装完成"
 log_step "Step 8/8: 系统内核参数调优"
 
 # sysctl 调优
-SYSCTL_CONF="/etc/sysctl.d/99-godel-bench.conf"
+SYSCTL_CONF="/etc/sysctl.d/99-eno-bench.conf"
 cat > "$SYSCTL_CONF" <<'EOF'
 # inotify — kind 多节点需要大量 watch
 fs.inotify.max_user_watches = 1048576
@@ -255,7 +255,7 @@ EOF
 sysctl --system > /dev/null 2>&1
 
 # ulimits
-LIMITS_CONF="/etc/security/limits.d/99-godel-bench.conf"
+LIMITS_CONF="/etc/security/limits.d/99-eno-bench.conf"
 cat > "$LIMITS_CONF" <<'EOF'
 *  soft  nofile  1048576
 *  hard  nofile  1048576
@@ -269,7 +269,7 @@ log_info "✓ 系统参数调优完成"
 # 可选: 克隆仓库
 # ═══════════════════════════════════════════════
 if [[ -n "$GIT_REPO" ]]; then
-  CLONE_DIR="/root/tong-godel"
+  CLONE_DIR="/root/tong-eno"
   if [[ -d "$CLONE_DIR" ]]; then
     log_info "仓库已存在: $CLONE_DIR"
   else
@@ -301,7 +301,7 @@ echo "  Helm repos: volcano-sh, koordinator-sh"
 echo ""
 echo "  下一步操作:"
 echo "    1. 上传或克隆项目代码"
-echo "    2. cd tong-godel/test/e2e/benchmark"
+echo "    2. cd tong-eno/test/e2e/benchmark"
 echo "    3. bash setup-cluster.sh --rebuild-image s2"
 echo "    4. bash schedulers/deploy-group-a.sh   # 或 b/c/d/e"
 echo "    5. bash run-experiment.sh a s2 w1 1"

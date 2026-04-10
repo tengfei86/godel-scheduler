@@ -5,12 +5,12 @@ metadata:
   labels:
     name: nginx
     # Pods must have this label set
-    godel.bytedance.com/pod-group-name: "test-podgroup"
+    eno.io/pod-group-name: "test-podgroup"
   annotations:
     # Pods must have this annotation set
-    godel.bytedance.com/pod-group-name: "test-podgroup"
+    eno.io/pod-group-name: "test-podgroup"
 spec:
-  schedulerName: godel-scheduler
+  schedulerName: eno-scheduler
   containers:
   - name: test
     image: nginx

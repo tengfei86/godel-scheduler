@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -65,7 +65,7 @@ func (dpp *DispatchedPodsPopulator) collectDispatchedPodsInInactiveSchedulers() 
 	}
 
 	for _, pod := range pods {
-		if podutil.DispatchedPodOfGodel(pod, dpp.schedulerName) {
+		if podutil.DispatchedPodOfEno(pod, dpp.schedulerName) {
 			schedulerName := pod.Annotations[podutil.SchedulerAnnotationKey]
 			if dpp.schedulerMaintainer.IsSchedulerInInactiveQueue(schedulerName) || !dpp.schedulerMaintainer.SchedulerExist(schedulerName) {
 				if podKey, err := cache.MetaNamespaceKeyFunc(pod); err != nil {

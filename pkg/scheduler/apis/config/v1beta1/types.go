@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,8 +29,8 @@ import (
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// GodelSchedulerConfiguration configures a scheduler
-type GodelSchedulerConfiguration struct {
+// EnoSchedulerConfiguration configures a scheduler
+type EnoSchedulerConfiguration struct {
 	metav1.TypeMeta `json:",inline"`
 
 	// LeaderElection defines the configuration of leader election client.
@@ -53,10 +53,10 @@ type GodelSchedulerConfiguration struct {
 	// TODO: We might wanna make this a substruct like Debugging componentbaseconfig.DebuggingConfiguration
 	componentbaseconfig.DebuggingConfiguration `json:",inline"`
 
-	// GodelSchedulerName is the name of the scheduler, scheduler will register scheduler crd with
+	// EnoSchedulerName is the name of the scheduler, scheduler will register scheduler crd with
 	// this name, then dispatcher will choose one scheduler and use this scheduler's name to set the
 	// selected-scheduler annotation on pod.
-	GodelSchedulerName string `json:"godelSchedulerName,omitempty"`
+	EnoSchedulerName string `json:"enoSchedulerName,omitempty"`
 	// SchedulerName specifies a scheduling system, scheduling components(dispatcher,
 	// scheduler, binder) will not accept a pod, unless pod.Spec.SchedulerName == SchedulerName
 	SchedulerName *string `json:"schedulerName,omitempty"`
@@ -72,13 +72,13 @@ type GodelSchedulerConfiguration struct {
 	// choose to be scheduled under a particular profile by setting its associated
 	// scheduler name. Pods that don't specify any scheduler name are scheduled
 	// with the "default-scheduler" profile, if present here.
-	DefaultProfile     *GodelSchedulerProfile  `json:"defaultProfile,omitempty"`
-	SubClusterProfiles []GodelSchedulerProfile `json:"subClusterProfiles,omitempty"`
+	DefaultProfile     *EnoSchedulerProfile  `json:"defaultProfile,omitempty"`
+	SubClusterProfiles []EnoSchedulerProfile `json:"subClusterProfiles,omitempty"`
 }
 
 // DecodeNestedObjects decodes plugin args for known types.
-func (in *GodelSchedulerConfiguration) DecodeNestedObjects(d runtime.Decoder) error {
-	decodeProfile := func(prof *GodelSchedulerProfile) error {
+func (in *EnoSchedulerConfiguration) DecodeNestedObjects(d runtime.Decoder) error {
+	decodeProfile := func(prof *EnoSchedulerProfile) error {
 		if prof == nil {
 			return nil
 		}
@@ -109,8 +109,8 @@ func (in *GodelSchedulerConfiguration) DecodeNestedObjects(d runtime.Decoder) er
 }
 
 // EncodeNestedObjects encodes plugin args.
-func (in *GodelSchedulerConfiguration) EncodeNestedObjects(e runtime.Encoder) error {
-	encodeProfile := func(prof *GodelSchedulerProfile) error {
+func (in *EnoSchedulerConfiguration) EncodeNestedObjects(e runtime.Encoder) error {
+	encodeProfile := func(prof *EnoSchedulerProfile) error {
 		if prof == nil {
 			return nil
 		}
@@ -140,8 +140,8 @@ func (in *GodelSchedulerConfiguration) EncodeNestedObjects(e runtime.Encoder) er
 	return nil
 }
 
-// GodelSchedulerProfile is a scheduling profile.
-type GodelSchedulerProfile struct {
+// EnoSchedulerProfile is a scheduling profile.
+type EnoSchedulerProfile struct {
 	// ProfileKey associates the profile to a subcluster if it is not nil.
 	SubClusterName string `json:"subClusterName,omitempty"`
 
@@ -161,7 +161,7 @@ type GodelSchedulerProfile struct {
 	// for that preemption plugin.
 	PreemptionPluginConfigs []config.PluginConfig `json:"preemptionPluginConfigs,omitempty"`
 
-	// TODO: reserve temporarily(godel).
+	// TODO: reserve temporarily(eno).
 	// PercentageOfNodesToScore is the percentage of all nodes that once found feasible
 	// for running a pod, the scheduler stops its search for more feasible nodes in
 	// the cluster. This helps improve scheduler's performance. Scheduler always tries to find

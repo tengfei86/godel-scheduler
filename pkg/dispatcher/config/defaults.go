@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	DefaultSchedulerName               = "godel-scheduler"
+	DefaultSchedulerName               = "eno-scheduler"
 	DefaultClientConnectionContentType = "application/vnd.kubernetes.protobuf"
 	DefaultClientConnectionQPS         = 10000.0
 	DefaultClientConnectionBurst       = 10000
@@ -34,7 +34,7 @@ const (
 	DispatcherDefaultLockObjectName = "dispatcher"
 )
 
-func SetDefaults(cfg *GodelDispatcherConfiguration) {
+func SetDefaults(cfg *EnoDispatcherConfiguration) {
 	if len(cfg.ClientConnection.ContentType) == 0 {
 		cfg.ClientConnection.ContentType = DefaultClientConnectionContentType
 	}

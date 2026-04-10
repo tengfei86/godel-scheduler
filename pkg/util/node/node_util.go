@@ -19,13 +19,13 @@ package node
 import v1 "k8s.io/api/core/v1"
 
 const (
-	// GodelSchedulerNodeAnnotationKey is the annotation key in both Node and CNR api objects,
-	// value is the godel scheduler whose node partition contains this node
-	GodelSchedulerNodeAnnotationKey = "godel.bytedance.com/scheduler-name"
+	// EnoSchedulerNodeAnnotationKey is the annotation key in both Node and CNR api objects,
+	// value is the eno scheduler whose node partition contains this node
+	EnoSchedulerNodeAnnotationKey = "eno.io/scheduler-name"
 )
 
 func NodeOfThisScheduler(annotations map[string]string, schedulerName string) bool {
-	name, ok := annotations[GodelSchedulerNodeAnnotationKey]
+	name, ok := annotations[EnoSchedulerNodeAnnotationKey]
 	if ok && name == schedulerName {
 		return true
 	}

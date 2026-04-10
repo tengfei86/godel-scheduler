@@ -13,7 +13,7 @@ spec:
       labels:
         name: nginx-a
     spec:
-      schedulerName: godel-scheduler
+      schedulerName: eno-scheduler
       nodeSelector:
         subCluster: subCluster-a
       containers:
@@ -41,7 +41,7 @@ spec:
       labels:
         name: nginx-b
     spec:
-      schedulerName: godel-scheduler
+      schedulerName: eno-scheduler
       nodeSelector:
         subCluster: subCluster-b
       containers:

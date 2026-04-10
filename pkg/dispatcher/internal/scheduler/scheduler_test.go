@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ var testScheduler = &schedulerapi.Scheduler{
 	},
 }
 
-func TestGodelScheduler_Clone(t *testing.T) {
+func TestEnoScheduler_Clone(t *testing.T) {
 	type fields struct {
 		schedulerName     string
 		scheduler         *schedulerapi.Scheduler
@@ -44,10 +44,10 @@ func TestGodelScheduler_Clone(t *testing.T) {
 	tests := []struct {
 		name   string
 		fields fields
-		want   *GodelScheduler
+		want   *EnoScheduler
 	}{
 		{
-			name: "test godel scheduler clone",
+			name: "test eno scheduler clone",
 			fields: fields{
 				schedulerName: "test-scheduler",
 				scheduler:     testScheduler,
@@ -58,7 +58,7 @@ func TestGodelScheduler_Clone(t *testing.T) {
 					"node3": {},
 				},
 			},
-			want: &GodelScheduler{
+			want: &EnoScheduler{
 				schedulerName: "test-scheduler",
 				scheduler:     testScheduler,
 				active:        false,
@@ -72,7 +72,7 @@ func TestGodelScheduler_Clone(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gs := &GodelScheduler{
+			gs := &EnoScheduler{
 				schedulerName:     tt.fields.schedulerName,
 				scheduler:         tt.fields.scheduler,
 				active:            tt.fields.active,
@@ -89,7 +89,7 @@ func TestGodelScheduler_Clone(t *testing.T) {
 	}
 }
 
-func TestGodelScheduler_GetNodes(t *testing.T) {
+func TestEnoScheduler_GetNodes(t *testing.T) {
 	tests := []struct {
 		name         string
 		addedNodes   []string
@@ -97,7 +97,7 @@ func TestGodelScheduler_GetNodes(t *testing.T) {
 		want         map[string]struct{}
 	}{
 		{
-			name:         "test godel scheduler get nodes",
+			name:         "test eno scheduler get nodes",
 			addedNodes:   []string{"node1", "node2", "node3"},
 			removedNodes: []string{"node0", "node1"},
 			want: map[string]struct{}{
@@ -108,7 +108,7 @@ func TestGodelScheduler_GetNodes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gs := NewGodelSchedulerWithSchedulerName("test-scheduler")
+			gs := NewEnoSchedulerWithSchedulerName("test-scheduler")
 			for _, node := range tt.addedNodes {
 				gs.AddNode(node)
 			}
@@ -124,7 +124,7 @@ func TestGodelScheduler_GetNodes(t *testing.T) {
 	}
 }
 
-func TestGodelScheduler_NodeExists(t *testing.T) {
+func TestEnoScheduler_NodeExists(t *testing.T) {
 	type args struct {
 		nodeName string
 	}
@@ -159,7 +159,7 @@ func TestGodelScheduler_NodeExists(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gs := NewGodelSchedulerWithSchedulerName("test-scheduler")
+			gs := NewEnoSchedulerWithSchedulerName("test-scheduler")
 			for _, node := range tt.addedNodes {
 				gs.AddNode(node)
 			}
@@ -175,7 +175,7 @@ func TestGodelScheduler_NodeExists(t *testing.T) {
 	}
 }
 
-func TestGodelScheduler_GetScheduler(t *testing.T) {
+func TestEnoScheduler_GetScheduler(t *testing.T) {
 	tests := []struct {
 		name          string
 		scheduler     *schedulerapi.Scheduler
@@ -197,7 +197,7 @@ func TestGodelScheduler_GetScheduler(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gs := NewGodelSchedulerWithSchedulerName(testScheduler.Name)
+			gs := NewEnoSchedulerWithSchedulerName(testScheduler.Name)
 			gs.SetScheduler(tt.scheduler)
 			if got := gs.GetScheduler(); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("GetScheduler() = %v, want %v", got, tt.want)

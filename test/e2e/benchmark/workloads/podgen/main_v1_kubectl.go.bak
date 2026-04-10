@@ -7,7 +7,7 @@
 //   4. 批量 kubectl apply --server-side（减少 API Server RTT）
 //
 // 用法:
-//   podgen -rate 500 -total 50000 -scheduler godel-scheduler -type basic \
+//   podgen -rate 500 -total 50000 -scheduler eno-scheduler -type basic \
 //          -cpu 100 -mem 128 -namespace bench -image registry.k8s.io/pause:3.9 \
 //          -batch 200 -workers 8
 
@@ -52,7 +52,7 @@ var (
 func init() {
 	flag.IntVar(&rate, "rate", 500, "目标速率 (pods/s)")
 	flag.IntVar(&total, "total", 50000, "总 Pod 数量")
-	flag.StringVar(&scheduler, "scheduler", "godel-scheduler", "schedulerName")
+	flag.StringVar(&scheduler, "scheduler", "eno-scheduler", "schedulerName")
 	flag.StringVar(&wtype, "type", "basic", "负载类型: basic|burst|gang|heterogeneous")
 	flag.IntVar(&cpu, "cpu", 100, "CPU 请求 (millicores)")
 	flag.IntVar(&mem, "mem", 128, "内存请求 (Mi)")
@@ -79,9 +79,9 @@ metadata:
   name: bench-pod-%d
   namespace: %s
   annotations:
-    godel.bytedance.com/pod-state: pending
-    godel.bytedance.com/pod-resource-type: guaranteed
-    godel.bytedance.com/pod-launcher: kubelet
+    eno.io/pod-state: pending
+    eno.io/pod-resource-type: guaranteed
+    eno.io/pod-launcher: kubelet
 spec:
   schedulerName: %s
   terminationGracePeriodSeconds: 0
@@ -159,7 +159,7 @@ spec:
   minMember: %d
   scheduleTimeoutSeconds: 300
 `, groupIdx, ns, gSize)
-	default: // godel
+	default: // eno
 		fmt.Fprintf(buf, `---
 apiVersion: scheduling.godel.kubewharf.io/v1alpha1
 kind: PodGroup
@@ -219,17 +219,17 @@ spec:
           cpu: "%dm"
           memory: "%dMi"
 `, groupIdx, m, ns, groupIdx, sched, img, cpuM, memM, cpuM, memM)
-		default: // godel
+		default: // eno
 			fmt.Fprintf(buf, `apiVersion: v1
 kind: Pod
 metadata:
   name: bench-gang-%d-%d
   namespace: %s
   annotations:
-    godel.bytedance.com/pod-state: pending
-    godel.bytedance.com/pod-resource-type: guaranteed
-    godel.bytedance.com/pod-launcher: kubelet
-    scheduling.godel.bytedance.com/pod-group-name: bench-gang-%d
+    eno.io/pod-state: pending
+    eno.io/pod-resource-type: guaranteed
+    eno.io/pod-launcher: kubelet
+    scheduling.eno.io/pod-group-name: bench-gang-%d
 spec:
   schedulerName: %s
   terminationGracePeriodSeconds: 0

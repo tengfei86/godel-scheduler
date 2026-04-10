@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ var (
 		&metrics.GaugeOpts{
 			Subsystem:      DispatcherSubsystem,
 			Name:           "existing_node_partitions",
-			Help:           "Number of node partitions in Godel Scheduler.",
+			Help:           "Number of node partitions in Eno Scheduler.",
 			StabilityLevel: metrics.ALPHA,
 		})
 
@@ -107,7 +107,7 @@ var (
 		&metrics.GaugeOpts{
 			Subsystem:      DispatcherSubsystem,
 			Name:           "scheduler_size",
-			Help:           "Number of schedulers in Godel Scheduler, including active schedulers and inactive scheduler.",
+			Help:           "Number of schedulers in Eno Scheduler, including active schedulers and inactive scheduler.",
 			StabilityLevel: metrics.ALPHA,
 		}, []string{pkgmetrics.TypeLabel})
 
@@ -115,7 +115,7 @@ var (
 		&metrics.GaugeOpts{
 			Subsystem:      DispatcherSubsystem,
 			Name:           "nodes_partition_count",
-			Help:           "Number of nodes in each partition in Godel Scheduler.",
+			Help:           "Number of nodes in each partition in Eno Scheduler.",
 			StabilityLevel: metrics.ALPHA,
 		}, []string{pkgmetrics.SchedulerLabel, pkgmetrics.TypeLabel})
 
@@ -132,7 +132,7 @@ var (
 		&metrics.GaugeOpts{
 			Subsystem:      DispatcherSubsystem,
 			Name:           "pods_in_partition",
-			Help:           "Number of bound & dispatched pods in each node partition in Godel Scheduler.",
+			Help:           "Number of bound & dispatched pods in each node partition in Eno Scheduler.",
 			StabilityLevel: metrics.ALPHA,
 		}, []string{pkgmetrics.SchedulerLabel, pkgmetrics.StateLabel})
 

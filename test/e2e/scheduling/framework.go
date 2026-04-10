@@ -167,11 +167,11 @@ func GenerateLabelThatMatchNoNode(nodes []v1.Node) (key, value string) {
 		}
 	}
 
-	key = fmt.Sprintf("godel.bytedance.com/e2e-%s", string(uuid.NewUUID()))
+	key = fmt.Sprintf("eno.io/e2e-%s", string(uuid.NewUUID()))
 	value = string(uuid.NewUUID())
 	for {
 		if nodeLabels[key] == value {
-			key = fmt.Sprintf("godel.bytedance.com/e2e-%s", string(uuid.NewUUID()))
+			key = fmt.Sprintf("eno.io/e2e-%s", string(uuid.NewUUID()))
 			value = string(uuid.NewUUID())
 		} else {
 			break

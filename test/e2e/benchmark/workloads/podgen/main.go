@@ -11,7 +11,7 @@
 //   v2 (client-go):     2000+ pods/s @ W3 (HTTP/2 复用 + 零进程开销)
 //
 // 用法:
-//   podgen -rate 500 -total 50000 -scheduler godel-scheduler -type basic \
+//   podgen -rate 500 -total 50000 -scheduler eno-scheduler -type basic \
 //          -cpu 100 -mem 128 -namespace bench -image registry.k8s.io/pause:3.9 \
 //          -workers 64 [-qps 3000] [-burst 6000]
 
@@ -70,7 +70,7 @@ var (
 func init() {
 	flag.IntVar(&flagRate, "rate", 500, "目标速率 (pods/s)")
 	flag.IntVar(&flagTotal, "total", 50000, "总 Pod 数量")
-	flag.StringVar(&flagScheduler, "scheduler", "godel-scheduler", "schedulerName")
+	flag.StringVar(&flagScheduler, "scheduler", "eno-scheduler", "schedulerName")
 	flag.StringVar(&flagType, "type", "basic", "负载类型: basic|burst|gang|heterogeneous")
 	flag.IntVar(&flagCPU, "cpu", 100, "CPU 请求 (millicores)")
 	flag.IntVar(&flagMem, "mem", 128, "内存请求 (Mi)")
@@ -180,12 +180,12 @@ func buildGangPod(groupIdx, memberIdx int) *corev1.Pod {
 
 	pgName := fmt.Sprintf("bench-gang-%d", groupIdx)
 	switch flagScheduler {
-	case "godel-scheduler":
+	case "eno-scheduler":
 		pod.Annotations = map[string]string{
-			"godel.bytedance.com/pod-state":                 "pending",
-			"godel.bytedance.com/pod-resource-type":         "guaranteed",
-			"godel.bytedance.com/pod-launcher":              "kubelet",
-			"scheduling.godel.bytedance.com/pod-group-name": pgName,
+			"eno.io/pod-state":                 "pending",
+			"eno.io/pod-resource-type":         "guaranteed",
+			"eno.io/pod-launcher":              "kubelet",
+			"scheduling.eno.io/pod-group-name": pgName,
 		}
 	case "volcano":
 		pod.Annotations = map[string]string{
@@ -202,11 +202,11 @@ func buildGangPod(groupIdx, memberIdx int) *corev1.Pod {
 
 func addSchedulerAnnotations(pod *corev1.Pod) {
 	switch flagScheduler {
-	case "godel-scheduler":
+	case "eno-scheduler":
 		pod.Annotations = map[string]string{
-			"godel.bytedance.com/pod-state":         "pending",
-			"godel.bytedance.com/pod-resource-type": "guaranteed",
-			"godel.bytedance.com/pod-launcher":      "kubelet",
+			"eno.io/pod-state":         "pending",
+			"eno.io/pod-resource-type": "guaranteed",
+			"eno.io/pod-launcher":      "kubelet",
 		}
 	case "volcano":
 		pod.Annotations = map[string]string{
@@ -579,7 +579,7 @@ func createPodGroupForGang(ctx context.Context, dynClient dynamic.Interface, pgN
 			return fmt.Errorf("创建 Koordinator PodGroup %s 失败: %w", pgName, err)
 		}
 	}
-	// godel-scheduler / default-scheduler: 不需要 CRD
+	// eno-scheduler / default-scheduler: 不需要 CRD
 	return nil
 }
 

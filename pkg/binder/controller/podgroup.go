@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -72,7 +72,7 @@ const (
 // belong to its own scheduler partition.
 type PodGroupControllerOptions struct {
 	// SchedulerName, when non-empty, restricts the controller to only process
-	// pods that carry godel.bytedance.com/selected-scheduler = SchedulerName.
+	// pods that carry eno.io/selected-scheduler = SchedulerName.
 	// This is essential for the embedded-binder architecture where multiple
 	// PodGroupController instances run concurrently (one per Scheduler).
 	SchedulerName string
@@ -89,7 +89,7 @@ type PodGroupController struct {
 	pgClient        pgclientset.Interface
 
 	// schedulerName is the partition filter. When non-empty, only pods with
-	// annotation godel.bytedance.com/selected-scheduler matching this value
+	// annotation eno.io/selected-scheduler matching this value
 	// are counted toward PodGroup state transitions.
 	schedulerName string
 }
@@ -197,7 +197,7 @@ func (ctrl *PodGroupController) pgTrigger(obj interface{}, eventType string) {
 // podBelongsToPartition checks whether a pod belongs to this controller's
 // scheduler partition. If schedulerName is empty (standalone binder mode),
 // all pods are accepted. Otherwise, only pods whose
-// godel.bytedance.com/selected-scheduler annotation matches are accepted.
+// eno.io/selected-scheduler annotation matches are accepted.
 func (ctrl *PodGroupController) podBelongsToPartition(pod *v1.Pod) bool {
 	if ctrl.schedulerName == "" {
 		return true

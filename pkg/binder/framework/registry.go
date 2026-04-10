@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ type Registry map[string]PluginFactory
 // NewInTreeRegistry builds the registry with all the in-tree plugins.
 // A scheduler that runs out of tree plugins can register additional plugins
 // through the WithFrameworkOutOfTreeRegistry option.
-// For Godel Scheduler all in tree plugins are enabled
+// For Eno Scheduler all in tree plugins are enabled
 func NewInTreeRegistry() Registry {
 	return Registry{
 		defaultbinder.Name:              defaultbinder.New,

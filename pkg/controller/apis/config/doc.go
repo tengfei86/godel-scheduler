@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Godel Scheduler Authors.
+Copyright 2024 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,6 +16,6 @@ limitations under the License.
 
 // +k8s:deepcopy-gen=package
 
-// This folder contains configurations for constraints and other config params to run the godel controller manager
+// This folder contains configurations for constraints and other config params to run the eno controller manager
 
 package config // import "github.com/kubewharf/godel-scheduler/pkg/controller/apis/config"

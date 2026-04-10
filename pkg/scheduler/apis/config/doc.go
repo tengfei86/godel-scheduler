@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,6 @@ limitations under the License.
 // +k8s:defaulter-gen=TypeMeta
 // +groupName=godelscheduler.config.kubewharf.io
 
-// This folder contains configurations for constraints and other config params to run the godel scheduler
+// This folder contains configurations for constraints and other config params to run the eno scheduler
 
 package config

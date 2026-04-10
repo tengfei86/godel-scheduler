@@ -1,8 +1,8 @@
 apiVersion: godelbinder.config.kubewharf.io/__internal
-kind: GodelBinderProfile
+kind: EnoBinderProfile
 plugins:
   victimChecking:
     pluginCollections:
-    - plugins:
-      - name: PDBChecker
-      enableQuickPass: false
+      - plugins:
+          - name: PDBChecker
+        enableQuickPass: false

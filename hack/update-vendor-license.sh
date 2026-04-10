@@ -176,7 +176,7 @@ declare -Ag CONTENT
 if [ -f "${LICENSE_ROOT}/LICENSE" ]; then
   (
     echo "================================================================================"
-    echo "= Godel licensed under: ="
+    echo "= Eno licensed under: ="
     echo
     cat "${LICENSE_ROOT}/LICENSE"
     echo
@@ -232,7 +232,7 @@ Options:
    COPYING files.
 2. Contact the author of the package to ensure there is a LICENSE, COPYRIGHT and/or
    COPYING file present.
-3. Do not use this package in Godel.
+3. Do not use this package in Eno.
 __EOF__
       exit 9
     fi

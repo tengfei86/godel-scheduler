@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ func nodeInfoBelongToSubCluster(n framework.NodeInfo, matchedSubCluster string) 
 // The difference is that:
 //	- The Store used in the Cache is generationstore.ListStore which will be organized in the form of linked list and hash table.
 //	- The Store used in the Snapshot is generationstore.RawStore which will be organized by a hash table.
-// For more information, please see "godel/pkg/util/generationstore"
+// For more information, please see "eno/pkg/util/generationstore"
 
 // -------------------------------------- NodeStore --------------------------------------
 type NodeStore struct {
@@ -265,7 +265,7 @@ func (s *NodeStore) DeleteCNR(cnr *katalystv1alpha1.CustomNodeResource) error {
 }
 
 func (s *NodeStore) AddPod(pod *v1.Pod) error {
-	if !podutil.BoundPod(pod) && !podutil.AssumedPodOfGodel(pod, s.handler.SchedulerType()) {
+	if !podutil.BoundPod(pod) && !podutil.AssumedPodOfEno(pod, s.handler.SchedulerType()) {
 		return nil
 	}
 	nodeName := utils.GetNodeNameFromPod(pod)
@@ -302,7 +302,7 @@ func (s *NodeStore) UpdatePod(oldPod, newPod *v1.Pod) error {
 }
 
 func (s *NodeStore) DeletePod(pod *v1.Pod) error {
-	if !podutil.BoundPod(pod) && !podutil.AssumedPodOfGodel(pod, s.handler.SchedulerType()) {
+	if !podutil.BoundPod(pod) && !podutil.AssumedPodOfEno(pod, s.handler.SchedulerType()) {
 		return nil
 	}
 	nodeName := utils.GetNodeNameFromPod(pod)

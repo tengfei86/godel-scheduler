@@ -96,7 +96,7 @@ fi
 echo "
 !!!Attention!!!
 Code generation finished, you need to copy the generated files to the
-pkg/godel-scheduler/apis/config directory. There are some manual changes
+pkg/eno-scheduler/apis/config directory. There are some manual changes
 in the generated conversion code, be careful to merge the changes.
 Don't forget to delete the directory github.com/kubewharf/godel-scheduler before committing.
 "

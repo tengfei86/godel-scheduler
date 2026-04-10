@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ import (
 const DefaultLeaderElectionName = "dispatcher"
 
 type Options struct {
-	DispatcherConfig dispatcherconfig.GodelDispatcherConfiguration
+	DispatcherConfig dispatcherconfig.EnoDispatcherConfiguration
 
 	// ConfigFile is the location of the scheduler server's configuration file.
 	ConfigFile string
@@ -105,8 +105,8 @@ func splitHostIntPort(s string) (string, int, error) {
 	return host, portInt, err
 }
 
-func newDefaultDispatcherConfig() (*dispatcherconfig.GodelDispatcherConfiguration, error) {
-	cfg := dispatcherconfig.GodelDispatcherConfiguration{}
+func newDefaultDispatcherConfig() (*dispatcherconfig.EnoDispatcherConfiguration, error) {
+	cfg := dispatcherconfig.EnoDispatcherConfiguration{}
 
 	dispatcherconfig.SetDefaults(&cfg)
 	return &cfg, nil
@@ -143,7 +143,7 @@ func (o *Options) ApplyTo(c *dispatcherappconfig.Config) error {
 // Validate validates all the required options.
 func (o *Options) Validate() []error {
 	var errs []error
-	if err := validation.ValidateGodelDispatcherConfiguration(&o.DispatcherConfig).ToAggregate(); err != nil {
+	if err := validation.ValidateEnoDispatcherConfiguration(&o.DispatcherConfig).ToAggregate(); err != nil {
 		errs = append(errs, err.Errors()...)
 	}
 	return errs
@@ -157,7 +157,7 @@ func (o *Options) Config() (*dispatcherappconfig.Config, error) {
 	}
 
 	// Prepare kube clients.
-	client, leaderElectionClient, eventClient, godelCrdClient, err := createClients(c.DispatcherConfig.ClientConnection, o.Master, c.DispatcherConfig.LeaderElection.RenewDeadline.Duration)
+	client, leaderElectionClient, eventClient, enoCrdClient, err := createClients(c.DispatcherConfig.ClientConnection, o.Master, c.DispatcherConfig.LeaderElection.RenewDeadline.Duration)
 	if err != nil {
 		return nil, err
 	}
@@ -177,10 +177,10 @@ func (o *Options) Config() (*dispatcherappconfig.Config, error) {
 
 	c.Client = client
 	c.InformerFactory = cmdutil.NewInformerFactory(client, 0)
-	c.GodelCrdClient = godelCrdClient
+	c.EnoCrdClient = enoCrdClient
 
-	c.GodelCrdInformerFactory = crdinformers.NewSharedInformerFactory(c.GodelCrdClient, 0)
-	// TODO:(godel) delete if useless.
+	c.EnoCrdInformerFactory = crdinformers.NewSharedInformerFactory(c.EnoCrdClient, 0)
+	// TODO:(eno) delete if useless.
 	// c.EventClient = eventClient.EventsV1beta1()
 	// c.CoreEventClient = eventClient.CoreV1()
 	c.LeaderElection = leaderElectionConfig
@@ -274,10 +274,10 @@ func createClients(config componentbaseconfig.ClientConnectionConfiguration, mas
 	// TODO make config struct use int instead of int32?
 	crdKubeConfig.Burst = int(config.Burst)
 
-	godelCrdClient, err := godelclient.NewForConfig(restclient.AddUserAgent(crdKubeConfig, "dispatcher"))
+	enoCrdClient, err := godelclient.NewForConfig(restclient.AddUserAgent(crdKubeConfig, "dispatcher"))
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
 
-	return client, leaderElectionClient, eventClient, godelCrdClient, nil
+	return client, leaderElectionClient, eventClient, enoCrdClient, nil
 }

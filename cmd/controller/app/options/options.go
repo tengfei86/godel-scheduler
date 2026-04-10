@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Godel Scheduler Authors.
+Copyright 2024 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -44,9 +44,9 @@ import (
 	godelctrlmgrconfigv1alpha1 "github.com/kubewharf/godel-scheduler/pkg/controller/apis/config/v1alpha1"
 )
 
-const DefaultLeaderElectionConfig = "godel-controller-manager"
+const DefaultLeaderElectionConfig = "eno-controller-manager"
 
-type GodelControllerManagerOptions struct {
+type EnoControllerManagerOptions struct {
 	Generic               *GenericControllerManagerConfigurationOptions
 	ReservationController *ReservationControllerOptions
 	Tracer                *TracerOptions
@@ -65,7 +65,7 @@ type GodelControllerManagerOptions struct {
 	Master string
 }
 
-func NewGodelControllerManagerOptions() (*GodelControllerManagerOptions, error) {
+func NewEnoControllerManagerOptions() (*EnoControllerManagerOptions, error) {
 	componentConfig, err := NewDefaultComponentConfig()
 	if err != nil {
 		return nil, err
@@ -76,7 +76,7 @@ func NewGodelControllerManagerOptions() (*GodelControllerManagerOptions, error) 
 		return nil, err
 	}
 
-	opts := GodelControllerManagerOptions{
+	opts := EnoControllerManagerOptions{
 		Generic: NewGenericControllerManagerConfigurationOptions(componentConfig.Generic),
 		CombinedInsecureServing: &CombinedInsecureServingOptions{
 			Healthz: (&apiserveroptions.DeprecatedInsecureServingOptions{
@@ -107,25 +107,25 @@ func NewGodelControllerManagerOptions() (*GodelControllerManagerOptions, error) 
 	// Set the PairName but leave certificate directory blank to generate in-memory by default
 	opts.SecureServing.ServerCert.CertDirectory = ""
 	opts.SecureServing.ServerCert.PairName = DefaultLeaderElectionConfig
-	opts.SecureServing.BindPort = godelctrlmgrconfigv1alpha1.GodelControllerManagerSecurePort
+	opts.SecureServing.BindPort = godelctrlmgrconfigv1alpha1.EnoControllerManagerSecurePort
 
 	opts.Generic.LeaderElection.ResourceName = DefaultLeaderElectionConfig
 	opts.Generic.LeaderElection.ResourceNamespace = config.NamespaceSystem
 	return &opts, nil
 }
 
-func NewDefaultComponentConfig() (godelctrlmgrconfig.GodelControllerManagerConfiguration, error) {
-	versioned := godelctrlmgrconfigv1alpha1.GodelControllerManagerConfiguration{}
+func NewDefaultComponentConfig() (godelctrlmgrconfig.EnoControllerManagerConfiguration, error) {
+	versioned := godelctrlmgrconfigv1alpha1.EnoControllerManagerConfiguration{}
 	godelctrlmgrconfigscheme.Scheme.Default(&versioned)
 
-	internal := godelctrlmgrconfig.GodelControllerManagerConfiguration{}
+	internal := godelctrlmgrconfig.EnoControllerManagerConfiguration{}
 	if err := godelctrlmgrconfigscheme.Scheme.Convert(&versioned, &internal, nil); err != nil {
 		return internal, err
 	}
 	return internal, nil
 }
 
-func (opt *GodelControllerManagerOptions) Flags(allControllers []string, disabledByDefaultControllers []string) cliflag.NamedFlagSets {
+func (opt *EnoControllerManagerOptions) Flags(allControllers []string, disabledByDefaultControllers []string) cliflag.NamedFlagSets {
 	fss := cliflag.NamedFlagSets{}
 
 	opt.Generic.AddFlags(&fss, allControllers, disabledByDefaultControllers)
@@ -144,7 +144,7 @@ func (opt *GodelControllerManagerOptions) Flags(allControllers []string, disable
 	return fss
 }
 
-func (opt *GodelControllerManagerOptions) ApplyTo(c *cmdconfig.Config) error {
+func (opt *EnoControllerManagerOptions) ApplyTo(c *cmdconfig.Config) error {
 	if err := opt.Generic.ApplyTo(c.ComponentConfig.Generic); err != nil {
 		return err
 	}
@@ -175,7 +175,7 @@ func (opt *GodelControllerManagerOptions) ApplyTo(c *cmdconfig.Config) error {
 	return nil
 }
 
-func (opt *GodelControllerManagerOptions) Validate(allControllers []string, disabledByDefaultControllers []string) error {
+func (opt *EnoControllerManagerOptions) Validate(allControllers []string, disabledByDefaultControllers []string) error {
 	var errs []error
 
 	errs = append(errs, opt.Generic.Validate(allControllers, disabledByDefaultControllers)...)
@@ -187,7 +187,7 @@ func (opt *GodelControllerManagerOptions) Validate(allControllers []string, disa
 	return utilerrors.NewAggregate(errs)
 }
 
-func (opt *GodelControllerManagerOptions) Config(allControllers []string, disabledByDefaultControllers []string) (*cmdconfig.Config, error) {
+func (opt *EnoControllerManagerOptions) Config(allControllers []string, disabledByDefaultControllers []string) (*cmdconfig.Config, error) {
 	if err := opt.Validate(allControllers, disabledByDefaultControllers); err != nil {
 		return nil, err
 	}
@@ -197,7 +197,7 @@ func (opt *GodelControllerManagerOptions) Config(allControllers []string, disabl
 	}
 
 	c := &cmdconfig.Config{
-		ComponentConfig: godelctrlmgrconfig.NewEmptyGodelControllerManagerConfiguration(),
+		ComponentConfig: godelctrlmgrconfig.NewEmptyEnoControllerManagerConfiguration(),
 	}
 
 	if err := opt.ApplyTo(c); err != nil {
@@ -205,7 +205,7 @@ func (opt *GodelControllerManagerOptions) Config(allControllers []string, disabl
 	}
 
 	// Prepare kube clients.
-	kubeconfig, client, crdKubeconfig, godelCrdClient, err := createClients(c.ComponentConfig.Generic.ClientConnection, opt.Master, c.ComponentConfig.Generic.LeaderElection.RenewDeadline.Duration)
+	kubeconfig, client, crdKubeconfig, enoCrdClient, err := createClients(c.ComponentConfig.Generic.ClientConnection, opt.Master, c.ComponentConfig.Generic.LeaderElection.RenewDeadline.Duration)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +214,7 @@ func (opt *GodelControllerManagerOptions) Config(allControllers []string, disabl
 	eventRecorder := eventBroadcaster.NewRecorder(clientgokubescheme.Scheme, v1.EventSource{Component: DefaultLeaderElectionConfig})
 
 	c.Client = client
-	c.GodelClient = godelCrdClient
+	c.EnoClient = enoCrdClient
 	c.Kubeconfig = kubeconfig
 	c.CrdKubeconfig = crdKubeconfig
 	c.EventBroadcaster = eventBroadcaster
@@ -252,7 +252,7 @@ func createClients(config componentbaseconfig.ClientConnectionConfiguration, mas
 	kubeconfig.QPS = config.QPS
 	kubeconfig.Burst = int(config.Burst)
 
-	client, err := clientset.NewForConfig(restclient.AddUserAgent(kubeconfig, "godel-controller-manager"))
+	client, err := clientset.NewForConfig(restclient.AddUserAgent(kubeconfig, "eno-controller-manager"))
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -270,9 +270,9 @@ func createClients(config componentbaseconfig.ClientConnectionConfiguration, mas
 	crdKubeConfig.QPS = config.QPS
 	crdKubeConfig.Burst = int(config.Burst)
 
-	godelCrdClient, err := godelclient.NewForConfig(restclient.AddUserAgent(crdKubeConfig, "godel-controller-manager"))
+	enoCrdClient, err := godelclient.NewForConfig(restclient.AddUserAgent(crdKubeConfig, "eno-controller-manager"))
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	return kubeconfig, client, crdKubeConfig, godelCrdClient, nil
+	return kubeconfig, client, crdKubeConfig, enoCrdClient, nil
 }

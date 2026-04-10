@@ -42,9 +42,9 @@ type PluginsConstraint struct {
 	scoreConstraint  map[string]interface{}
 }
 
-// GodelSchedulerFramework is the component responsible for initializing and running scheduler
+// EnoSchedulerFramework is the component responsible for initializing and running scheduler
 // plugins, determining plugins to run in each scheduling phase(or extension point)
-type GodelSchedulerFramework struct {
+type EnoSchedulerFramework struct {
 	preFilterPlugins  []framework.PreFilterPlugin
 	filterPlugins     []framework.FilterPlugin
 	preScorePlugins   []framework.PreScorePlugin
@@ -67,7 +67,7 @@ type GodelSchedulerFramework struct {
 	potentialVictimsInNodes *framework.PotentialVictimsInNodes
 }
 
-func (f *GodelSchedulerFramework) runPreFilterPlugin(ctx context.Context, pl framework.PreFilterPlugin, state *framework.CycleState, pod *v1.Pod) *framework.Status {
+func (f *EnoSchedulerFramework) runPreFilterPlugin(ctx context.Context, pl framework.PreFilterPlugin, state *framework.CycleState, pod *v1.Pod) *framework.Status {
 	if !state.ShouldRecordPluginMetrics() {
 		return pl.PreFilter(ctx, state, pod)
 	}
@@ -83,7 +83,7 @@ func (f *GodelSchedulerFramework) runPreFilterPlugin(ctx context.Context, pl fra
 	return status
 }
 
-func (f *GodelSchedulerFramework) RunPreFilterPlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod) *framework.Status {
+func (f *EnoSchedulerFramework) RunPreFilterPlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod) *framework.Status {
 	var finalStatus *framework.Status
 	debugMode := util.GetPodDebugMode(pod)
 
@@ -118,7 +118,7 @@ func (f *GodelSchedulerFramework) RunPreFilterPlugins(ctx context.Context, state
 // RunPreFilterExtensionAddPod calls the AddPod interface for the set of configured
 // PreFilter plugins. It returns directly if any of the plugins return any
 // status other than Success.
-func (f *GodelSchedulerFramework) RunPreFilterExtensionAddPod(
+func (f *EnoSchedulerFramework) RunPreFilterExtensionAddPod(
 	ctx context.Context,
 	state *framework.CycleState,
 	podToSchedule *v1.Pod,
@@ -142,7 +142,7 @@ func (f *GodelSchedulerFramework) RunPreFilterExtensionAddPod(
 	return nil
 }
 
-func (f *GodelSchedulerFramework) runPreFilterExtensionAddPod(ctx context.Context, pl framework.PreFilterPlugin, state *framework.CycleState, podToSchedule *v1.Pod, podToAdd *v1.Pod, nodeInfo framework.NodeInfo) *framework.Status {
+func (f *EnoSchedulerFramework) runPreFilterExtensionAddPod(ctx context.Context, pl framework.PreFilterPlugin, state *framework.CycleState, podToSchedule *v1.Pod, podToAdd *v1.Pod, nodeInfo framework.NodeInfo) *framework.Status {
 	if !state.ShouldRecordPluginMetrics() {
 		return pl.PreFilterExtensions().AddPod(ctx, state, podToSchedule, podToAdd, nodeInfo)
 	}
@@ -161,7 +161,7 @@ func (f *GodelSchedulerFramework) runPreFilterExtensionAddPod(ctx context.Contex
 // RunPreFilterExtensionRemovePod calls the RemovePod interface for the set of configured
 // PreFilter plugins. It returns directly if any of the plugins return any
 // status other than Success.
-func (f *GodelSchedulerFramework) RunPreFilterExtensionRemovePod(
+func (f *EnoSchedulerFramework) RunPreFilterExtensionRemovePod(
 	ctx context.Context,
 	state *framework.CycleState,
 	podToSchedule *v1.Pod,
@@ -185,7 +185,7 @@ func (f *GodelSchedulerFramework) RunPreFilterExtensionRemovePod(
 	return nil
 }
 
-func (f *GodelSchedulerFramework) runPreFilterExtensionRemovePod(ctx context.Context, pl framework.PreFilterPlugin, state *framework.CycleState, podToSchedule *v1.Pod, podToAdd *v1.Pod, nodeInfo framework.NodeInfo) *framework.Status {
+func (f *EnoSchedulerFramework) runPreFilterExtensionRemovePod(ctx context.Context, pl framework.PreFilterPlugin, state *framework.CycleState, podToSchedule *v1.Pod, podToAdd *v1.Pod, nodeInfo framework.NodeInfo) *framework.Status {
 	if !state.ShouldRecordPluginMetrics() {
 		return pl.PreFilterExtensions().RemovePod(ctx, state, podToSchedule, podToAdd, nodeInfo)
 	}
@@ -201,7 +201,7 @@ func (f *GodelSchedulerFramework) runPreFilterExtensionRemovePod(ctx context.Con
 	return status
 }
 
-func (f *GodelSchedulerFramework) runFilterPlugin(ctx context.Context, pl framework.FilterPlugin, state *framework.CycleState, pod *v1.Pod, nodeInfo framework.NodeInfo) *framework.Status {
+func (f *EnoSchedulerFramework) runFilterPlugin(ctx context.Context, pl framework.FilterPlugin, state *framework.CycleState, pod *v1.Pod, nodeInfo framework.NodeInfo) *framework.Status {
 	if !state.ShouldRecordPluginMetrics() {
 		return pl.Filter(ctx, state, pod, nodeInfo)
 	}
@@ -217,7 +217,7 @@ func (f *GodelSchedulerFramework) runFilterPlugin(ctx context.Context, pl framew
 	return status
 }
 
-func (f *GodelSchedulerFramework) RunFilterPlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeInfo framework.NodeInfo, skipPlugins ...string) framework.PluginToStatus {
+func (f *EnoSchedulerFramework) RunFilterPlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeInfo framework.NodeInfo, skipPlugins ...string) framework.PluginToStatus {
 	finalStatus := make(framework.PluginToStatus)
 	debugMode := util.GetPodDebugMode(pod)
 	statuses := make(framework.PluginToStatus)
@@ -290,7 +290,7 @@ func (f *GodelSchedulerFramework) RunFilterPlugins(ctx context.Context, state *f
 	return statuses
 }
 
-func (f *GodelSchedulerFramework) runPreScorePlugin(ctx context.Context, pl framework.PreScorePlugin, state *framework.CycleState, pod *v1.Pod, nodes []framework.NodeInfo) *framework.Status {
+func (f *EnoSchedulerFramework) runPreScorePlugin(ctx context.Context, pl framework.PreScorePlugin, state *framework.CycleState, pod *v1.Pod, nodes []framework.NodeInfo) *framework.Status {
 	if !state.ShouldRecordPluginMetrics() {
 		return pl.PreScore(ctx, state, pod, nodes)
 	}
@@ -306,7 +306,7 @@ func (f *GodelSchedulerFramework) runPreScorePlugin(ctx context.Context, pl fram
 	return status
 }
 
-func (f *GodelSchedulerFramework) RunPreScorePlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodes []framework.NodeInfo) *framework.Status {
+func (f *EnoSchedulerFramework) RunPreScorePlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodes []framework.NodeInfo) *framework.Status {
 	for _, pl := range f.preScorePlugins {
 		status := f.runPreScorePlugin(ctx, pl, state, pod, nodes)
 		if !status.IsSuccess() {
@@ -318,7 +318,7 @@ func (f *GodelSchedulerFramework) RunPreScorePlugins(ctx context.Context, state 
 	return nil
 }
 
-func (f *GodelSchedulerFramework) runScorePlugin(ctx context.Context, pl framework.ScorePlugin, state *framework.CycleState, pod *v1.Pod, nodeName string) (int64, *framework.Status) {
+func (f *EnoSchedulerFramework) runScorePlugin(ctx context.Context, pl framework.ScorePlugin, state *framework.CycleState, pod *v1.Pod, nodeName string) (int64, *framework.Status) {
 	if !state.ShouldRecordPluginMetrics() {
 		return pl.Score(ctx, state, pod, nodeName)
 	}
@@ -334,7 +334,7 @@ func (f *GodelSchedulerFramework) runScorePlugin(ctx context.Context, pl framewo
 	return s, status
 }
 
-func (f *GodelSchedulerFramework) RunScorePlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeNames []string) (framework.PluginToNodeScores, *framework.Status) {
+func (f *EnoSchedulerFramework) RunScorePlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeNames []string) (framework.PluginToNodeScores, *framework.Status) {
 	pluginToNodeScores := make(framework.PluginToNodeScores, len(f.scorePlugins))
 	nodeSize := len(nodeNames)
 	for _, pl := range f.scorePlugins {
@@ -416,7 +416,7 @@ func (f *GodelSchedulerFramework) RunScorePlugins(ctx context.Context, state *fr
 	return pluginToNodeScores, nil
 }
 
-func (f *GodelSchedulerFramework) runScoreExtension(ctx context.Context, pl framework.ScorePlugin, state *framework.CycleState, pod *v1.Pod, nodeScoreList framework.NodeScoreList) *framework.Status {
+func (f *EnoSchedulerFramework) runScoreExtension(ctx context.Context, pl framework.ScorePlugin, state *framework.CycleState, pod *v1.Pod, nodeScoreList framework.NodeScoreList) *framework.Status {
 	if !state.ShouldRecordPluginMetrics() {
 		return pl.ScoreExtensions().NormalizeScore(ctx, state, pod, nodeScoreList)
 	}
@@ -432,15 +432,15 @@ func (f *GodelSchedulerFramework) runScoreExtension(ctx context.Context, pl fram
 	return status
 }
 
-func (f *GodelSchedulerFramework) HasFilterPlugins() bool {
+func (f *EnoSchedulerFramework) HasFilterPlugins() bool {
 	return len(f.filterPlugins) > 0
 }
 
-func (f *GodelSchedulerFramework) HasScorePlugins() bool {
+func (f *EnoSchedulerFramework) HasScorePlugins() bool {
 	return len(f.scorePlugins) > 0
 }
 
-func (f *GodelSchedulerFramework) ListPlugins() map[string]sets.String {
+func (f *EnoSchedulerFramework) ListPlugins() map[string]sets.String {
 	m := map[string]sets.String{
 		framework.PreFilterPhase:         sets.NewString(),
 		framework.FilterPhase:            sets.NewString(),
@@ -468,7 +468,7 @@ func (f *GodelSchedulerFramework) ListPlugins() map[string]sets.String {
 	return m
 }
 
-func (f *GodelSchedulerFramework) InitCycleState(pod *v1.Pod) (*framework.CycleState, error) {
+func (f *EnoSchedulerFramework) InitCycleState(pod *v1.Pod) (*framework.CycleState, error) {
 	state := framework.NewCycleState()
 	podResourceType, err := podutil.GetPodResourceType(pod)
 	if err != nil {
@@ -499,7 +499,7 @@ func PodPassesFiltersOnNode(
 	info framework.NodeInfo,
 	skipPlugins ...string,
 ) (bool, *framework.Status, framework.PluginToStatus, error) {
-	// In Godel Scheduler, preemptor pods are add to cache as reserve resource,
+	// In Eno Scheduler, preemptor pods are add to cache as reserve resource,
 	// so there are no needs to do double-check here.
 	// pod will always check filter with node where all pods in cache are counted
 	statusMap := fw.RunFilterPlugins(ctx, state, pod, info, skipPlugins...)
@@ -510,14 +510,14 @@ func PodPassesFiltersOnNode(
 	return status.IsSuccess(), status, statusMap, nil
 }
 
-// New creates a new GodelSchedulerFramework, where pluginRegistry marks which plugins are supported, basePlugins presents which plugins are enabled by default.
+// New creates a new EnoSchedulerFramework, where pluginRegistry marks which plugins are supported, basePlugins presents which plugins are enabled by default.
 // podConstraintConfigs are used in pod annotation, where hard constraint will be taken as filter plugins and soft constraint will be taken as score plugins.
-// If plugin in podConstraintConfigs not exists in basePlugins, add this plugin to the new Godel Framework.
+// If plugin in podConstraintConfigs not exists in basePlugins, add this plugin to the new Eno Framework.
 func NewPodFramework(pluginRegistry framework.PluginMap, pluginOrder framework.PluginOrder,
 	basePlugins, hardConstraints, softConstraints *framework.PluginCollection,
 	metricsRecorder *MetricsRecorder,
-) (*GodelSchedulerFramework, error) {
-	f := &GodelSchedulerFramework{
+) (*EnoSchedulerFramework, error) {
+	f := &EnoSchedulerFramework{
 		scoreWeightMap:          map[string]int64{},
 		preFilterPlugins:        make([]framework.PreFilterPlugin, 0),
 		filterPlugins:           make([]framework.FilterPlugin, 0),
@@ -576,7 +576,7 @@ func NewPodFramework(pluginRegistry framework.PluginMap, pluginOrder framework.P
 }
 
 // orderFilterPlugins orders the filter plugins by the specified order.
-func (f *GodelSchedulerFramework) orderFilterPlugins(pluginOrder framework.PluginOrder) {
+func (f *EnoSchedulerFramework) orderFilterPlugins(pluginOrder framework.PluginOrder) {
 	if pluginOrder == nil {
 		klog.InfoS("WARN: PluginOrder was nil")
 		return
@@ -600,7 +600,7 @@ func (f *GodelSchedulerFramework) orderFilterPlugins(pluginOrder framework.Plugi
 	})
 }
 
-func (f *GodelSchedulerFramework) addFilterPlugin(pluginSpec *framework.PluginSpec, pluginRegistry framework.PluginMap) {
+func (f *EnoSchedulerFramework) addFilterPlugin(pluginSpec *framework.PluginSpec, pluginRegistry framework.PluginMap) {
 	plgName := pluginSpec.GetName()
 	if _, ok := pluginRegistry[plgName]; !ok {
 		klog.InfoS("WARN: Some Filter plugin was not supported", "pluginName", plgName)
@@ -648,7 +648,7 @@ func (f *GodelSchedulerFramework) addFilterPlugin(pluginSpec *framework.PluginSp
 	}
 }
 
-func (f *GodelSchedulerFramework) addScorePlugin(pluginSpec *framework.PluginSpec, pluginRegistry framework.PluginMap) {
+func (f *EnoSchedulerFramework) addScorePlugin(pluginSpec *framework.PluginSpec, pluginRegistry framework.PluginMap) {
 	plgName := pluginSpec.GetName()
 	if _, ok := pluginRegistry[plgName]; !ok {
 		klog.InfoS("WARN: The Score plugin was not supported", "pluginName", plgName)
@@ -686,15 +686,15 @@ func (f *GodelSchedulerFramework) addScorePlugin(pluginSpec *framework.PluginSpe
 	}
 }
 
-func (f *GodelSchedulerFramework) SetPotentialVictims(node string, potentialVictims []string) {
+func (f *EnoSchedulerFramework) SetPotentialVictims(node string, potentialVictims []string) {
 	f.potentialVictimsInNodes.SetPotentialVictims(node, potentialVictims)
 }
 
-func (f *GodelSchedulerFramework) GetPotentialVictims(node string) []string {
+func (f *EnoSchedulerFramework) GetPotentialVictims(node string) []string {
 	return f.potentialVictimsInNodes.GetPotentialVictims(node)
 }
 
-func (f *GodelSchedulerFramework) HasCrossNodesConstraints(ctx context.Context, pod *v1.Pod) bool {
+func (f *EnoSchedulerFramework) HasCrossNodesConstraints(ctx context.Context, pod *v1.Pod) bool {
 	for _, pl := range f.crossNodesPlugins {
 		if pl.HasCrossNodesConstraints(ctx, pod) {
 			return true

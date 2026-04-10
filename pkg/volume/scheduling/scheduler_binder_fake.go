@@ -44,27 +44,27 @@ type FakeVolumeBinder struct {
 	BindCalled   bool
 }
 
-// FindPodVolumes implements GodelVolumeBinder.FindPodVolumes.
+// FindPodVolumes implements EnoVolumeBinder.FindPodVolumes.
 func (b *FakeVolumeBinder) FindPodVolumes(pod *v1.Pod, nodeName string, nodeLabels map[string]string) (reasons ConflictReasons, err error) {
 	return b.config.FindReasons, b.config.FindErr
 }
 
-// AssumePodVolumes implements GodelVolumeBinder.AssumePodVolumes.
+// AssumePodVolumes implements EnoVolumeBinder.AssumePodVolumes.
 func (b *FakeVolumeBinder) AssumePodVolumes(assumedPod *v1.Pod, nodeName string) (bool, error) {
 	b.AssumeCalled = true
 	return b.config.AllBound, b.config.AssumeErr
 }
 
-// BindPodVolumes implements GodelVolumeBinder.BindPodVolumes.
+// BindPodVolumes implements EnoVolumeBinder.BindPodVolumes.
 func (b *FakeVolumeBinder) BindPodVolumes(assumedPod *v1.Pod) error {
 	b.BindCalled = true
 	return b.config.BindErr
 }
 
-// GetBindingsCache implements GodelVolumeBinder.GetBindingsCache.
+// GetBindingsCache implements EnoVolumeBinder.GetBindingsCache.
 func (b *FakeVolumeBinder) GetBindingsCache() PodBindingCache {
 	return nil
 }
 
-// DeletePodBindings implements GodelVolumeBinder.DeletePodBindings.
+// DeletePodBindings implements EnoVolumeBinder.DeletePodBindings.
 func (b *FakeVolumeBinder) DeletePodBindings(pod *v1.Pod) {}

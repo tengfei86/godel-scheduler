@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,9 +28,9 @@ import (
 	podutil "github.com/kubewharf/godel-scheduler/pkg/util/pod"
 )
 
-// GodelSchedulerPreemptionFramework is the component responsible for initializing and running scheduler
+// EnoSchedulerPreemptionFramework is the component responsible for initializing and running scheduler
 // plugins, determining plugins to run in each scheduling phase(or extension point)
-type GodelSchedulerPreemptionFramework struct {
+type EnoSchedulerPreemptionFramework struct {
 	clusterPrePreemptingPlugins []framework.ClusterPrePreemptingPlugin
 	nodePrePreemptingPlugins    []framework.NodePrePreemptingPlugin
 	victimSearchingPlugins      []*framework.VictimSearchingPluginCollection
@@ -41,8 +41,8 @@ type GodelSchedulerPreemptionFramework struct {
 
 func NewPreemptionFramework(preemptionPluginRegistry framework.PluginMap,
 	basePlugins *framework.PluginCollection,
-) *GodelSchedulerPreemptionFramework {
-	f := &GodelSchedulerPreemptionFramework{
+) *EnoSchedulerPreemptionFramework {
+	f := &EnoSchedulerPreemptionFramework{
 		victimSearchingPlugins:      make([]*framework.VictimSearchingPluginCollection, 0),
 		clusterPrePreemptingPlugins: make([]framework.ClusterPrePreemptingPlugin, 0),
 		nodePrePreemptingPlugins:    make([]framework.NodePrePreemptingPlugin, 0),
@@ -64,7 +64,7 @@ func NewPreemptionFramework(preemptionPluginRegistry framework.PluginMap,
 	return f
 }
 
-func (f *GodelSchedulerPreemptionFramework) addVictimSearchingPlugin(pluginCollectionSpec *framework.VictimSearchingPluginCollectionSpec, preemptionPluginRegistry framework.PluginMap) {
+func (f *EnoSchedulerPreemptionFramework) addVictimSearchingPlugin(pluginCollectionSpec *framework.VictimSearchingPluginCollectionSpec, preemptionPluginRegistry framework.PluginMap) {
 	var searchingPlugins []framework.VictimSearchingPlugin
 	for _, pluginSpec := range pluginCollectionSpec.GetSearchingPlugins() {
 		plgName := pluginSpec.GetName()
@@ -95,7 +95,7 @@ func (f *GodelSchedulerPreemptionFramework) addVictimSearchingPlugin(pluginColle
 	f.victimSearchingPlugins = append(f.victimSearchingPlugins, searchingPluginCollection)
 }
 
-func (f *GodelSchedulerPreemptionFramework) addSortingPlugin(pluginSpec *framework.PluginSpec, preemptionPluginRegistry framework.PluginMap) {
+func (f *EnoSchedulerPreemptionFramework) addSortingPlugin(pluginSpec *framework.PluginSpec, preemptionPluginRegistry framework.PluginMap) {
 	plgName := pluginSpec.GetName()
 	if _, ok := preemptionPluginRegistry[plgName]; !ok {
 		klog.InfoS("WARN: Some Sorting plugin was not supported", "pluginName", plgName)
@@ -109,7 +109,7 @@ func (f *GodelSchedulerPreemptionFramework) addSortingPlugin(pluginSpec *framewo
 	}
 }
 
-func (f *GodelSchedulerPreemptionFramework) HasVictimSearchingPlugin(pluginName string) bool {
+func (f *EnoSchedulerPreemptionFramework) HasVictimSearchingPlugin(pluginName string) bool {
 	for _, pluginCollection := range f.victimSearchingPlugins {
 		for _, plugin := range pluginCollection.GetVictimSearchingPlugins() {
 			if plugin.Name() == pluginName {
@@ -120,7 +120,7 @@ func (f *GodelSchedulerPreemptionFramework) HasVictimSearchingPlugin(pluginName 
 	return false
 }
 
-func (f *GodelSchedulerPreemptionFramework) RunVictimSearchingPlugins(preemptor *v1.Pod, podInfo *framework.PodInfo, state, preemptionState *framework.CycleState, victimState *framework.VictimState) (framework.Code, string) {
+func (f *EnoSchedulerPreemptionFramework) RunVictimSearchingPlugins(preemptor *v1.Pod, podInfo *framework.PodInfo, state, preemptionState *framework.CycleState, victimState *framework.VictimState) (framework.Code, string) {
 	pass := false
 	quickPass := false
 	podKey := podutil.GeneratePodKey(podInfo.Pod)
@@ -161,7 +161,7 @@ func (f *GodelSchedulerPreemptionFramework) RunVictimSearchingPlugins(preemptor 
 	return framework.PreemptionFail, "all plugins return not sure"
 }
 
-func (f *GodelSchedulerPreemptionFramework) RunClusterPrePreemptingPlugins(preemptor *v1.Pod, state, commonState *framework.CycleState) *framework.Status {
+func (f *EnoSchedulerPreemptionFramework) RunClusterPrePreemptingPlugins(preemptor *v1.Pod, state, commonState *framework.CycleState) *framework.Status {
 	for _, pl := range f.clusterPrePreemptingPlugins {
 		if err := pl.ClusterPrePreempting(preemptor, state, commonState); err != nil {
 			return err
@@ -170,7 +170,7 @@ func (f *GodelSchedulerPreemptionFramework) RunClusterPrePreemptingPlugins(preem
 	return nil
 }
 
-func (f *GodelSchedulerPreemptionFramework) RunNodePrePreemptingPlugins(preemptor *v1.Pod, nodeInfo framework.NodeInfo, state, preemptionState *framework.CycleState) *framework.Status {
+func (f *EnoSchedulerPreemptionFramework) RunNodePrePreemptingPlugins(preemptor *v1.Pod, nodeInfo framework.NodeInfo, state, preemptionState *framework.CycleState) *framework.Status {
 	for _, pl := range f.nodePrePreemptingPlugins {
 		if err := pl.NodePrePreempting(preemptor, nodeInfo, state, preemptionState); err != nil {
 			return err
@@ -179,7 +179,7 @@ func (f *GodelSchedulerPreemptionFramework) RunNodePrePreemptingPlugins(preempto
 	return nil
 }
 
-func (f *GodelSchedulerPreemptionFramework) runVictimSearchingPluginCollection(
+func (f *EnoSchedulerPreemptionFramework) runVictimSearchingPluginCollection(
 	pluginCollection *framework.VictimSearchingPluginCollection,
 	preemptor *v1.Pod, podInfo *framework.PodInfo,
 	state, preemptionState *framework.CycleState,
@@ -203,7 +203,7 @@ func (f *GodelSchedulerPreemptionFramework) runVictimSearchingPluginCollection(
 	return framework.PreemptionNotSure, ""
 }
 
-func (f *GodelSchedulerPreemptionFramework) RunPostVictimSearchingPlugins(preemptor *v1.Pod, podInfo *framework.PodInfo, state, preemptionState *framework.CycleState, victimState *framework.VictimState) *framework.Status {
+func (f *EnoSchedulerPreemptionFramework) RunPostVictimSearchingPlugins(preemptor *v1.Pod, podInfo *framework.PodInfo, state, preemptionState *framework.CycleState, victimState *framework.VictimState) *framework.Status {
 	for _, plugin := range f.postVictimSearchingPlugins {
 		if err := plugin.PostVictimSearching(preemptor, podInfo, state, preemptionState, victimState); err != nil {
 			return err
@@ -212,7 +212,7 @@ func (f *GodelSchedulerPreemptionFramework) RunPostVictimSearchingPlugins(preemp
 	return nil
 }
 
-func (f *GodelSchedulerPreemptionFramework) RunNodePostPreemptingPlugins(preemptor *v1.Pod, victims []*v1.Pod, state, commonState *framework.CycleState) *framework.Status {
+func (f *EnoSchedulerPreemptionFramework) RunNodePostPreemptingPlugins(preemptor *v1.Pod, victims []*v1.Pod, state, commonState *framework.CycleState) *framework.Status {
 	for _, plugin := range f.nodePostPreemptingPlugins {
 		if err := plugin.NodePostPreempting(preemptor, victims, state, commonState); err != nil {
 			return err
@@ -221,7 +221,7 @@ func (f *GodelSchedulerPreemptionFramework) RunNodePostPreemptingPlugins(preempt
 	return nil
 }
 
-func (f *GodelSchedulerPreemptionFramework) RunCandidatesSortingPlugins(
+func (f *EnoSchedulerPreemptionFramework) RunCandidatesSortingPlugins(
 	candidates []*framework.Candidate,
 	candidate *framework.Candidate,
 ) []*framework.Candidate {
@@ -241,7 +241,7 @@ func (f *GodelSchedulerPreemptionFramework) RunCandidatesSortingPlugins(
 	return candidates
 }
 
-func (f *GodelSchedulerPreemptionFramework) compareNominatedNodes(c1, c2 *framework.Candidate) bool {
+func (f *EnoSchedulerPreemptionFramework) compareNominatedNodes(c1, c2 *framework.Candidate) bool {
 	for _, plugin := range f.candidatesSortingPlugins {
 		var numPods1, numPods2 int
 		if c1.Victims != nil {
@@ -271,7 +271,7 @@ func (f *GodelSchedulerPreemptionFramework) compareNominatedNodes(c1, c2 *framew
 	return false
 }
 
-func (f *GodelSchedulerPreemptionFramework) ListPlugins() map[string]sets.String {
+func (f *EnoSchedulerPreemptionFramework) ListPlugins() map[string]sets.String {
 	m := map[string]sets.String{
 		framework.ClusterPrePreemptingPhase: sets.NewString(),
 		framework.NodePrePreemptingPhase:    sets.NewString(),

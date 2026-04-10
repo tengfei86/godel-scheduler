@@ -2,7 +2,7 @@
 # schedulers/deploy-group-b.sh — 部署组 B（独立 Binder，论文提出的架构）
 #
 # 配置: --enable-embedded-binder=true + Binder Deployment replicas=0
-# schedulerName: godel-scheduler
+# schedulerName: eno-scheduler
 
 set -eu
 
@@ -29,7 +29,7 @@ bash "${SCRIPT_DIR}/schedulers/teardown.sh"
 
 # ── Step 2: 部署 Gödel（独立 Binder） ──
 log_step "Step 2: 部署 Gödel Scheduler (Embedded Binder)"
-ensure_image_loaded "${GODEL_IMAGE}"
+ensure_image_loaded "${ENO_IMAGE}"
 kubectl apply -k "${MANIFESTS_EMBEDDED}"
 
 # ── 多实例部署 ──
@@ -41,9 +41,9 @@ fi
 # 对齐各组件资源，确保与其他调度器组公平对比
 set_deploy_resources() {
   local deploy="$1" req_cpu="$2" req_mem="$3" lim_cpu="$4" lim_mem="$5"
-  if kubectl get deployment "$deploy" -n "${GODEL_NAMESPACE}" >/dev/null 2>&1; then
+  if kubectl get deployment "$deploy" -n "${ENO_NAMESPACE}" >/dev/null 2>&1; then
     kubectl set resources deployment/"$deploy" \
-      -n "${GODEL_NAMESPACE}" \
+      -n "${ENO_NAMESPACE}" \
       --containers='*' \
       --requests="cpu=${req_cpu},memory=${req_mem}" \
       --limits="cpu=${lim_cpu},memory=${lim_mem}" >/dev/null
@@ -62,29 +62,29 @@ log_step "Step 3: 等待组件就绪"
 sleep 10
 
 # 等待 Dispatcher
-wait_deployment_ready "${GODEL_NAMESPACE}" "dispatcher" "${WAIT_READY_TIMEOUT}"
+wait_deployment_ready "${ENO_NAMESPACE}" "dispatcher" "${WAIT_READY_TIMEOUT}"
 
 # Binder replicas=0，不需要等待
 
 # 等待 Scheduler 实例（每个内嵌了 Binder）
 if (( SCHEDULER_INSTANCES > 1 )); then
   for i in $(seq 0 $((SCHEDULER_INSTANCES - 1))); do
-    wait_deployment_ready "${GODEL_NAMESPACE}" "scheduler-${i}" "${WAIT_READY_TIMEOUT}"
+    wait_deployment_ready "${ENO_NAMESPACE}" "scheduler-${i}" "${WAIT_READY_TIMEOUT}"
   done
 else
-  for deploy in $(kubectl get deployment -n "${GODEL_NAMESPACE}" --no-headers 2>/dev/null | awk '{print $1}' | grep "^scheduler"); do
-    wait_deployment_ready "${GODEL_NAMESPACE}" "$deploy" "${WAIT_READY_TIMEOUT}"
+  for deploy in $(kubectl get deployment -n "${ENO_NAMESPACE}" --no-headers 2>/dev/null | awk '{print $1}' | grep "^scheduler"); do
+    wait_deployment_ready "${ENO_NAMESPACE}" "$deploy" "${WAIT_READY_TIMEOUT}"
   done
 fi
 
 # ── Step 4: 验证 ──
 log_step "Step 4: 验证部署"
 echo ""
-kubectl get pods -n "${GODEL_NAMESPACE}" -o wide
+kubectl get pods -n "${ENO_NAMESPACE}" -o wide
 echo ""
 
 # 确认独立 Binder 未运行
-local_binder_count=$(kubectl get pods -n "${GODEL_NAMESPACE}" -l component=binder --no-headers 2>/dev/null | grep -c "Running" || true)
+local_binder_count=$(kubectl get pods -n "${ENO_NAMESPACE}" -l component=binder --no-headers 2>/dev/null | grep -c "Running" || true)
 log_info "独立 Binder Pod 数量: ${local_binder_count} (预期: 0)"
 
 if (( local_binder_count > 0 )); then
@@ -93,9 +93,9 @@ fi
 
 # 验证 Scheduler 中启用了 embedded binder
 scheduler_pod=""
-scheduler_pod=$(kubectl get pods -n "${GODEL_NAMESPACE}" -l app=godel-scheduler --no-headers 2>/dev/null | head -1 | awk '{print $1}')
+scheduler_pod=$(kubectl get pods -n "${ENO_NAMESPACE}" -l app=eno-scheduler --no-headers 2>/dev/null | head -1 | awk '{print $1}')
 if [[ -n "$scheduler_pod" ]]; then
-  if kubectl logs "$scheduler_pod" -n "${GODEL_NAMESPACE}" --tail=20 2>/dev/null | grep -qi "embedded.*binder\|binder.*embedded"; then
+  if kubectl logs "$scheduler_pod" -n "${ENO_NAMESPACE}" --tail=20 2>/dev/null | grep -qi "embedded.*binder\|binder.*embedded"; then
     log_info "✓ Embedded Binder 已在 Scheduler 中启用"
   else
     log_info "检查 Scheduler 日志以确认 Embedded Binder 状态..."
@@ -112,5 +112,5 @@ verify_prometheus_targets
 
 separator "组 B 部署完成"
 log_info "架构: 独立 Binder (每个 Scheduler 内嵌独立 Binder)"
-log_info "schedulerName: godel-scheduler"
+log_info "schedulerName: eno-scheduler"
 show_node_partition

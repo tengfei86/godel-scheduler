@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ func (maintainer *SchedulerMaintainer) AddScheduler(scheduler *schedulerapi.Sche
 func (maintainer *SchedulerMaintainer) updateSchedulerBasedOnSchedulerCRD(scheduler *schedulerapi.Scheduler) {
 	if maintainer.generalSchedulers[scheduler.Name] == nil {
 		// schedulers are not added before, add it to active schedulers map directly
-		gs := sche.NewGodelSchedulerWithSchedulerCRD(scheduler)
+		gs := sche.NewEnoSchedulerWithSchedulerCRD(scheduler)
 		metrics.SchedulerSizeInc(metrics.ActiveScheduler)
 		maintainer.generalSchedulers[scheduler.Name] = gs
 		return
@@ -82,7 +82,7 @@ func (maintainer *SchedulerMaintainer) DeleteScheduler(scheduler *schedulerapi.S
 
 	// deactivate the schedulers
 	if maintainer.generalSchedulers[scheduler.Name] != nil {
-		// TODO: if we add more fields into GodelScheduler,
+		// TODO: if we add more fields into EnoScheduler,
 		// add more checks here (for example: check if dispatched pods are all dispatched) if we want to delete it from generalInactiveSchedulers
 		if len(maintainer.generalSchedulers[scheduler.Name].GetNodes()) == 0 {
 			delete(maintainer.generalSchedulers, scheduler.Name)
@@ -92,17 +92,17 @@ func (maintainer *SchedulerMaintainer) DeleteScheduler(scheduler *schedulerapi.S
 	}
 }
 
-// getGodelScheduler gets the GodelScheduler by schedulers name
+// getEnoScheduler gets the EnoScheduler by schedulers name
 // we assume the caller has get the lock
-func (maintainer *SchedulerMaintainer) getGodelScheduler(schedulerName string) *sche.GodelScheduler {
+func (maintainer *SchedulerMaintainer) getEnoScheduler(schedulerName string) *sche.EnoScheduler {
 	return maintainer.generalSchedulers[schedulerName]
 }
 
-func (maintainer *SchedulerMaintainer) addNodeToGodelScheduler(schedulerName string, nodeName string) {
-	scheduler := maintainer.getGodelScheduler(schedulerName)
+func (maintainer *SchedulerMaintainer) addNodeToEnoScheduler(schedulerName string, nodeName string) {
+	scheduler := maintainer.getEnoScheduler(schedulerName)
 	newlyCreate := false
 	if scheduler == nil {
-		scheduler = sche.NewGodelSchedulerWithSchedulerName(schedulerName)
+		scheduler = sche.NewEnoSchedulerWithSchedulerName(schedulerName)
 		newlyCreate = true
 		metrics.SchedulerSizeInc(metrics.ActiveScheduler)
 	}
@@ -116,42 +116,42 @@ func (maintainer *SchedulerMaintainer) addNodeToGodelScheduler(schedulerName str
 	}
 }
 
-// AddNodeToGodelSchedulerIfNotPresent adds node to specific godel schedulers
-func (maintainer *SchedulerMaintainer) AddNodeToGodelSchedulerIfNotPresent(node *v1.Node) error {
+// AddNodeToEnoSchedulerIfNotPresent adds node to specific eno schedulers
+func (maintainer *SchedulerMaintainer) AddNodeToEnoSchedulerIfNotPresent(node *v1.Node) error {
 	maintainer.schedulerMux.Lock()
 	defer maintainer.schedulerMux.Unlock()
 
-	if len(node.Annotations[nodeutil.GodelSchedulerNodeAnnotationKey]) == 0 {
-		// annotation is nil or does not contain GodelSchedulerNodeAnnotationKey,
+	if len(node.Annotations[nodeutil.EnoSchedulerNodeAnnotationKey]) == 0 {
+		// annotation is nil or does not contain EnoSchedulerNodeAnnotationKey,
 		// this kind of node will be handled by a separate sync-up goroutine, so skip directly here
 		return nil
 	}
 
-	schedulerName := node.Annotations[nodeutil.GodelSchedulerNodeAnnotationKey]
-	maintainer.addNodeToGodelScheduler(schedulerName, node.Name)
+	schedulerName := node.Annotations[nodeutil.EnoSchedulerNodeAnnotationKey]
+	maintainer.addNodeToEnoScheduler(schedulerName, node.Name)
 
 	return nil
 }
 
-// AddNMNodeToGodelSchedulerIfNotPresent adds NMNode to specific godel schedulers
-func (maintainer *SchedulerMaintainer) AddNMNodeToGodelSchedulerIfNotPresent(nmNode *nodev1alpha1.NMNode) error {
+// AddNMNodeToEnoSchedulerIfNotPresent adds NMNode to specific eno schedulers
+func (maintainer *SchedulerMaintainer) AddNMNodeToEnoSchedulerIfNotPresent(nmNode *nodev1alpha1.NMNode) error {
 	maintainer.schedulerMux.Lock()
 	defer maintainer.schedulerMux.Unlock()
 
-	if len(nmNode.Annotations[nodeutil.GodelSchedulerNodeAnnotationKey]) == 0 {
-		// annotation is nil or does not contain GodelSchedulerNodeAnnotationKey,
+	if len(nmNode.Annotations[nodeutil.EnoSchedulerNodeAnnotationKey]) == 0 {
+		// annotation is nil or does not contain EnoSchedulerNodeAnnotationKey,
 		// this kind of node will be handled by a separate sync-up goroutine, so skip directly here
 		return nil
 	}
 
-	schedulerName := nmNode.Annotations[nodeutil.GodelSchedulerNodeAnnotationKey]
-	maintainer.addNodeToGodelScheduler(schedulerName, nmNode.Name)
+	schedulerName := nmNode.Annotations[nodeutil.EnoSchedulerNodeAnnotationKey]
+	maintainer.addNodeToEnoScheduler(schedulerName, nmNode.Name)
 
 	return nil
 }
 
 // we assume the caller has already get the lock
-func (maintainer *SchedulerMaintainer) nodeExistsInGodelScheduler(nodeName string, schedulerName string) bool {
+func (maintainer *SchedulerMaintainer) nodeExistsInEnoScheduler(nodeName string, schedulerName string) bool {
 	if maintainer.generalSchedulers[schedulerName] == nil {
 		// schedulers does not exist in maintainer, return false
 		return false
@@ -161,21 +161,21 @@ func (maintainer *SchedulerMaintainer) nodeExistsInGodelScheduler(nodeName strin
 	return found
 }
 
-// UpdateNodeInGodelSchedulerIfNecessary updates node info for specific godel schedulers
-func (maintainer *SchedulerMaintainer) UpdateNodeInGodelSchedulerIfNecessary(oldNode *v1.Node, newNode *v1.Node) error {
+// UpdateNodeInEnoSchedulerIfNecessary updates node info for specific eno schedulers
+func (maintainer *SchedulerMaintainer) UpdateNodeInEnoSchedulerIfNecessary(oldNode *v1.Node, newNode *v1.Node) error {
 	maintainer.schedulerMux.Lock()
 	defer maintainer.schedulerMux.Unlock()
 
-	oldSchedulerName := oldNode.Annotations[nodeutil.GodelSchedulerNodeAnnotationKey]
-	newSchedulerName := newNode.Annotations[nodeutil.GodelSchedulerNodeAnnotationKey]
+	oldSchedulerName := oldNode.Annotations[nodeutil.EnoSchedulerNodeAnnotationKey]
+	newSchedulerName := newNode.Annotations[nodeutil.EnoSchedulerNodeAnnotationKey]
 	// schedulers name exists and is not updated
 	if oldSchedulerName == newSchedulerName && len(newSchedulerName) > 0 {
-		nodeExist := maintainer.nodeExistsInGodelScheduler(newNode.Name, newSchedulerName)
+		nodeExist := maintainer.nodeExistsInEnoScheduler(newNode.Name, newSchedulerName)
 		if !nodeExist {
-			maintainer.addNodeToGodelScheduler(newSchedulerName, newNode.Name)
+			maintainer.addNodeToEnoScheduler(newSchedulerName, newNode.Name)
 		}
 
-		// schedulers name is not updated and node is already in godel schedulers partition, return directly
+		// schedulers name is not updated and node is already in eno schedulers partition, return directly
 		return nil
 	}
 
@@ -186,26 +186,26 @@ func (maintainer *SchedulerMaintainer) UpdateNodeInGodelSchedulerIfNecessary(old
 	}
 
 	if len(newSchedulerName) > 0 {
-		maintainer.addNodeToGodelScheduler(newSchedulerName, newNode.Name)
+		maintainer.addNodeToEnoScheduler(newSchedulerName, newNode.Name)
 	}
 	return nil
 }
 
-// UpdateNMNodeInGodelSchedulerIfNecessary updates nmnode info for specific godel schedulers
-func (maintainer *SchedulerMaintainer) UpdateNMNodeInGodelSchedulerIfNecessary(oldNMNode *nodev1alpha1.NMNode, newNMNode *nodev1alpha1.NMNode) error {
+// UpdateNMNodeInEnoSchedulerIfNecessary updates nmnode info for specific eno schedulers
+func (maintainer *SchedulerMaintainer) UpdateNMNodeInEnoSchedulerIfNecessary(oldNMNode *nodev1alpha1.NMNode, newNMNode *nodev1alpha1.NMNode) error {
 	maintainer.schedulerMux.Lock()
 	defer maintainer.schedulerMux.Unlock()
 
-	oldSchedulerName := oldNMNode.Annotations[nodeutil.GodelSchedulerNodeAnnotationKey]
-	newSchedulerName := newNMNode.Annotations[nodeutil.GodelSchedulerNodeAnnotationKey]
+	oldSchedulerName := oldNMNode.Annotations[nodeutil.EnoSchedulerNodeAnnotationKey]
+	newSchedulerName := newNMNode.Annotations[nodeutil.EnoSchedulerNodeAnnotationKey]
 	// TODO: We can remove this check
 	if oldSchedulerName == newSchedulerName && len(newSchedulerName) > 0 {
-		nodeExist := maintainer.nodeExistsInGodelScheduler(newNMNode.Name, newSchedulerName)
+		nodeExist := maintainer.nodeExistsInEnoScheduler(newNMNode.Name, newSchedulerName)
 		if !nodeExist {
-			maintainer.addNodeToGodelScheduler(newSchedulerName, newNMNode.Name)
+			maintainer.addNodeToEnoScheduler(newSchedulerName, newNMNode.Name)
 		}
 
-		// schedulers name is not updated and node is already in godel schedulers partition, return directly
+		// schedulers name is not updated and node is already in eno schedulers partition, return directly
 		return nil
 	}
 
@@ -216,23 +216,23 @@ func (maintainer *SchedulerMaintainer) UpdateNMNodeInGodelSchedulerIfNecessary(o
 	}
 
 	if len(newSchedulerName) > 0 {
-		maintainer.addNodeToGodelScheduler(newSchedulerName, newNMNode.Name)
+		maintainer.addNodeToEnoScheduler(newSchedulerName, newNMNode.Name)
 	}
 	return nil
 }
 
-// DeleteNodeFromGodelScheduler deletes node from specific godel schedulers
-func (maintainer *SchedulerMaintainer) DeleteNodeFromGodelScheduler(node *v1.Node) error {
+// DeleteNodeFromEnoScheduler deletes node from specific eno schedulers
+func (maintainer *SchedulerMaintainer) DeleteNodeFromEnoScheduler(node *v1.Node) error {
 	maintainer.schedulerMux.Lock()
 	defer maintainer.schedulerMux.Unlock()
 
-	if len(node.Annotations[nodeutil.GodelSchedulerNodeAnnotationKey]) == 0 {
-		// annotation is nil or does not contain GodelSchedulerNodeAnnotationKey,
+	if len(node.Annotations[nodeutil.EnoSchedulerNodeAnnotationKey]) == 0 {
+		// annotation is nil or does not contain EnoSchedulerNodeAnnotationKey,
 		// this kind of node will be handled by a separate sync-up goroutine, so skip directly here
 		return nil
 	}
 
-	schedulerName := node.Annotations[nodeutil.GodelSchedulerNodeAnnotationKey]
+	schedulerName := node.Annotations[nodeutil.EnoSchedulerNodeAnnotationKey]
 	if maintainer.generalSchedulers[schedulerName] != nil {
 		maintainer.generalSchedulers[schedulerName].RemoveNode(node.Name)
 	}
@@ -240,18 +240,18 @@ func (maintainer *SchedulerMaintainer) DeleteNodeFromGodelScheduler(node *v1.Nod
 	return nil
 }
 
-// DeleteNMNodeFromGodelScheduler deletes nmnode from specific godel schedulers
-func (maintainer *SchedulerMaintainer) DeleteNMNodeFromGodelScheduler(nmNode *nodev1alpha1.NMNode) error {
+// DeleteNMNodeFromEnoScheduler deletes nmnode from specific eno schedulers
+func (maintainer *SchedulerMaintainer) DeleteNMNodeFromEnoScheduler(nmNode *nodev1alpha1.NMNode) error {
 	maintainer.schedulerMux.Lock()
 	defer maintainer.schedulerMux.Unlock()
 
-	if len(nmNode.Annotations[nodeutil.GodelSchedulerNodeAnnotationKey]) == 0 {
-		// annotation is nil or does not contain GodelSchedulerNodeAnnotationKey,
+	if len(nmNode.Annotations[nodeutil.EnoSchedulerNodeAnnotationKey]) == 0 {
+		// annotation is nil or does not contain EnoSchedulerNodeAnnotationKey,
 		// this kind of node will be handled by a separate sync-up goroutine, so skip directly here
 		return nil
 	}
 
-	schedulerName := nmNode.Annotations[nodeutil.GodelSchedulerNodeAnnotationKey]
+	schedulerName := nmNode.Annotations[nodeutil.EnoSchedulerNodeAnnotationKey]
 	if maintainer.generalSchedulers[schedulerName] != nil {
 		maintainer.generalSchedulers[schedulerName].RemoveNode(nmNode.Name)
 	}

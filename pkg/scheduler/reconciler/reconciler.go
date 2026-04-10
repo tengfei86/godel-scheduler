@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -139,7 +139,7 @@ func (re *FailedTaskReconciler) checkPodState(latestPod *v1.Pod, err error, fpt 
 		return false
 	}
 
-	if !podutil.DispatchedPodOfGodel(latestPod, re.schedulerName) {
+	if !podutil.DispatchedPodOfEno(latestPod, re.schedulerName) {
 		// pod is not in dispatched state, we need to forget the pod from cache no matter what state it is now.
 		// if it is assumed or bound now, the pod will be added to cache and removed from assumed pods map
 		// if it is pending now, we need to remove this pod from assumed pod map too.

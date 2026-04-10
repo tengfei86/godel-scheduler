@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -32,8 +32,8 @@ func addDefaultingFuncs(scheme *runtime.Scheme) error {
 	return RegisterDefaults(scheme)
 }
 
-// SetDefaults_GodelSchedulerConfiguration sets additional defaults
-func SetDefaults_GodelSchedulerConfiguration(obj *GodelSchedulerConfiguration) {
+// SetDefaults_EnoSchedulerConfiguration sets additional defaults
+func SetDefaults_EnoSchedulerConfiguration(obj *EnoSchedulerConfiguration) {
 	// 1. LeaderElection & SchedulerRenewIntervalSeconds
 	{
 		// Use the default LeaderElectionConfiguration options
@@ -68,7 +68,7 @@ func SetDefaults_GodelSchedulerConfiguration(obj *GodelSchedulerConfiguration) {
 		} else {
 			if host, port, err := net.SplitHostPort(obj.HealthzBindAddress); err == nil {
 				if len(host) == 0 {
-					host = config.DefaultGodelSchedulerAddress
+					host = config.DefaultEnoSchedulerAddress
 				}
 				hostPort := net.JoinHostPort(host, port)
 				obj.HealthzBindAddress = hostPort
@@ -90,7 +90,7 @@ func SetDefaults_GodelSchedulerConfiguration(obj *GodelSchedulerConfiguration) {
 		} else {
 			if host, port, err := net.SplitHostPort(obj.MetricsBindAddress); err == nil {
 				if len(host) == 0 {
-					host = config.DefaultGodelSchedulerAddress
+					host = config.DefaultEnoSchedulerAddress
 				}
 				hostPort := net.JoinHostPort(host, port)
 				obj.MetricsBindAddress = hostPort
@@ -122,12 +122,12 @@ func SetDefaults_GodelSchedulerConfiguration(obj *GodelSchedulerConfiguration) {
 		}
 	}
 
-	// 4. Godel Scheduler
+	// 4. Eno Scheduler
 	{
 		// Only apply a default scheduler name when there is a single profile.
 		// Validation will ensure that every profile has a non-empty unique name.
-		if len(obj.GodelSchedulerName) == 0 {
-			obj.GodelSchedulerName = config.DefaultGodelSchedulerName
+		if len(obj.EnoSchedulerName) == 0 {
+			obj.EnoSchedulerName = config.DefaultEnoSchedulerName
 		}
 		if obj.SchedulerName == nil {
 			defaultValue := config.DefaultSchedulerName
@@ -144,11 +144,11 @@ func SetDefaults_GodelSchedulerConfiguration(obj *GodelSchedulerConfiguration) {
 			obj.ReservationTimeOutSeconds = config.DefaultReservationTimeOutSeconds
 		}
 	}
-	// 5. Godel Profiles
+	// 5. Eno Profiles
 	{
 		if obj.DefaultProfile == nil {
 			// We got SubClusterName "" as default.
-			obj.DefaultProfile = &GodelSchedulerProfile{}
+			obj.DefaultProfile = &EnoSchedulerProfile{}
 		}
 		if obj.DefaultProfile.PercentageOfNodesToScore == nil {
 			percentageOfNodesToScore := int32(config.DefaultPercentageOfNodesToScore)

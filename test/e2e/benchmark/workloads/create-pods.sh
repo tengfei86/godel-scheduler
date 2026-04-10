@@ -11,7 +11,7 @@
 # 参数:
 #   rate            - 每秒创建的 Pod 数量
 #   total           - 总 Pod 数量
-#   scheduler_name  - schedulerName (godel-scheduler|default-scheduler|volcano|koord-scheduler)
+#   scheduler_name  - schedulerName (eno-scheduler|default-scheduler|volcano|koord-scheduler)
 #   cpu             - CPU 请求 (millicores, 默认 100)
 #   mem             - 内存请求 (Mi, 默认 128)
 #   workload_type   - basic|burst|gang|heterogeneous (默认 basic)
@@ -23,9 +23,9 @@
 #   PODGEN_DRY_RUN  - 设为 1 则仅计数不实际创建
 #
 # 示例:
-#   ./create-pods.sh 500 50000 godel-scheduler 100 128
-#   ./create-pods.sh 1000 100000 godel-scheduler 100 128 basic
-#   PODGEN_WORKERS=128 ./create-pods.sh 2000 200000 godel-scheduler
+#   ./create-pods.sh 500 50000 eno-scheduler 100 128
+#   ./create-pods.sh 1000 100000 eno-scheduler 100 128 basic
+#   PODGEN_WORKERS=128 ./create-pods.sh 2000 200000 eno-scheduler
 
 set -eu
 

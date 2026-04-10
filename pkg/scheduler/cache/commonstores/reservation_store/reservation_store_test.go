@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Godel Scheduler Authors.
+Copyright 2024 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ var (
 
 func makeCacheHandler() commoncache.CacheHandler {
 	cacheHandler := commoncache.MakeCacheHandlerWrapper().
-		ComponentName("godel-scheduler-0").SchedulerType("godel-scheduler").SubCluster(framework.DefaultSubCluster).
+		ComponentName("eno-scheduler-0").SchedulerType("eno-scheduler").SubCluster(framework.DefaultSubCluster).
 		PodAssumedTTL(15 * time.Minute).Period(10 * time.Second).ReservationTTL(reservationTTL).StopCh(wait.NeverStop).Obj()
 
 	podStore = podstore.NewCache(cacheHandler).(*podstore.PodStore)
@@ -152,7 +152,7 @@ func reserveReservation(t *testing.T, cache *ReservationStore, placeholderPod *v
 func TestReservationStore_DeletePod(t *testing.T) {
 	reqPod := testing_helper.MakePod().Name("req-pod").
 		UID("req-pod").
-		Annotation(podutil.PodResourceReservationAnnotationForGodel, "true").
+		Annotation(podutil.PodResourceReservationAnnotationForEno, "true").
 		Annotation(podutil.ReservationIndexAnnotation, "ph").
 		Annotation(podutil.PodStateAnnotationKey, string(podutil.PodAssumed)).
 		Node("node").Obj()
@@ -218,7 +218,7 @@ func TestReservationStore_DeletePod(t *testing.T) {
 func TestReservationStore_UpdatePod(t *testing.T) {
 	reqPod := testing_helper.MakePod().Name("req-pod").
 		UID("req-pod").
-		Annotation(podutil.PodResourceReservationAnnotationForGodel, "true").
+		Annotation(podutil.PodResourceReservationAnnotationForEno, "true").
 		Annotation(podutil.ReservationIndexAnnotation, "ph").
 		Annotation(podutil.PodStateAnnotationKey, string(podutil.PodAssumed)).
 		Node("node").Obj()
@@ -235,7 +235,7 @@ func TestReservationStore_UpdatePod(t *testing.T) {
 		Annotation(podutil.ReservationIndexAnnotation, "ph").
 		Annotation(podutil.PodStateAnnotationKey, string(podutil.PodAssumed)).
 		Annotation(podutil.MatchedReservationPlaceholderKey, getPlaceholderPodKey(placeholderPod)).
-		Annotation(podutil.SchedulerAnnotationKey, "godel-scheduler").
+		Annotation(podutil.SchedulerAnnotationKey, "eno-scheduler").
 		Annotation(podutil.AssumedNodeAnnotationKey, "node").
 		Obj()
 
@@ -262,7 +262,7 @@ func TestReservationStore_UpdatePod(t *testing.T) {
 func TestReservationStore_AssumePod(t *testing.T) {
 	reqPod := testing_helper.MakePod().Name("req-pod").
 		UID("req-pod").
-		Annotation(podutil.PodResourceReservationAnnotationForGodel, "true").
+		Annotation(podutil.PodResourceReservationAnnotationForEno, "true").
 		Annotation(podutil.ReservationIndexAnnotation, "ph").
 		Annotation(podutil.PodStateAnnotationKey, string(podutil.PodAssumed)).
 		Node("node").Obj()
@@ -289,7 +289,7 @@ func TestReservationStore_AssumePod(t *testing.T) {
 func TestReservationStore_ForgetPod(t *testing.T) {
 	reqPod := testing_helper.MakePod().Name("req-pod").
 		UID("req-pod").
-		Annotation(podutil.PodResourceReservationAnnotationForGodel, "true").
+		Annotation(podutil.PodResourceReservationAnnotationForEno, "true").
 		Annotation(podutil.PodStateAnnotationKey, string(podutil.PodAssumed)).
 		Annotation(podutil.ReservationIndexAnnotation, "ph").
 		Node("node").Obj()
@@ -327,7 +327,7 @@ func TestReservationStore_ShouldReserveResources(t *testing.T) {
 			name: "pod with reservation annotation key should reserve resources",
 			pod: testing_helper.MakePod().Name("req-pod").
 				UID("req-pod").
-				Annotation(podutil.PodResourceReservationAnnotationForGodel, "true").
+				Annotation(podutil.PodResourceReservationAnnotationForEno, "true").
 				Node("node").
 				Obj(),
 			deployment: nil,
@@ -357,7 +357,7 @@ func TestReservationStore_ShouldReserveResources(t *testing.T) {
 					},
 
 					Annotations: map[string]string{
-						podutil.PodResourceReservationAnnotationForGodel: "true",
+						podutil.PodResourceReservationAnnotationForEno: "true",
 					},
 				},
 			},
@@ -420,7 +420,7 @@ func TestReservationStore_CleanupExpiredAssumedPodReservation(t *testing.T) {
 			name: "assumed reservation will be cleaned up without adding reservation",
 			pod: testing_helper.MakePod().Name("req-pod").
 				UID("req-pod").
-				Annotation(podutil.PodResourceReservationAnnotationForGodel, "true").
+				Annotation(podutil.PodResourceReservationAnnotationForEno, "true").
 				Annotation(podutil.ReservationIndexAnnotation, "ph").
 				Node("node").
 				Obj(),
@@ -431,7 +431,7 @@ func TestReservationStore_CleanupExpiredAssumedPodReservation(t *testing.T) {
 			name: "assumed reservation will not be cleaned up with adding reservation",
 			pod: testing_helper.MakePod().Name("req-pod").
 				UID("req-pod").
-				Annotation(podutil.PodResourceReservationAnnotationForGodel, "true").
+				Annotation(podutil.PodResourceReservationAnnotationForEno, "true").
 				Annotation(podutil.ReservationIndexAnnotation, "ph").
 				Node("node").
 				Obj(),
@@ -465,7 +465,7 @@ func TestReservationStore_CleanupExpiredAssumedPodReservation(t *testing.T) {
 func TestReservationStore_AddReservation(t *testing.T) {
 	reqPod := testing_helper.MakePod().Name("req-pod").
 		UID("req-pod").
-		Annotation(podutil.PodResourceReservationAnnotationForGodel, "true").
+		Annotation(podutil.PodResourceReservationAnnotationForEno, "true").
 		Annotation(podutil.ReservationIndexAnnotation, "ph").
 		Annotation(podutil.PodStateAnnotationKey, string(podutil.PodAssumed)).
 		Node("node").Obj()
@@ -522,7 +522,7 @@ func TestReservationStore_AddReservation(t *testing.T) {
 func TestReservationStore_DeleteReservation(t *testing.T) {
 	reqPod := testing_helper.MakePod().Name("req-pod").
 		UID("req-pod").
-		Annotation(podutil.PodResourceReservationAnnotationForGodel, "true").
+		Annotation(podutil.PodResourceReservationAnnotationForEno, "true").
 		Annotation(podutil.ReservationIndexAnnotation, "ph").
 		Annotation(podutil.PodStateAnnotationKey, string(podutil.PodAssumed)).
 		Node("node").Obj()
@@ -545,7 +545,7 @@ func TestReservationStore_DeleteReservation(t *testing.T) {
 func TestReservationStore_UpdateReservation(t *testing.T) {
 	reqPod := testing_helper.MakePod().Name("req-pod").
 		UID("req-pod").
-		Annotation(podutil.PodResourceReservationAnnotationForGodel, "true").
+		Annotation(podutil.PodResourceReservationAnnotationForEno, "true").
 		Annotation(podutil.ReservationIndexAnnotation, "ph").
 		Annotation(podutil.PodStateAnnotationKey, string(podutil.PodAssumed)).
 		Node("node").Obj()
@@ -586,25 +586,25 @@ func TestReservationStore_UpdateSnapshot(t *testing.T) {
 	fakeHandler = makeCacheHandler()
 	fakePod1 := podutil.CreateReservationFakePod(
 		testing_helper.MakePod().Name("pod1").
-			Annotation(podutil.PodResourceReservationAnnotationForGodel, "true").
+			Annotation(podutil.PodResourceReservationAnnotationForEno, "true").
 			Annotation(podutil.ReservationIndexAnnotation, "ph1").
 			Node("node1").Obj())
 
 	fakePod2 := podutil.CreateReservationFakePod(
 		testing_helper.MakePod().Name("pod2").
-			Annotation(podutil.PodResourceReservationAnnotationForGodel, "true").
+			Annotation(podutil.PodResourceReservationAnnotationForEno, "true").
 			Annotation(podutil.ReservationIndexAnnotation, "ph2").
 			Node("node2").Obj())
 
 	matchedPod1 := podutil.CreateReservationFakePod(
 		testing_helper.MakePod().Name("pod11").
-			Annotation(podutil.PodResourceReservationAnnotationForGodel, "true").
+			Annotation(podutil.PodResourceReservationAnnotationForEno, "true").
 			Annotation(podutil.ReservationIndexAnnotation, "ph1").
 			Node("node1").Obj())
 
 	matchedPod2 := podutil.CreateReservationFakePod(
 		testing_helper.MakePod().Name("pod22").
-			Annotation(podutil.PodResourceReservationAnnotationForGodel, "true").
+			Annotation(podutil.PodResourceReservationAnnotationForEno, "true").
 			Annotation(podutil.ReservationIndexAnnotation, "ph2").
 			Node("node2").Obj())
 

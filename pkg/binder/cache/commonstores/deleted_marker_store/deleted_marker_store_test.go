@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ func TestCleanupPodDeletionMarker(t *testing.T) {
 	}
 	cacheHandler := commoncache.MakeCacheHandlerWrapper().
 		Period(10 * time.Second).PodAssumedTTL(ttl).StopCh(nil).
-		ComponentName("godel-binder").Obj()
+		ComponentName("eno-binder").Obj()
 
 	cacheHandler.SetPodHandler(func(s string) (*framework.CachePodState, bool) {
 		if s == podKey {

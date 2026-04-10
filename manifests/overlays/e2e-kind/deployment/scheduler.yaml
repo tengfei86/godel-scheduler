@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: scheduler
-  namespace: godel-system
+  namespace: eno-system
   labels:
     component: scheduler
 spec:

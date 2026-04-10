@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	DefaultSchedulerName               = "godel-scheduler"
+	DefaultSchedulerName               = "eno-scheduler"
 	DefaultClientConnectionContentType = "application/vnd.kubernetes.protobuf"
 	DefaultClientConnectionQPS         = 10000.0
 	DefaultClientConnectionBurst       = 10000
@@ -37,14 +37,14 @@ const (
 
 	DefaultReservationTimeOutSeconds = 60
 
-	BinderDefaultLockObjectName = "godel-binder"
+	BinderDefaultLockObjectName = "eno-binder"
 )
 
 func addDefaultingFuncs(scheme *runtime.Scheme) error {
 	return RegisterDefaults(scheme)
 }
 
-func SetDefaults_GodelBinderConfiguration(cfg *GodelBinderConfiguration) {
+func SetDefaults_EnoBinderConfiguration(cfg *EnoBinderConfiguration) {
 	if len(cfg.ClientConnection.ContentType) == 0 {
 		cfg.ClientConnection.ContentType = DefaultClientConnectionContentType
 	}

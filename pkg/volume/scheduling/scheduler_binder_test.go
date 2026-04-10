@@ -127,7 +127,7 @@ func init() {
 type testEnv struct {
 	client                  clientset.Interface
 	reactor                 *pvtesting.VolumeReactor
-	binder                  GodelVolumeBinder
+	binder                  EnoVolumeBinder
 	internalBinder          *volumeBinder
 	internalNodeInformer    coreinformers.NodeInformer
 	internalCSINodeInformer storageinformers.CSINodeInformer

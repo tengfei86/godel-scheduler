@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -42,27 +42,27 @@ var (
 	now = time.Now()
 
 	p0 = testinghelper.MakePod().Name("p0").UID("p0").
-		Annotation(podutil.PodStateAnnotationKey, string(podutil.PodAssumed)).Annotation(podutil.SchedulerAnnotationKey, "godel-scheduler").
+		Annotation(podutil.PodStateAnnotationKey, string(podutil.PodAssumed)).Annotation(podutil.SchedulerAnnotationKey, "eno-scheduler").
 		Annotation(podutil.AssumedNodeAnnotationKey, nodeName).Req(map[v1.ResourceName]string{v1.ResourceCPU: "100m", v1.ResourceMemory: "100"}).
 		Obj()
 	p1 = testinghelper.MakePod().Name("p1").UID("p1").
-		Annotation(podutil.PodStateAnnotationKey, string(podutil.PodAssumed)).Annotation(podutil.SchedulerAnnotationKey, "godel-scheduler").
+		Annotation(podutil.PodStateAnnotationKey, string(podutil.PodAssumed)).Annotation(podutil.SchedulerAnnotationKey, "eno-scheduler").
 		Annotation(podutil.AssumedNodeAnnotationKey, nodeName).Req(map[v1.ResourceName]string{v1.ResourceCPU: "100m", v1.ResourceMemory: "100"}).
 		Obj()
 	p2 = testinghelper.MakePod().Name("p2").UID("p2").
-		Annotation(podutil.PodStateAnnotationKey, string(podutil.PodAssumed)).Annotation(podutil.SchedulerAnnotationKey, "godel-scheduler").
+		Annotation(podutil.PodStateAnnotationKey, string(podutil.PodAssumed)).Annotation(podutil.SchedulerAnnotationKey, "eno-scheduler").
 		Annotation(podutil.AssumedNodeAnnotationKey, nodeName).Req(map[v1.ResourceName]string{v1.ResourceCPU: "100m", v1.ResourceMemory: "100"}).
 		Obj()
 	p3 = testinghelper.MakePod().Name("p3").UID("p3").
-		Annotation(podutil.PodStateAnnotationKey, string(podutil.PodAssumed)).Annotation(podutil.SchedulerAnnotationKey, "godel-scheduler").
+		Annotation(podutil.PodStateAnnotationKey, string(podutil.PodAssumed)).Annotation(podutil.SchedulerAnnotationKey, "eno-scheduler").
 		Annotation(podutil.AssumedNodeAnnotationKey, nodeName).Req(map[v1.ResourceName]string{v1.ResourceCPU: "100m", v1.ResourceMemory: "100"}).
 		Obj()
 	p4 = testinghelper.MakePod().Name("p4").UID("p4").
-		Annotation(podutil.PodStateAnnotationKey, string(podutil.PodAssumed)).Annotation(podutil.SchedulerAnnotationKey, "godel-scheduler").
+		Annotation(podutil.PodStateAnnotationKey, string(podutil.PodAssumed)).Annotation(podutil.SchedulerAnnotationKey, "eno-scheduler").
 		Annotation(podutil.AssumedNodeAnnotationKey, nodeName).Req(map[v1.ResourceName]string{v1.ResourceCPU: "100m", v1.ResourceMemory: "100"}).
 		Obj()
 	p5 = testinghelper.MakePod().Name("p5").UID("p5").
-		Annotation(podutil.PodStateAnnotationKey, string(podutil.PodAssumed)).Annotation(podutil.SchedulerAnnotationKey, "godel-scheduler").
+		Annotation(podutil.PodStateAnnotationKey, string(podutil.PodAssumed)).Annotation(podutil.SchedulerAnnotationKey, "eno-scheduler").
 		Annotation(podutil.AssumedNodeAnnotationKey, nodeName).Req(map[v1.ResourceName]string{v1.ResourceCPU: "100m", v1.ResourceMemory: "100"}).
 		Obj()
 

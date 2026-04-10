@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-func loadConfigFromFile(file string) (*godelschedulerconfig.GodelSchedulerConfiguration, error) {
+func loadConfigFromFile(file string) (*godelschedulerconfig.EnoSchedulerConfiguration, error) {
 	data, err := ioutil.ReadFile(file)
 	if err != nil {
 		return nil, err
@@ -37,25 +37,25 @@ func loadConfigFromFile(file string) (*godelschedulerconfig.GodelSchedulerConfig
 	return loadConfig(data)
 }
 
-func loadConfig(data []byte) (*godelschedulerconfig.GodelSchedulerConfiguration, error) {
+func loadConfig(data []byte) (*godelschedulerconfig.EnoSchedulerConfiguration, error) {
 	// The UniversalDecoder runs defaulting and returns the internal type by default.
 	obj, gvk, err := godelschedulerscheme.Codecs.UniversalDecoder().Decode(data, nil, nil)
 	if err != nil {
 		return nil, err
 	}
-	if cfgObj, ok := obj.(*godelschedulerconfig.GodelSchedulerConfiguration); ok {
+	if cfgObj, ok := obj.(*godelschedulerconfig.EnoSchedulerConfiguration); ok {
 		cfgObj.TypeMeta.APIVersion = gvk.GroupVersion().String()
 		switch cfgObj.TypeMeta.APIVersion {
 		case v1beta1.SchemeGroupVersion.String():
-			fmt.Printf("GodelSchedulerConfiguration v1beta1 is loaded.\n")
+			fmt.Printf("EnoSchedulerConfiguration v1beta1 is loaded.\n")
 		}
 		return cfgObj, nil
 	}
-	return nil, fmt.Errorf("couldn't decode as GodelSchedulerConfiguration, got %s: ", gvk)
+	return nil, fmt.Errorf("couldn't decode as EnoSchedulerConfiguration, got %s: ", gvk)
 }
 
 // WriteConfigFile writes the config into the given file name as YAML.
-func WriteConfigFile(fileName string, cfg *godelschedulerconfig.GodelSchedulerConfiguration) error {
+func WriteConfigFile(fileName string, cfg *godelschedulerconfig.EnoSchedulerConfiguration) error {
 	const mediaType = runtime.ContentTypeYAML
 	info, ok := runtime.SerializerInfoForMediaType(godelschedulerscheme.Codecs.SupportedMediaTypes(), mediaType)
 	if !ok {

@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Godel Scheduler Authors.
+Copyright 2024 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -67,18 +67,18 @@ func TestCreateReservationCrdOnPodDeletion(t *testing.T) {
 		{
 			Name: "pod with reservation request can trigger crd creation.",
 			Pod: makePod("testPod", map[string]string{
-				podutil.PodResourceReservationAnnotationForGodel: podutil.PodHasReservationRequirement,
+				podutil.PodResourceReservationAnnotationForEno: podutil.PodHasReservationRequirement,
 			},
 				testNS),
 			ExpectedCrd: testinghelper.WrapReservation(
 				makeReservationCrd(makePod("testPod", map[string]string{
-					podutil.PodResourceReservationAnnotationForGodel: podutil.PodHasReservationRequirement,
+					podutil.PodResourceReservationAnnotationForEno: podutil.PodHasReservationRequirement,
 				}, testNS))).Obj(),
 		},
 		{
 			Name: "pod not bound can not trigger crd creation.",
 			Pod: makePod("testPod", map[string]string{
-				podutil.PodResourceReservationAnnotationForGodel: podutil.PodHasReservationRequirement,
+				podutil.PodResourceReservationAnnotationForEno: podutil.PodHasReservationRequirement,
 			},
 				""),
 			ExpectedCrd: nil,
@@ -87,16 +87,16 @@ func TestCreateReservationCrdOnPodDeletion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.Name, func(t *testing.T) {
 			kubeClient := fake.NewSimpleClientset()
-			godelClient := godelfake.NewSimpleClientset()
+			enoClient := godelfake.NewSimpleClientset()
 			informerFactory := informers.NewSharedInformerFactory(kubeClient, controller.NoResyncPeriodFunc())
-			godelInformerFactory := crdinformers.NewSharedInformerFactory(godelClient, controller.NoResyncPeriodFunc())
+			enoInformerFactory := crdinformers.NewSharedInformerFactory(enoClient, controller.NoResyncPeriodFunc())
 			podInformer := informerFactory.Core().V1().Pods()
 			deployInformer := informerFactory.Apps().V1().Deployments()
-			podReservationInformer := godelInformerFactory.Scheduling().V1alpha1().Reservations()
+			podReservationInformer := enoInformerFactory.Scheduling().V1alpha1().Reservations()
 
 			rc := NewReservationController(
 				context.TODO(),
-				godelClient,
+				enoClient,
 				podInformer,
 				deployInformer,
 				podReservationInformer,
@@ -105,7 +105,7 @@ func TestCreateReservationCrdOnPodDeletion(t *testing.T) {
 				60,
 			)
 			rc.createReservationCrdOnPodDeletion(tt.Pod)
-			crd, _ := godelClient.SchedulingV1alpha1().Reservations(testNS).Get(context.TODO(), tt.Pod.Name, metav1.GetOptions{})
+			crd, _ := enoClient.SchedulingV1alpha1().Reservations(testNS).Get(context.TODO(), tt.Pod.Name, metav1.GetOptions{})
 			if !reflect.DeepEqual(tt.ExpectedCrd, crd) {
 				t.Errorf("expected: %#v, got: %#v", tt.ExpectedCrd, crd)
 			}
@@ -122,7 +122,7 @@ func TestHandleReservation(t *testing.T) {
 		{
 			Name: "timeout CRD will be deleted.",
 			Crd: testinghelper.WrapReservation(makeReservationCrd(makePod("testPod", map[string]string{
-				podutil.PodResourceReservationAnnotationForGodel: podutil.PodHasReservationRequirement,
+				podutil.PodResourceReservationAnnotationForEno: podutil.PodHasReservationRequirement,
 			}, testNS))).CreateTime(
 				metav1.NewTime(time.Now().Add((-100) * time.Second))).Obj(),
 			ExpectedNil: true,
@@ -130,7 +130,7 @@ func TestHandleReservation(t *testing.T) {
 		{
 			Name: "CRD is not timeout won't be deleted.",
 			Crd: testinghelper.WrapReservation(makeReservationCrd(makePod("testPod", map[string]string{
-				podutil.PodResourceReservationAnnotationForGodel: podutil.PodHasReservationRequirement,
+				podutil.PodResourceReservationAnnotationForEno: podutil.PodHasReservationRequirement,
 			}, testNS))).CreateTime(
 				metav1.NewTime(time.Now())).Obj(),
 			ExpectedNil: false,
@@ -139,16 +139,16 @@ func TestHandleReservation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.Name, func(t *testing.T) {
 			kubeClient := fake.NewSimpleClientset()
-			godelClient := godelfake.NewSimpleClientset(tt.Crd)
+			enoClient := godelfake.NewSimpleClientset(tt.Crd)
 			informerFactory := informers.NewSharedInformerFactory(kubeClient, controller.NoResyncPeriodFunc())
-			godelInformerFactory := crdinformers.NewSharedInformerFactory(godelClient, controller.NoResyncPeriodFunc())
+			enoInformerFactory := crdinformers.NewSharedInformerFactory(enoClient, controller.NoResyncPeriodFunc())
 			podInformer := informerFactory.Core().V1().Pods()
 			deployInformer := informerFactory.Apps().V1().Deployments()
-			podReservationInformer := godelInformerFactory.Scheduling().V1alpha1().Reservations()
+			podReservationInformer := enoInformerFactory.Scheduling().V1alpha1().Reservations()
 
 			rc := NewReservationController(
 				context.TODO(),
-				godelClient,
+				enoClient,
 				podInformer,
 				deployInformer,
 				podReservationInformer,
@@ -159,7 +159,7 @@ func TestHandleReservation(t *testing.T) {
 
 			podReservationInformer.Informer().GetIndexer().Add(tt.Crd)
 			rc.handleReservation(context.TODO())
-			crd, _ := godelClient.SchedulingV1alpha1().Reservations(testNS).Get(context.TODO(), tt.Crd.Name, metav1.GetOptions{})
+			crd, _ := enoClient.SchedulingV1alpha1().Reservations(testNS).Get(context.TODO(), tt.Crd.Name, metav1.GetOptions{})
 			if tt.ExpectedNil {
 				if crd != nil {
 					t.Errorf("expected: nil, got: %#v", crd)

@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -119,7 +119,7 @@ func TestCreateUnit(t *testing.T) {
 	pcName := "pc1"
 	// compare unit pg.name and expected pc
 	pcLister := testinghelper.NewFakePriorityClassLister([]*scheduling.PriorityClass{
-		testinghelper.MakePriorityClass().Name(pcName).Annotation("godel.bytedance.com/can-be-preempted", "true").Value(pcValue).Obj(),
+		testinghelper.MakePriorityClass().Name(pcName).Annotation("eno.io/can-be-preempted", "true").Value(pcValue).Obj(),
 	})
 
 	pgLister := testinghelper.NewFakePodGroupLister([]*schedulingv1alpha1.PodGroup{
@@ -173,7 +173,7 @@ func TestCreateUnit(t *testing.T) {
 				Pod: normalPod,
 			},
 			expectError:    false,
-			expectPriority: podutil.GetDefaultPriorityForGodelPod(normalPod),
+			expectPriority: podutil.GetDefaultPriorityForEnoPod(normalPod),
 		},
 		{
 			name:     "unit is valid",

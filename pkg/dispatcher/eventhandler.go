@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -184,7 +184,7 @@ func (d *Dispatcher) addPodToDispatchedInfo(obj interface{}) {
 
 	d.DispatchInfo.AddPod(pod)
 
-	if podutil.DispatchedPodOfGodel(pod, d.SchedulerName) {
+	if podutil.DispatchedPodOfEno(pod, d.SchedulerName) {
 		schedulerName := pod.Annotations[podutil.SchedulerAnnotationKey]
 		metrics.PodsInPartitionSizeInc(schedulerName, string(podutil.PodDispatched))
 	}
@@ -200,7 +200,7 @@ func (d *Dispatcher) deletePodFromDispatchedInfo(obj interface{}) {
 	klog.V(3).InfoS("Detected a Delete event for the dispatched pod", "pod", klog.KObj(pod))
 	d.DispatchInfo.RemovePod(pod)
 
-	if podutil.DispatchedPodOfGodel(pod, d.SchedulerName) {
+	if podutil.DispatchedPodOfEno(pod, d.SchedulerName) {
 		schedulerName := pod.Annotations[podutil.SchedulerAnnotationKey]
 		metrics.PodsInPartitionSizeDec(schedulerName, string(podutil.PodDispatched))
 	}
@@ -239,10 +239,10 @@ func AddAllEventHandlers(
 			FilterFunc: func(obj interface{}) bool {
 				switch t := obj.(type) {
 				case *v1.Pod:
-					return podutil.PendingPodOfGodel(t, dispatcher.SchedulerName)
+					return podutil.PendingPodOfEno(t, dispatcher.SchedulerName)
 				case cache.DeletedFinalStateUnknown:
 					if pod, ok := t.Obj.(*v1.Pod); ok {
-						return podutil.PendingPodOfGodel(pod, dispatcher.SchedulerName)
+						return podutil.PendingPodOfEno(pod, dispatcher.SchedulerName)
 					}
 					klog.InfoS("Failed to convert object to *v1.Pod", "object", obj, "component", dispatcher)
 					return false
@@ -265,10 +265,10 @@ func AddAllEventHandlers(
 			FilterFunc: func(obj interface{}) bool {
 				switch t := obj.(type) {
 				case *v1.Pod:
-					return podutil.DispatchedPodOfGodel(t, dispatcher.SchedulerName)
+					return podutil.DispatchedPodOfEno(t, dispatcher.SchedulerName)
 				case cache.DeletedFinalStateUnknown:
 					if pod, ok := t.Obj.(*v1.Pod); ok {
-						return podutil.DispatchedPodOfGodel(pod, dispatcher.SchedulerName)
+						return podutil.DispatchedPodOfEno(pod, dispatcher.SchedulerName)
 					}
 					klog.InfoS("Failed to convert object to *v1.Pod", "object", obj, "component", dispatcher)
 					return false
@@ -290,10 +290,10 @@ func AddAllEventHandlers(
 				FilterFunc: func(obj interface{}) bool {
 					switch t := obj.(type) {
 					case *v1.Pod:
-						return podutil.DispatchedPodOfGodel(t, dispatcher.SchedulerName) || podutil.AssumedPodOfGodel(t, dispatcher.SchedulerName)
+						return podutil.DispatchedPodOfEno(t, dispatcher.SchedulerName) || podutil.AssumedPodOfEno(t, dispatcher.SchedulerName)
 					case cache.DeletedFinalStateUnknown:
 						if pod, ok := t.Obj.(*v1.Pod); ok {
-							return podutil.DispatchedPodOfGodel(pod, dispatcher.SchedulerName) || podutil.AssumedPodOfGodel(pod, dispatcher.SchedulerName)
+							return podutil.DispatchedPodOfEno(pod, dispatcher.SchedulerName) || podutil.AssumedPodOfEno(pod, dispatcher.SchedulerName)
 						}
 						klog.InfoS("Failed to convert object to *v1.Pod", "object", obj, "component", dispatcher)
 						return false
@@ -493,7 +493,7 @@ func (d *Dispatcher) addNode(obj interface{}) {
 	}
 
 	klog.V(4).InfoS("Started to add the node", "node", klog.KObj(node))
-	d.maintainer.AddNodeToGodelSchedulerIfNotPresent(node)
+	d.maintainer.AddNodeToEnoSchedulerIfNotPresent(node)
 	if utilfeature.DefaultFeatureGate.Enabled(features.DispatcherNodeShuffle) {
 		d.shuffler.AddNode(node)
 	}
@@ -512,7 +512,7 @@ func (d *Dispatcher) updateNode(oldObj, newObj interface{}) {
 	}
 
 	klog.V(4).InfoS("Started to update node", "node", klog.KObj(oldNode))
-	d.maintainer.UpdateNodeInGodelSchedulerIfNecessary(oldNode, newNode)
+	d.maintainer.UpdateNodeInEnoSchedulerIfNecessary(oldNode, newNode)
 	if utilfeature.DefaultFeatureGate.Enabled(features.DispatcherNodeShuffle) {
 		d.shuffler.UpdateNode(oldNode, newNode)
 	}
@@ -536,7 +536,7 @@ func (d *Dispatcher) deleteNode(obj interface{}) {
 	}
 
 	klog.V(4).InfoS("Started to delete node", "node", klog.KObj(node))
-	d.maintainer.DeleteNodeFromGodelScheduler(node)
+	d.maintainer.DeleteNodeFromEnoScheduler(node)
 }
 
 func (d *Dispatcher) addNMNode(obj interface{}) {
@@ -547,7 +547,7 @@ func (d *Dispatcher) addNMNode(obj interface{}) {
 	}
 
 	klog.V(3).InfoS("Started to add nmNode", "nmNode", nmNode.Name)
-	d.maintainer.AddNMNodeToGodelSchedulerIfNotPresent(nmNode)
+	d.maintainer.AddNMNodeToEnoSchedulerIfNotPresent(nmNode)
 	if utilfeature.DefaultFeatureGate.Enabled(features.DispatcherNodeShuffle) {
 		d.shuffler.AddNMNode(nmNode)
 	}
@@ -566,7 +566,7 @@ func (d *Dispatcher) updateNMNode(oldObj, newObj interface{}) {
 	}
 
 	klog.V(3).InfoS("Started to update nmNode", "nmNode", oldNMNode.Name)
-	d.maintainer.UpdateNMNodeInGodelSchedulerIfNecessary(oldNMNode, newNMNode)
+	d.maintainer.UpdateNMNodeInEnoSchedulerIfNecessary(oldNMNode, newNMNode)
 	if utilfeature.DefaultFeatureGate.Enabled(features.DispatcherNodeShuffle) {
 		d.shuffler.UpdateNMNode(oldNMNode, newNMNode)
 	}
@@ -590,7 +590,7 @@ func (d *Dispatcher) deleteNMNode(obj interface{}) {
 	}
 
 	klog.V(3).InfoS("Started to delete nmNode", "nmNode", nmNode.Name)
-	d.maintainer.DeleteNMNodeFromGodelScheduler(nmNode)
+	d.maintainer.DeleteNMNodeFromEnoScheduler(nmNode)
 }
 
 func (d *Dispatcher) addPodToAbnormalQueue(obj interface{}) {
@@ -600,7 +600,7 @@ func (d *Dispatcher) addPodToAbnormalQueue(obj interface{}) {
 		return
 	}
 
-	if abnormal := podutil.AbnormalPodStateOfGodel(pod, d.SchedulerName); abnormal {
+	if abnormal := podutil.AbnormalPodStateOfEno(pod, d.SchedulerName); abnormal {
 		podKey, err := cache.MetaNamespaceKeyFunc(pod)
 		if err == nil {
 			d.reconciler.AbnormalPodsEnqueue(podKey)
@@ -616,7 +616,7 @@ func (d *Dispatcher) updatePodInAbnormalQueue(_, newObj interface{}) {
 		klog.InfoS("Failed to add pod to dispatched", "err", err)
 		return
 	}
-	if abnormal := podutil.AbnormalPodStateOfGodel(newPod, d.SchedulerName); abnormal {
+	if abnormal := podutil.AbnormalPodStateOfEno(newPod, d.SchedulerName); abnormal {
 		podKey, err := cache.MetaNamespaceKeyFunc(newPod)
 		if err == nil {
 			d.reconciler.AbnormalPodsEnqueue(podKey)

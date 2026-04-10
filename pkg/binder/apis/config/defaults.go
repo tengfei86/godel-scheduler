@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	DefaultSchedulerName               = "godel-scheduler"
+	DefaultSchedulerName               = "eno-scheduler"
 	DefaultClientConnectionContentType = "application/vnd.kubernetes.protobuf"
 	DefaultClientConnectionQPS         = 10000.0
 	DefaultClientConnectionBurst       = 10000
@@ -38,14 +38,14 @@ const (
 	BinderDefaultLockObjectName      = "binder"
 	DefaultReservationTimeOutSeconds = 60
 
-	// DefaultGodelBinderAddress is the default address for the scheduler status server.
+	// DefaultEnoBinderAddress is the default address for the scheduler status server.
 	// May be overridden by a flag at startup.
-	DefaultGodelBinderAddress = "0.0.0.0"
-	// DefaultIDC is default idc name for godel scheduler
+	DefaultEnoBinderAddress = "0.0.0.0"
+	// DefaultIDC is default idc name for eno scheduler
 	DefaultIDC = "lq"
-	// DefaultCluster is default cluster name for godel scheduler
+	// DefaultCluster is default cluster name for eno scheduler
 	DefaultCluster = "default"
-	// DefaultTracer is default tracer name for godel scheduler
+	// DefaultTracer is default tracer name for eno scheduler
 	DefaultTracer = string(tracing.NoopConfig)
 )
 
@@ -53,7 +53,7 @@ func addDefaultingFuncs(scheme *runtime.Scheme) error {
 	return RegisterDefaults(scheme)
 }
 
-func SetDefaults_GodelBinderConfiguration(cfg *GodelBinderConfiguration) {
+func SetDefaults_EnoBinderConfiguration(cfg *EnoBinderConfiguration) {
 	if len(cfg.ClientConnection.ContentType) == 0 {
 		cfg.ClientConnection.ContentType = DefaultClientConnectionContentType
 	}

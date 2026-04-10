@@ -137,7 +137,7 @@ func NewBasePlugins() framework.PluginCollectionSet {
 // defaultUnitQueueSortPluginSpec is the default sort unit plugin used in scheduling unit queue.
 var defaultUnitQueueSortPluginSpec = framework.NewPluginSpec(unitqueuesort.Name)
 
-// MakeDefaultErrorFunc construct a function to handle pod scheduler error, logs error only in Godel Scheduler
+// MakeDefaultErrorFunc construct a function to handle pod scheduler error, logs error only in Eno Scheduler
 // Compared to K8S scheduler, adding pod to unschedulableQ not works for all situation, then we should change this Error handling function
 func MakeDefaultErrorFunc(client clientset.Interface, schedulerCache godelcache.SchedulerCache) func(*framework.QueuedPodInfo, error) {
 	return func(podInfo *framework.QueuedPodInfo, err error) {
@@ -203,7 +203,7 @@ func renderBasePlugin(pluginCollection framework.PluginCollectionSet, baseKubele
 	return pluginCollection
 }
 
-func profileNeedPreemption(profile *config.GodelSchedulerProfile) bool {
+func profileNeedPreemption(profile *config.EnoSchedulerProfile) bool {
 	if profile != nil && profile.DisablePreemption != nil {
 		// If the DeisablePreemption has already been set, return it's value directly.
 		return !*profile.DisablePreemption
@@ -213,7 +213,7 @@ func profileNeedPreemption(profile *config.GodelSchedulerProfile) bool {
 
 }
 
-func parseProfilesBoolConfiguration(options schedulerOptions, checker func(*config.GodelSchedulerProfile) bool) bool {
+func parseProfilesBoolConfiguration(options schedulerOptions, checker func(*config.EnoSchedulerProfile) bool) bool {
 	if checker(options.defaultProfile) {
 		return true
 	}

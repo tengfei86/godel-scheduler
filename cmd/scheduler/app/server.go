@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -61,14 +61,14 @@ import (
 
 const ComponentName = "scheduler"
 
-func NewGodelSchedulerCmd() *cobra.Command {
+func NewEnoSchedulerCmd() *cobra.Command {
 	opts, err := options.NewOptions()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "unable to initialize command options: %v\n", err)
 		os.Exit(1)
 	}
 
-	godelSchedulerCmd := &cobra.Command{
+	enoSchedulerCmd := &cobra.Command{
 		Use: ComponentName,
 		Long: `Bytedance's current infrastructure runs two primary resource 
 management scheduling system, YARN for offline (batch and streaming) workloads 
@@ -77,7 +77,7 @@ provide a comprehensive list of features and production scale reliability.
 In recent years, Bytedance's business has grown significantly and during the 
 period of pandemic growth has been exponential. In this hyper growth phase, 
 infrastructure server fleet has increased in parallel but overall utilization 
-of that hardware is not par during off-peak load. Primary goal for godel 
+of that hardware is not par during off-peak load. Primary goal for eno 
 scheduler is to harvest the underutilized resources from the online and 
 streaming workloads by collocating the batch workloads.`,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -88,28 +88,28 @@ streaming workloads by collocating the batch workloads.`,
 		},
 	}
 
-	fs := godelSchedulerCmd.Flags()
+	fs := enoSchedulerCmd.Flags()
 	namedFlagSets := opts.Flags()
 	verflag.AddFlags(namedFlagSets.FlagSet("global"))
-	globalflag.AddGlobalFlags(namedFlagSets.FlagSet("global"), godelSchedulerCmd.Name())
+	globalflag.AddGlobalFlags(namedFlagSets.FlagSet("global"), enoSchedulerCmd.Name())
 	for _, f := range namedFlagSets.FlagSets {
 		fs.AddFlagSet(f)
 	}
 
 	usageFmt := "Usage:\n  %s\n"
-	cols, _, _ := term.TerminalSize(godelSchedulerCmd.OutOrStdout())
-	godelSchedulerCmd.SetUsageFunc(func(cmd *cobra.Command) error {
+	cols, _, _ := term.TerminalSize(enoSchedulerCmd.OutOrStdout())
+	enoSchedulerCmd.SetUsageFunc(func(cmd *cobra.Command) error {
 		fmt.Fprintf(cmd.OutOrStderr(), usageFmt, cmd.UseLine())
 		cliflag.PrintSections(cmd.OutOrStderr(), namedFlagSets, cols)
 		return nil
 	})
-	godelSchedulerCmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+	enoSchedulerCmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
 		fmt.Fprintf(cmd.OutOrStdout(), "%s\n\n"+usageFmt, cmd.Long, cmd.UseLine())
 		cliflag.PrintSections(cmd.OutOrStdout(), namedFlagSets, cols)
 	})
-	godelSchedulerCmd.MarkFlagFilename("config", "yaml", "yml", "json")
+	enoSchedulerCmd.MarkFlagFilename("config", "yaml", "yml", "json")
 
-	return godelSchedulerCmd
+	return enoSchedulerCmd
 }
 
 func runCommand(cmd *cobra.Command, opts *options.Options, args []string) error {
@@ -166,12 +166,12 @@ func Run(ctx context.Context, cc schedulerserverconfig.CompletedConfig) error {
 
 	// Create the scheduler.
 	sched, err := godelscheduler.New(
-		cc.ComponentConfig.GodelSchedulerName,
+		cc.ComponentConfig.EnoSchedulerName,
 		cc.ComponentConfig.SchedulerName,
 		cc.Client,
-		cc.GodelCrdClient,
+		cc.EnoCrdClient,
 		cc.InformerFactory,
-		cc.GodelCrdInformerFactory,
+		cc.EnoCrdInformerFactory,
 		cc.KatalystCrdInformerFactory,
 		ctx.Done(),
 		eventRecorder,
@@ -200,7 +200,7 @@ func Run(ctx context.Context, cc schedulerserverconfig.CompletedConfig) error {
 
 		eb := binder.NewEmbeddedBinder(
 			cc.Client,
-			cc.GodelCrdClient,
+			cc.EnoCrdClient,
 			sched.GetCache(),
 			*cc.ComponentConfig.SchedulerName,
 			&cc.EmbeddedBinderConfig,
@@ -251,12 +251,12 @@ func Run(ctx context.Context, cc schedulerserverconfig.CompletedConfig) error {
 
 	// Start all informers.
 	cc.InformerFactory.Start(ctx.Done())
-	cc.GodelCrdInformerFactory.Start(ctx.Done())
+	cc.EnoCrdInformerFactory.Start(ctx.Done())
 	cc.KatalystCrdInformerFactory.Start(ctx.Done())
 
 	// Wait for all caches to sync before scheduling.
 	cc.InformerFactory.WaitForCacheSync(ctx.Done())
-	cc.GodelCrdInformerFactory.WaitForCacheSync(ctx.Done())
+	cc.EnoCrdInformerFactory.WaitForCacheSync(ctx.Done())
 	cc.KatalystCrdInformerFactory.WaitForCacheSync(ctx.Done())
 
 	run := func(ctx context.Context) {
@@ -270,8 +270,8 @@ func Run(ctx context.Context, cc schedulerserverconfig.CompletedConfig) error {
 		// with partition filtering so it only processes PodGroups whose
 		// member pods belong to this scheduler's partition.
 		if cc.EnableEmbeddedBinder {
-			pgInformer := cc.GodelCrdInformerFactory.Scheduling().V1alpha1().PodGroups()
-			pgcontroller.SetupPodGroupControllerWithOptions(ctx, cc.Client, cc.GodelCrdClient, pgInformer,
+			pgInformer := cc.EnoCrdInformerFactory.Scheduling().V1alpha1().PodGroups()
+			pgcontroller.SetupPodGroupControllerWithOptions(ctx, cc.Client, cc.EnoCrdClient, pgInformer,
 				pgcontroller.PodGroupControllerOptions{
 					SchedulerName: *cc.ComponentConfig.SchedulerName,
 				},
@@ -347,7 +347,7 @@ func installMetricHandler(pathRecorderMux *mux.PathRecorderMux) {
 }
 
 // newMetricsHandler builds a metrics server from the config.
-func newMetricsHandler(config *godelschedulerconfig.GodelSchedulerConfiguration) http.Handler {
+func newMetricsHandler(config *godelschedulerconfig.EnoSchedulerConfiguration) http.Handler {
 	pathRecorderMux := mux.NewPathRecorderMux(ComponentName)
 	installMetricHandler(pathRecorderMux)
 	if *config.EnableProfiling {
@@ -363,7 +363,7 @@ func newMetricsHandler(config *godelschedulerconfig.GodelSchedulerConfiguration)
 // newHealthzHandler creates a healthz server from the config, and will also
 // embed the metrics handler if the healthz and metrics address configurations
 // are the same.
-func newHealthzHandler(config *godelschedulerconfig.GodelSchedulerConfiguration, separateMetrics bool, checks ...healthz.HealthChecker) http.Handler {
+func newHealthzHandler(config *godelschedulerconfig.EnoSchedulerConfiguration, separateMetrics bool, checks ...healthz.HealthChecker) http.Handler {
 	pathRecorderMux := mux.NewPathRecorderMux(ComponentName)
 	healthz.InstallHandler(pathRecorderMux, checks...)
 	if !separateMetrics {
@@ -380,5 +380,5 @@ func newHealthzHandler(config *godelschedulerconfig.GodelSchedulerConfiguration,
 }
 
 func getEventRecorder(cc *schedulerserverconfig.CompletedConfig) events.EventRecorder {
-	return cc.EventBroadcaster.NewRecorder(cc.ComponentConfig.GodelSchedulerName)
+	return cc.EventBroadcaster.NewRecorder(cc.ComponentConfig.EnoSchedulerName)
 }

@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -290,7 +290,7 @@ func TestSchedulerPreemptionWithErrors(t *testing.T) {
 		informerFactory.Start(stop)
 		informerFactory.WaitForCacheSync(stop)
 
-		godelScheduler := mockScheduler{core.PodScheduleResult{}, &framework.FitError{
+		enoScheduler := mockScheduler{core.PodScheduleResult{}, &framework.FitError{
 			Pod:         item.testPod,
 			NumAllNodes: 1,
 		}, nil, "", nil, nil, nil, nil, nil}
@@ -315,7 +315,7 @@ func TestSchedulerPreemptionWithErrors(t *testing.T) {
 			Snapshot:   snapshot,
 			Queue:      queue,
 			Reconciler: reconciler.NewFailedTaskReconciler(nil, nil, sCache, ""),
-			Scheduler:  godelScheduler,
+			Scheduler:  enoScheduler,
 
 			nextUnit: func() *framework.QueuedUnitInfo {
 				unit := framework.NewSinglePodUnit(&framework.QueuedPodInfo{Pod: item.testPod})
@@ -414,7 +414,7 @@ func TestSchedulerPreemptionWithReserveError(t *testing.T) {
 		SubCluster(framework.DefaultSubCluster).SwitchType(framework.DefaultSubClusterSwitchType).
 		EnableStore("PreemptionStore").
 		Obj())
-	godelScheduler := mockScheduler{core.PodScheduleResult{
+	enoScheduler := mockScheduler{core.PodScheduleResult{
 		SuggestedHost: testNode.Name,
 	}, nil, nil, "", nil, nil, nil, nil, nil}
 
@@ -438,7 +438,7 @@ func TestSchedulerPreemptionWithReserveError(t *testing.T) {
 		Snapshot:   snapshot,
 		Queue:      queue,
 		Reconciler: reconciler.NewFailedTaskReconciler(nil, nil, sCache, ""),
-		Scheduler:  godelScheduler,
+		Scheduler:  enoScheduler,
 
 		nextUnit: func() *framework.QueuedUnitInfo {
 			unit := framework.NewSinglePodUnit(&framework.QueuedPodInfo{Pod: testpod})
@@ -527,7 +527,7 @@ func TestSchedulerPreemption(t *testing.T) {
 		PodLister(informerFactory.Core().V1().Pods().Lister()).
 		EnableStore("PreemptionStore").
 		Obj())
-	godelScheduler := mockScheduler{core.PodScheduleResult{}, &framework.FitError{Pod: testpod}, nil, testNode.Name, &framework.Victims{Pods: []*v1.Pod{testPod1}}, nil, nil, nil, map[string]error{podutil.GeneratePodKey(testpod): nil}}
+	enoScheduler := mockScheduler{core.PodScheduleResult{}, &framework.FitError{Pod: testpod}, nil, testNode.Name, &framework.Victims{Pods: []*v1.Pod{testPod1}}, nil, nil, nil, map[string]error{podutil.GeneratePodKey(testpod): nil}}
 
 	queue := schedulingqueue.NewSchedulingQueue(sCache,
 		informerFactory.Scheduling().V1().PriorityClasses().Lister(),
@@ -549,7 +549,7 @@ func TestSchedulerPreemption(t *testing.T) {
 		Snapshot:   snapshot,
 		Queue:      queue,
 		Reconciler: reconciler.NewFailedTaskReconciler(nil, nil, sCache, ""),
-		Scheduler:  godelScheduler,
+		Scheduler:  enoScheduler,
 
 		nextUnit: func() *framework.QueuedUnitInfo {
 			unit := framework.NewSinglePodUnit(&framework.QueuedPodInfo{Pod: testpod})
@@ -665,7 +665,7 @@ func TestScheduleUnit(t *testing.T) {
 	pgu := framework.NewPodGroupUnit(testPodGroup, testPodGroupPriorityValue)
 	pgu.AddPods(podInfos)
 
-	godelScheduler := mockScheduler{result: core.PodScheduleResult{SuggestedHost: testNode.Name, NumberOfEvaluatedNodes: 1, NumberOfFeasibleNodes: 1}}
+	enoScheduler := mockScheduler{result: core.PodScheduleResult{SuggestedHost: testNode.Name, NumberOfEvaluatedNodes: 1, NumberOfFeasibleNodes: 1}}
 
 	queue := schedulingqueue.NewSchedulingQueue(sCache,
 		informerFactory.Scheduling().V1().PriorityClasses().Lister(),
@@ -687,7 +687,7 @@ func TestScheduleUnit(t *testing.T) {
 		Snapshot:   snapshot,
 		Queue:      queue,
 		Reconciler: reconciler.NewFailedTaskReconciler(nil, nil, sCache, ""),
-		Scheduler:  godelScheduler,
+		Scheduler:  enoScheduler,
 
 		nextUnit: func() *framework.QueuedUnitInfo {
 			unit := pgu
@@ -4315,7 +4315,7 @@ func TestScheduleUnit_Rescheduling(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				utilfeature.DefaultMutableFeatureGate.SetFromMap(map[string]bool{string(features.SupportRescheduling): true})
 
-				schedulerName := "godel-scheduler"
+				schedulerName := "eno-scheduler"
 				stop := make(chan struct{})
 				defer close(stop)
 
@@ -4329,7 +4329,7 @@ func TestScheduleUnit_Rescheduling(t *testing.T) {
 				informerFactory.WaitForCacheSync(stop)
 
 				sCache := godelcache.New(commoncache.MakeCacheHandlerWrapper().
-					ComponentName("godel-scheduler").SchedulerType(schedulerName).SubCluster(framework.DefaultSubCluster).
+					ComponentName("eno-scheduler").SchedulerType(schedulerName).SubCluster(framework.DefaultSubCluster).
 					PodAssumedTTL(30 * time.Second).Period(10 * time.Second).StopCh(make(<-chan struct{})).
 					EnableStore("PreemptionStore").
 					Obj())
@@ -5074,7 +5074,7 @@ func TestScheduleUnit_ReschedulingWithPreemption(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			utilfeature.DefaultMutableFeatureGate.SetFromMap(map[string]bool{string(features.SupportRescheduling): true})
 
-			schedulerName := "godel-scheduler"
+			schedulerName := "eno-scheduler"
 			stop := make(chan struct{})
 			defer close(stop)
 
@@ -5099,7 +5099,7 @@ func TestScheduleUnit_ReschedulingWithPreemption(t *testing.T) {
 			pcInformer.GetIndexer().Add(pc)
 
 			sCache := godelcache.New(commoncache.MakeCacheHandlerWrapper().
-				ComponentName("godel-scheduler").SchedulerType(schedulerName).SubCluster(framework.DefaultSubCluster).
+				ComponentName("eno-scheduler").SchedulerType(schedulerName).SubCluster(framework.DefaultSubCluster).
 				PodAssumedTTL(30 * time.Second).Period(10 * time.Second).StopCh(make(<-chan struct{})).
 				EnableStore("PreemptionStore").
 				Obj())

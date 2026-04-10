@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -98,7 +98,7 @@ func makeNodeGetter(nodes map[string]string) NodeGetter {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: nodeName,
 				Annotations: map[string]string{
-					"godel.bytedance.com/scheduler-name": owner,
+					"eno.io/scheduler-name": owner,
 				},
 			},
 		}, nil

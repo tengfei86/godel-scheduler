@@ -135,10 +135,10 @@ kubectl get pods -n kube-system -l component=kube-scheduler -o wide
 echo ""
 
 # 确认 Gödel 已卸载
-if kubectl get namespace "${GODEL_NAMESPACE}" &>/dev/null; then
-  local_godel_running=$(kubectl get pods -n "${GODEL_NAMESPACE}" --no-headers 2>/dev/null | grep -c "Running" || true)
-  if (( local_godel_running > 0 )); then
-    log_warn "Gödel 仍有 ${local_godel_running} 个运行中的 Pod，可能影响测试"
+if kubectl get namespace "${ENO_NAMESPACE}" &>/dev/null; then
+  local_eno_running=$(kubectl get pods -n "${ENO_NAMESPACE}" --no-headers 2>/dev/null | grep -c "Running" || true)
+  if (( local_eno_running > 0 )); then
+    log_warn "Eno 仍有 ${local_eno_running} 个运行中的 Pod，可能影响测试"
   fi
 fi
 

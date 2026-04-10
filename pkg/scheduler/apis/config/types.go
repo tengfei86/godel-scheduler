@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -49,16 +49,16 @@ const (
 
 	// DefaultInsecureSchedulerPort is the default port for the scheduler status server.
 	// May be overridden by a flag at startup.
-	// Deprecated: use the secure GodelSchedulerPort instead.
+	// Deprecated: use the secure EnoSchedulerPort instead.
 	DefaultInsecureSchedulerPort = 10251
 
-	// DefaultGodelSchedulerPort is the default port for the scheduler status server.
+	// DefaultEnoSchedulerPort is the default port for the scheduler status server.
 	// May be overridden by a flag at startup.
-	DefaultGodelSchedulerPort = 10259
+	DefaultEnoSchedulerPort = 10259
 
-	// DefaultGodelSchedulerAddress is the default address for the scheduler status server.
+	// DefaultEnoSchedulerAddress is the default address for the scheduler status server.
 	// May be overridden by a flag at startup.
-	DefaultGodelSchedulerAddress = "0.0.0.0"
+	DefaultEnoSchedulerAddress = "0.0.0.0"
 )
 
 const (
@@ -98,31 +98,31 @@ const (
 	BetterPreemptionPolicyDichotomy = "Dichotomy"
 	// DefaultBlockQueue is the default value for the option to use block queue for SchedulingQueue.
 	DefaultBlockQueue = false
-	// DefaultPodUpgradePriorityInMinutes is the default upgrade priority duration for godel sort.
+	// DefaultPodUpgradePriorityInMinutes is the default upgrade priority duration for eno sort.
 	DefaultPodUpgradePriorityInMinutes = 5
-	// DefaultGodelSchedulerName defines the name of default scheduler.
-	DefaultGodelSchedulerName = "godel-scheduler"
+	// DefaultEnoSchedulerName defines the name of default scheduler.
+	DefaultEnoSchedulerName = "eno-scheduler"
 	// DefaultRenewIntervalInSeconds is the default value for the renew interval duration for scheduler.
 	DefaultRenewIntervalInSeconds = 30
 
 	// DefaultSchedulerName is default high level scheduler name
-	DefaultSchedulerName = "godel-scheduler"
+	DefaultSchedulerName = "eno-scheduler"
 
 	// DefaultClientConnectionQPS is default scheduler qps
 	DefaultClientConnectionQPS = 10000.0
 	// DefaultClientConnectionBurst is default scheduler burst
 	DefaultClientConnectionBurst = 10000
 
-	// DefaultIDC is default idc name for godel scheduler
+	// DefaultIDC is default idc name for eno scheduler
 	DefaultIDC = "lq"
-	// DefaultCluster is default cluster name for godel scheduler
+	// DefaultCluster is default cluster name for eno scheduler
 	DefaultCluster = "default"
-	// DefaultTracer is default tracer name for godel scheduler
+	// DefaultTracer is default tracer name for eno scheduler
 	DefaultTracer = string(tracing.NoopConfig)
 
 	DefaultSubClusterKey = ""
 
-	// DefaultAttemptImpactFactorOnPriority is the default attempt factors used by godel sort
+	// DefaultAttemptImpactFactorOnPriority is the default attempt factors used by eno sort
 	DefaultAttemptImpactFactorOnPriority = 10.0
 
 	DefaultMaxWaitingDeletionDuration = 120
@@ -130,12 +130,12 @@ const (
 	DefaultReservationTimeOutSeconds = 60
 )
 
-var DefaultBindAddress = net.JoinHostPort(DefaultGodelSchedulerAddress, strconv.Itoa(DefaultInsecureSchedulerPort))
+var DefaultBindAddress = net.JoinHostPort(DefaultEnoSchedulerAddress, strconv.Itoa(DefaultInsecureSchedulerPort))
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// GodelSchedulerConfiguration configures a scheduler
-type GodelSchedulerConfiguration struct {
+// EnoSchedulerConfiguration configures a scheduler
+type EnoSchedulerConfiguration struct {
 	metav1.TypeMeta
 
 	// LeaderElection defines the configuration of leader election client.
@@ -158,10 +158,10 @@ type GodelSchedulerConfiguration struct {
 	// TODO: We might wanna make this a substruct like Debugging componentbaseconfig.DebuggingConfiguration
 	componentbaseconfig.DebuggingConfiguration
 
-	// GodelSchedulerName is the name of the scheduler, scheduler will register scheduler crd with
+	// EnoSchedulerName is the name of the scheduler, scheduler will register scheduler crd with
 	// this name, then dispatcher will choose one scheduler and use this scheduler's name to set the
 	// selected-scheduler annotation on pod.
-	GodelSchedulerName string
+	EnoSchedulerName string
 	// SchedulerName specifies a scheduling system, scheduling components(dispatcher,
 	// scheduler, binder) will not accept a pod, unless pod.Spec.SchedulerName == SchedulerName
 	SchedulerName *string
@@ -178,12 +178,12 @@ type GodelSchedulerConfiguration struct {
 	// choose to be scheduled under a particular profile by setting its associated
 	// scheduler name. Pods that don't specify any scheduler name are scheduled
 	// with the "default-scheduler" profile, if present here.
-	DefaultProfile     *GodelSchedulerProfile
-	SubClusterProfiles []GodelSchedulerProfile
+	DefaultProfile     *EnoSchedulerProfile
+	SubClusterProfiles []EnoSchedulerProfile
 }
 
-// GodelSchedulerProfile is a scheduling profile.
-type GodelSchedulerProfile struct {
+// EnoSchedulerProfile is a scheduling profile.
+type EnoSchedulerProfile struct {
 	// ProfileKey associates the profile to a subcluster if it is not nil.
 	SubClusterName string
 
@@ -203,7 +203,7 @@ type GodelSchedulerProfile struct {
 	// for that preemption plugin.
 	PreemptionPluginConfigs []PluginConfig
 
-	// TODO: reserve temporarily(godel).
+	// TODO: reserve temporarily(eno).
 	// PercentageOfNodesToScore is the percentage of all nodes that once found feasible
 	// for running a pod, the scheduler stops its search for more feasible nodes in
 	// the cluster. This helps improve scheduler's performance. Scheduler always tries to find

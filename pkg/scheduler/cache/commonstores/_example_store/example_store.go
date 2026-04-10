@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -112,7 +112,7 @@ func NewSnapshot(handler commoncache.CacheHandler) commonstore.Store {
 func (s *ExampleStore) AddPod(pod *v1.Pod) error {
 	// For a specific store, it may only care about pods that meet specific conditions, so it is able
 	// to do filtering here based on specific objects.
-	if !podutil.BoundPod(pod) && !podutil.AssumedPodOfGodel(pod, s.handler.SchedulerType()) {
+	if !podutil.BoundPod(pod) && !podutil.AssumedPodOfEno(pod, s.handler.SchedulerType()) {
 		return nil
 	}
 	return s.podOp(pod)
@@ -148,7 +148,7 @@ func (s *ExampleStore) UpdatePod(oldPod *v1.Pod, newPod *v1.Pod) error {
 func (s *ExampleStore) DeletePod(pod *v1.Pod) error {
 	// For a specific store, it may only care about pods that meet specific conditions, so it is able
 	// to do filtering here based on specific objects.
-	if !podutil.BoundPod(pod) && !podutil.AssumedPodOfGodel(pod, s.handler.SchedulerType()) {
+	if !podutil.BoundPod(pod) && !podutil.AssumedPodOfEno(pod, s.handler.SchedulerType()) {
 		return nil
 	}
 	return s.podOp(pod)

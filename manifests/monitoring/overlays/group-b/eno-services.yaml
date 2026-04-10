@@ -9,14 +9,14 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: godel-scheduler-metrics
-  namespace: godel-system
+  name: eno-scheduler-metrics
+  namespace: eno-system
   labels:
     component: scheduler
 spec:
   clusterIP: None
   selector:
-    app: godel-scheduler
+    app: eno-scheduler
   ports:
     - name: metrics
       port: 10251
@@ -27,14 +27,14 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: godel-dispatcher-metrics
-  namespace: godel-system
+  name: eno-dispatcher-metrics
+  namespace: eno-system
   labels:
     component: dispatcher
 spec:
   clusterIP: None
   selector:
-    app: godel-dispatcher
+    app: eno-dispatcher
   ports:
     - name: metrics
       port: 10351

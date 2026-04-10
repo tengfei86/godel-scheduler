@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,12 +25,12 @@ import (
 const (
 	// BindFailureCountAnnotationKey records the cumulative number of bind failures
 	// a Pod has experienced within the same Scheduler+Binder instance.
-	BindFailureCountAnnotationKey = "godel.bytedance.com/bind-failure-count"
+	BindFailureCountAnnotationKey = "eno.io/bind-failure-count"
 
 	// LastBindFailureReasonKey records the most recent bind failure reason.
 	// This information is propagated through the Scheduler → Binder → Dispatcher
 	// chain to help Dispatcher make better scheduling decisions.
-	LastBindFailureReasonKey = "godel.bytedance.com/last-bind-failure"
+	LastBindFailureReasonKey = "eno.io/last-bind-failure"
 )
 
 // GetBindFailureCount returns the cumulative bind failure count stored in the

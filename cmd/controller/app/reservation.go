@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Godel Scheduler Authors.
+Copyright 2024 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ import (
 )
 
 func startReservationController(ctx context.Context, controllerContext ControllerContext) (controller.Interface, bool, error) {
-	godelClient := controllerContext.GodelClientBuilder.ClientOrDie("reservation-controller")
+	enoClient := controllerContext.EnoClientBuilder.ClientOrDie("reservation-controller")
 	kubeClient := controllerContext.ClientBuilder.ClientOrDie("reservation-controller")
 
 	ignored := controllerContext.ComponentConfig.ReservationController.IgnoredNamespace
@@ -43,13 +43,13 @@ func startReservationController(ctx context.Context, controllerContext Controlle
 		utils.WithIgnoredNamespaceList(controllerContext.ComponentConfig.ReservationController.IgnoredNamespace))
 
 	deployInformer := controllerContext.InformerFactory.Apps().V1().Deployments()
-	reservationInformer := controllerContext.GodelInformerFactory.Scheduling().V1alpha1().Reservations()
+	reservationInformer := controllerContext.EnoInformerFactory.Scheduling().V1alpha1().Reservations()
 	reservationCheckPeriod := controllerContext.ComponentConfig.ReservationController.ReservationCheckPeriod
 	reservationTTL := controllerContext.ComponentConfig.ReservationController.ReservationTTL
 	matchedRequestCleanUpTTL := controllerContext.ComponentConfig.ReservationController.MatchedRequestExtraTTL
 
 	go podInformer.Informer().Run(ctx.Done())
-	go reservation.NewReservationController(ctx, godelClient, podInformer, deployInformer, reservationInformer,
+	go reservation.NewReservationController(ctx, enoClient, podInformer, deployInformer, reservationInformer,
 		reservationCheckPeriod, reservationTTL, matchedRequestCleanUpTTL).Run(ctx, controllerContext.ControllerManagerMetrics)
 	return nil, true, nil
 }

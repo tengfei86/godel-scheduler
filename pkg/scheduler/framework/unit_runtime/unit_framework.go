@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -365,7 +365,7 @@ func (f *UnitFramework) scheduleOneUnitInstance(ctx context.Context, scheduledIn
 	usr *framework.UnitSchedulingRequest,
 ) (success bool, err error) {
 	switchType, subCluster := f.handle.SwitchType(), f.handle.SubCluster()
-	godelScheduler := f.schedulerHooks.PodScheduler()
+	enoScheduler := f.schedulerHooks.PodScheduler()
 
 	klog.V(4).InfoS("Attempting to schedule for pod",
 		"switchType", switchType, "subCluster", subCluster,
@@ -387,7 +387,7 @@ func (f *UnitFramework) scheduleOneUnitInstance(ctx context.Context, scheduledIn
 		// add schedule result metric
 		if success {
 			metrics.PodScheduled(podProperty, helper.SinceInSeconds(start))
-		} else if godelScheduler.DisablePreemption() {
+		} else if enoScheduler.DisablePreemption() {
 			metrics.PodUnschedulable(podProperty, helper.SinceInSeconds(start))
 		}
 	}()
@@ -413,7 +413,7 @@ func (f *UnitFramework) scheduleOneUnitInstance(ctx context.Context, scheduledIn
 	schedulingCycleCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	scheduleResult, err := godelScheduler.ScheduleInSpecificNodeGroup(schedulingCycleCtx, fwk, unitCycleState, commonPreemptionState, state, clonedPod, nodeGroup, usr, statusByTemplate[runningUnitInfo.QueuedPodInfo.OwnerReferenceKey])
+	scheduleResult, err := enoScheduler.ScheduleInSpecificNodeGroup(schedulingCycleCtx, fwk, unitCycleState, commonPreemptionState, state, clonedPod, nodeGroup, usr, statusByTemplate[runningUnitInfo.QueuedPodInfo.OwnerReferenceKey])
 	metrics.ObservePodEvaluatedNodes(podProperty.SubCluster, string(podProperty.Qos), f.handle.SchedulerName(), float64(scheduleResult.NumberOfEvaluatedNodes))
 	metrics.ObservePodFeasibleNodes(podProperty.SubCluster, string(podProperty.Qos), f.handle.SchedulerName(), float64(scheduleResult.NumberOfFeasibleNodes))
 
@@ -478,7 +478,7 @@ func (f *UnitFramework) preemptOneUnitInstance(ctx context.Context, scheduledInd
 	cachedNominatedNodes *framework.CachedNominatedNodes,
 ) (success bool, err error) {
 	switchType, subCluster := f.handle.SwitchType(), f.handle.SubCluster()
-	godelScheduler := f.schedulerHooks.PodScheduler()
+	enoScheduler := f.schedulerHooks.PodScheduler()
 
 	klog.V(4).InfoS("Attempting to preempt for pod",
 		"switchType", switchType, "subCluster", subCluster,
@@ -536,7 +536,7 @@ func (f *UnitFramework) preemptOneUnitInstance(ctx context.Context, scheduledInd
 		runningUnitInfo.QueuedPodInfo.InitialPreemptAttemptTimestamp = start
 	}
 
-	preemptionResult, err := godelScheduler.PreemptInSpecificNodeGroup(preemptionCycleCtx, fwk, pfwk, unitCycleState, commonPreemptionState, state, clonedPod, nodeGroup, nodeToStatus, cachedNominatedNodes)
+	preemptionResult, err := enoScheduler.PreemptInSpecificNodeGroup(preemptionCycleCtx, fwk, pfwk, unitCycleState, commonPreemptionState, state, clonedPod, nodeGroup, nodeToStatus, cachedNominatedNodes)
 	if err != nil || preemptionResult.NominatedNode == nil {
 		klog.ErrorS(err, "Failed to run preemption", "switchType", switchType, "subCluster", subCluster, "podKey", podKey, "nodeGroup", nodeGroup.GetKey())
 		preemptionTraceContext.WithFields(tracing.WithReasonField(fmt.Sprintf("Failed to run preemption")), tracing.WithErrorField(err))

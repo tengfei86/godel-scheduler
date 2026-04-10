@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Godel Scheduler Authors.
+Copyright 2024 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -148,7 +148,7 @@ var _ = SIGDescribe("Reservation E2E", func() {
 
 	ginkgo.BeforeEach(func() {
 		cs = f.ClientSet
-		gs = f.Godelclient
+		gs = f.Enoclient
 		ns = f.Namespace.Name
 
 		var err error
@@ -201,7 +201,7 @@ var _ = SIGDescribe("Reservation E2E", func() {
 		replicas := len(nodeList.Items)
 		resDeploy := makeDeployment("reservation-deploy", ns, map[string]string{
 			podutil.PodResourceReservationAnnotation:         "true",
-			podutil.PodResourceReservationAnnotationForGodel: "true",
+			podutil.PodResourceReservationAnnotationForEno: "true",
 			util.CanBePreemptedAnnotationKey:                 "true",
 			podutil.PodLauncherAnnotationKey:                 "kubelet",
 			podutil.PodResourceTypeAnnotationKey:             "guaranteed",
@@ -264,7 +264,7 @@ var _ = SIGDescribe("Reservation E2E", func() {
 	ginkgo.It("reserved resource can be acquired by other pods after reservation timeout", func() {
 		replicas := len(nodeList.Items)
 		resDeploy := makeDeployment("reservation-deploy", ns, map[string]string{
-			podutil.PodResourceReservationAnnotationForGodel: "true",
+			podutil.PodResourceReservationAnnotationForEno: "true",
 			util.CanBePreemptedAnnotationKey:                 "true",
 			podutil.PodLauncherAnnotationKey:                 "kubelet",
 			podutil.PodResourceTypeAnnotationKey:             "guaranteed",
@@ -322,7 +322,7 @@ var _ = SIGDescribe("Reservation E2E", func() {
 		replicas := len(nodeList.Items)
 		resDeploy := makeDeployment("reservation-deploy", ns, map[string]string{
 			podutil.PodResourceReservationAnnotation:         "true",
-			podutil.PodResourceReservationAnnotationForGodel: "true",
+			podutil.PodResourceReservationAnnotationForEno: "true",
 			util.CanBePreemptedAnnotationKey:                 "true",
 			podutil.PodLauncherAnnotationKey:                 "kubelet",
 			podutil.PodResourceTypeAnnotationKey:             "guaranteed",
@@ -393,7 +393,7 @@ var _ = SIGDescribe("Reservation E2E", func() {
 				},
 				Annotations: map[string]string{
 					podutil.ReservationIndexAnnotation:               name, // trigger resource reservation
-					podutil.PodResourceReservationAnnotationForGodel: "true",
+					podutil.PodResourceReservationAnnotationForEno: "true",
 					util.CanBePreemptedAnnotationKey:                 "true",
 					podutil.PodLauncherAnnotationKey:                 "kubelet",
 					podutil.PodResourceTypeAnnotationKey:             "guaranteed",
@@ -492,7 +492,7 @@ var _ = SIGDescribe("Reservation E2E", func() {
 					},
 				},
 				Annotations: map[string]string{
-					podutil.PodResourceReservationAnnotationForGodel: "true",
+					podutil.PodResourceReservationAnnotationForEno: "true",
 					util.CanBePreemptedAnnotationKey:                 "true",
 					podutil.PodLauncherAnnotationKey:                 "kubelet",
 					podutil.PodResourceTypeAnnotationKey:             "guaranteed",
@@ -623,7 +623,7 @@ func taintNode(cs kubernetes.Interface, nodeName string, taintKey string, taintV
 
 func removeReservationAnnotation(cs kubernetes.Interface, dp *v1.Deployment) {
 	dpCopy := dp.DeepCopy()
-	delete(dpCopy.Annotations, podutil.PodResourceReservationAnnotationForGodel)
+	delete(dpCopy.Annotations, podutil.PodResourceReservationAnnotationForEno)
 
 	oldData, _ := json.Marshal(dp)
 	newData, _ := json.Marshal(dpCopy)

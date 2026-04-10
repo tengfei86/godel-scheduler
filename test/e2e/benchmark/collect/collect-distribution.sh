@@ -33,7 +33,7 @@ echo "$PODS_JSON" | jq -r '
   select(.spec.nodeName != null) |
   {
     node: .spec.nodeName,
-    scheduler: (.metadata.annotations["godel.bytedance.com/selected-scheduler"] // "unknown")
+    scheduler: (.metadata.annotations["eno.io/selected-scheduler"] // "unknown")
   }
 ' | jq -rs '
   group_by(.node) |
@@ -64,7 +64,7 @@ log_stderr "✓ 采集完成: ${SCHEDULED}/${TOTAL_PODS} Pod 已调度到 ${UNIQ
 # 输出每 Scheduler 分区的汇总（stderr）
 log_stderr "Scheduler 分区分布:"
 echo "$PODS_JSON" | jq -r '
-  [.items[] | .metadata.annotations["godel.bytedance.com/selected-scheduler"] // "unknown"] |
+  [.items[] | .metadata.annotations["eno.io/selected-scheduler"] // "unknown"] |
   group_by(.) | map({scheduler: .[0], count: length}) | sort_by(-.count) |
   .[] | "  \(.scheduler): \(.count) pods"
 ' 2>/dev/null >&2 || true

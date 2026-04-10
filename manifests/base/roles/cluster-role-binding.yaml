@@ -1,12 +1,12 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: godel
+  name: eno
 subjects:
   - kind: ServiceAccount
-    name: godel
-    namespace: godel-system
+    name: eno
+    namespace: eno-system
 roleRef:
   kind: ClusterRole
-  name: godel
+  name: eno
   apiGroup: rbac.authorization.k8s.io

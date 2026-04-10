@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -397,7 +397,7 @@ func TestEmbeddedBinder_BindUnit_NodeValidation_OwnedNode(t *testing.T) {
 		return &v1.Node{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:        nodeName,
-				Annotations: map[string]string{"godel.bytedance.com/scheduler-name": "test-scheduler"},
+				Annotations: map[string]string{"eno.io/scheduler-name": "test-scheduler"},
 			},
 		}, nil
 	})
@@ -432,7 +432,7 @@ func TestEmbeddedBinder_BindUnit_NodeValidation_OtherNode(t *testing.T) {
 		return &v1.Node{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:        nodeName,
-				Annotations: map[string]string{"godel.bytedance.com/scheduler-name": "scheduler-B"},
+				Annotations: map[string]string{"eno.io/scheduler-name": "scheduler-B"},
 			},
 		}, nil
 	})
@@ -565,7 +565,7 @@ func TestEmbeddedBinder_BindUnit_PerPodNodeNames_Validation(t *testing.T) {
 		return &v1.Node{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:        nodeName,
-				Annotations: map[string]string{"godel.bytedance.com/scheduler-name": owner},
+				Annotations: map[string]string{"eno.io/scheduler-name": owner},
 			},
 		}, nil
 	})

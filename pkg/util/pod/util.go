@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ import (
 var applicationKind = "Application"
 
 const (
-	AlignedResources = "godel.bytedance.com/aligned-resources"
+	AlignedResources = "eno.io/aligned-resources"
 )
 
 // FindPort locates the container port for the given pod and portName.  If the
@@ -473,8 +473,8 @@ func IsLongRunningTask(pod *v1.Pod) bool {
 	return true
 }
 
-// GetDefaultPriorityForGodelPod return the default priority. used by unit creation
-func GetDefaultPriorityForGodelPod(pod *v1.Pod) int32 {
+// GetDefaultPriorityForEnoPod return the default priority. used by unit creation
+func GetDefaultPriorityForEnoPod(pod *v1.Pod) int32 {
 	if pod.Spec.Priority != nil {
 		return *pod.Spec.Priority
 	}
@@ -899,17 +899,17 @@ func CleanupPodAnnotations(client clientset.Interface, pod *v1.Pod) error {
 // --------------------- reservation related ---------------------
 
 const (
-	PodResourceReservationAnnotationForGodel = "godel.bytedance.com/reservation"
+	PodResourceReservationAnnotationForEno = "eno.io/reservation"
 	PodHasReservationRequirement             = "true"
 	PodResourceReservationAnnotation         = "pod.tce.kubernetes.io/reservation"
 	// In memory object annotation for reservation placeholderPod.
-	ReservationPlaceHolderPodAnnotation = "godel.bytedance.com/reservation-placeholder"
+	ReservationPlaceHolderPodAnnotation = "eno.io/reservation-placeholder"
 	IsReservationPlaceHolderPods        = "true"
-	ReservationIndexAnnotation          = "godel.bytedance.com/reservation-index"
-	PlaceholderPodUIDAnno               = "godel.bytedance.com/placeholder-uid"
-	ReservationOwnerTypeAnno            = "godel.bytedance.com/reservation-owner-type"
-	ReservationOwnerNameAnno            = "godel.bytedance.com/reservation-owner"
-	ReservationOriginalPodNameAnno      = "godel.bytedance.com/reservation-original-pod"
+	ReservationIndexAnnotation          = "eno.io/reservation-index"
+	PlaceholderPodUIDAnno               = "eno.io/placeholder-uid"
+	ReservationOwnerTypeAnno            = "eno.io/reservation-owner-type"
+	ReservationOwnerNameAnno            = "eno.io/reservation-owner"
+	ReservationOriginalPodNameAnno      = "eno.io/reservation-original-pod"
 )
 
 func GetReservationIndex(pod *v1.Pod) string {
@@ -972,7 +972,7 @@ func HasReservationRequirement(pod *v1.Pod) bool {
 	if pod == nil || pod.Annotations == nil {
 		return false
 	}
-	if val, ok := pod.Annotations[PodResourceReservationAnnotationForGodel]; ok && val == PodHasReservationRequirement {
+	if val, ok := pod.Annotations[PodResourceReservationAnnotationForEno]; ok && val == PodHasReservationRequirement {
 		return true
 	}
 	if val, ok := pod.Annotations[PodResourceReservationAnnotation]; ok && val == PodHasReservationRequirement {

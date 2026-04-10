@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -69,7 +69,7 @@ const (
 // and binds pods if no conflicts, otherwise, rejects the pods.
 type Binder struct {
 	// SchedulerName here is the higher level scheduler name, which is used to select pods
-	// that godel schedulers should be responsible for and filter out irrelevant pods.
+	// that eno schedulers should be responsible for and filter out irrelevant pods.
 	SchedulerName *string
 	// Close this to shut down the scheduler.
 	StopEverything <-chan struct{}
@@ -134,7 +134,7 @@ func New(
 
 	cacheHandler := commoncache.MakeCacheHandlerWrapper().
 		Period(10 * time.Second).PodAssumedTTL(5 * time.Minute).ReservationTTL(reservationTTL).StopCh(stopEverything).
-		ComponentName("godel-binder").PodLister(informerFactory.Core().V1().Pods().Lister()).
+		ComponentName("eno-binder").PodLister(informerFactory.Core().V1().Pods().Lister()).
 		Obj()
 
 	binderCache := godelcache.New(cacheHandler)
@@ -1145,7 +1145,7 @@ func (binder *Binder) bindTasks(ctx context.Context, unitInfo *bindingUnitInfo) 
 		success := bindTask(task)
 		if success {
 			metrics.ObservePodBinderE2ELatency(task.queuedPodInfo)
-			metrics.ObservePodGodelE2E(task.queuedPodInfo)
+			metrics.ObservePodEnoE2E(task.queuedPodInfo)
 		}
 	})
 	return failedTaskToError

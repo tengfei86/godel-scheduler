@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -490,7 +490,7 @@ var _ = SIGDescribe("SchedulingHardConstraints [Serial]", func() {
 	*/
 	ginkgo.Context("scheduling pods to nodes matching node affinity[NodeAffinity]", func() {
 		var testNodeNames []string
-		testLabelKey := "godel.bytedance.com/test-label"
+		testLabelKey := "eno.io/test-label"
 		testLabelValues := []string{"test", "foo"}
 		var beardsecond v1.ResourceName = "example.com/beardsecond"
 
@@ -1073,7 +1073,7 @@ func createPodGroup(f *framework.Framework, name, namespace string, minMember in
 		},
 	}
 
-	podGroup, err := f.Godelclient.SchedulingV1alpha1().PodGroups(namespace).Create(context.TODO(), podGroup, metav1.CreateOptions{})
+	podGroup, err := f.Enoclient.SchedulingV1alpha1().PodGroups(namespace).Create(context.TODO(), podGroup, metav1.CreateOptions{})
 	framework.ExpectNoError(err)
 	return podGroup
 }
@@ -1090,7 +1090,7 @@ func createPodGroupTimeout(f *framework.Framework, name, namespace string, minMe
 		},
 	}
 
-	podGroup, err := f.Godelclient.SchedulingV1alpha1().PodGroups(namespace).Create(context.TODO(), podGroup, metav1.CreateOptions{})
+	podGroup, err := f.Enoclient.SchedulingV1alpha1().PodGroups(namespace).Create(context.TODO(), podGroup, metav1.CreateOptions{})
 	framework.ExpectNoError(err)
 	return podGroup
 }

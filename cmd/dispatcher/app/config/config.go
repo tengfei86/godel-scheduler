@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,11 +33,11 @@ type Config struct {
 	Client          clientset.Interface
 	InformerFactory informers.SharedInformerFactory
 
-	// godel crd client & informer
-	GodelCrdClient          godelclient.Interface
-	GodelCrdInformerFactory crdinformers.SharedInformerFactory
+	// eno crd client & informer
+	EnoCrdClient          godelclient.Interface
+	EnoCrdInformerFactory crdinformers.SharedInformerFactory
 
-	DispatcherConfig dispatcherconfig.GodelDispatcherConfiguration
+	DispatcherConfig dispatcherconfig.EnoDispatcherConfiguration
 
 	// EventBroadcaster is wrapper for event broadcaster, compatible with core.v1.Event and events.v1beta1.Event, used for Events.
 	// It will be removed once the migration for events from core API to events API is done.

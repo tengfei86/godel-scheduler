@@ -21,8 +21,8 @@ import (
 // 1. Pod 构造测试
 // ═══════════════════════════════════════════════════════════════════
 
-func TestBuildBasicPod_GodelScheduler(t *testing.T) {
-	flagScheduler = "godel-scheduler"
+func TestBuildBasicPod_EnoScheduler(t *testing.T) {
+	flagScheduler = "eno-scheduler"
 	flagNamespace = "bench"
 	flagImage = "registry.k8s.io/pause:3.9"
 	flagCPU = 100
@@ -36,8 +36,8 @@ func TestBuildBasicPod_GodelScheduler(t *testing.T) {
 	if pod.Namespace != "bench" {
 		t.Errorf("namespace = %q, want bench", pod.Namespace)
 	}
-	if pod.Spec.SchedulerName != "godel-scheduler" {
-		t.Errorf("schedulerName = %q, want godel-scheduler", pod.Spec.SchedulerName)
+	if pod.Spec.SchedulerName != "eno-scheduler" {
+		t.Errorf("schedulerName = %q, want eno-scheduler", pod.Spec.SchedulerName)
 	}
 	if *pod.Spec.TerminationGracePeriodSeconds != 0 {
 		t.Errorf("terminationGracePeriodSeconds = %d, want 0", *pod.Spec.TerminationGracePeriodSeconds)
@@ -45,9 +45,9 @@ func TestBuildBasicPod_GodelScheduler(t *testing.T) {
 
 	// 验证 Gödel 注解
 	expectedAnnotations := map[string]string{
-		"godel.bytedance.com/pod-state":         "pending",
-		"godel.bytedance.com/pod-resource-type": "guaranteed",
-		"godel.bytedance.com/pod-launcher":      "kubelet",
+		"eno.io/pod-state":         "pending",
+		"eno.io/pod-resource-type": "guaranteed",
+		"eno.io/pod-launcher":      "kubelet",
 	}
 	for k, want := range expectedAnnotations {
 		if got := pod.Annotations[k]; got != want {
@@ -130,7 +130,7 @@ func TestBuildBasicPod_KoordScheduler(t *testing.T) {
 }
 
 func TestBuildHeteroPod(t *testing.T) {
-	flagScheduler = "godel-scheduler"
+	flagScheduler = "eno-scheduler"
 	flagNamespace = "bench"
 	flagImage = "registry.k8s.io/pause:3.9"
 	flagCPU = 100
@@ -156,8 +156,8 @@ func TestBuildHeteroPod(t *testing.T) {
 // 2. Gang Pod 构造测试
 // ═══════════════════════════════════════════════════════════════════
 
-func TestBuildGangPod_Godel(t *testing.T) {
-	flagScheduler = "godel-scheduler"
+func TestBuildGangPod_Eno(t *testing.T) {
+	flagScheduler = "eno-scheduler"
 	flagNamespace = "bench"
 	flagImage = "registry.k8s.io/pause:3.9"
 	flagCPU = 100
@@ -168,10 +168,10 @@ func TestBuildGangPod_Godel(t *testing.T) {
 	if pod.Name != "bench-gang-3-2" {
 		t.Errorf("name = %q, want bench-gang-3-2", pod.Name)
 	}
-	if got := pod.Annotations["scheduling.godel.bytedance.com/pod-group-name"]; got != "bench-gang-3" {
+	if got := pod.Annotations["scheduling.eno.io/pod-group-name"]; got != "bench-gang-3" {
 		t.Errorf("pod-group-name = %q, want bench-gang-3", got)
 	}
-	if got := pod.Annotations["godel.bytedance.com/pod-state"]; got != "pending" {
+	if got := pod.Annotations["eno.io/pod-state"]; got != "pending" {
 		t.Errorf("pod-state = %q, want pending", got)
 	}
 }
@@ -503,7 +503,7 @@ func TestCreateWorker_FakeClient(t *testing.T) {
 	}
 
 	flagNamespace = "test-ns"
-	flagScheduler = "godel-scheduler"
+	flagScheduler = "eno-scheduler"
 	flagImage = "pause:latest"
 	flagCPU = 100
 	flagMem = 128
@@ -641,7 +641,7 @@ func TestRunBasic_FakeClient(t *testing.T) {
 	flagRate = 10000 // 尽可能快
 	flagTotal = 100
 	flagWorkers = 4
-	flagScheduler = "godel-scheduler"
+	flagScheduler = "eno-scheduler"
 	flagNamespace = "pipeline-ns"
 	flagImage = "pause:latest"
 	flagCPU = 100
@@ -689,7 +689,7 @@ func TestRunGang_FakeClient(t *testing.T) {
 	flagRate = 10000
 	flagTotal = 50 // 50 pods = 10 groups × 5
 	flagWorkers = 4
-	flagScheduler = "godel-scheduler"
+	flagScheduler = "eno-scheduler"
 	flagNamespace = "gang-ns"
 	flagImage = "pause:latest"
 	flagCPU = 100
@@ -714,7 +714,7 @@ func TestRunGang_FakeClient(t *testing.T) {
 	// 验证有 10 个不同的 group
 	groups := make(map[string]int)
 	for _, p := range pods.Items {
-		pgName := p.Annotations["scheduling.godel.bytedance.com/pod-group-name"]
+		pgName := p.Annotations["scheduling.eno.io/pod-group-name"]
 		groups[pgName]++
 	}
 	if len(groups) != 10 {
@@ -752,7 +752,7 @@ func TestRunHeterogeneous_FakeClient(t *testing.T) {
 	flagRate = 10000
 	flagTotal = 200
 	flagWorkers = 4
-	flagScheduler = "godel-scheduler"
+	flagScheduler = "eno-scheduler"
 	flagNamespace = "hetero-ns"
 	flagImage = "pause:latest"
 	flagCPU = 100
@@ -793,11 +793,11 @@ func TestAddSchedulerAnnotations(t *testing.T) {
 		wantAnnotations map[string]string
 	}{
 		{
-			"godel-scheduler",
+			"eno-scheduler",
 			map[string]string{
-				"godel.bytedance.com/pod-state":         "pending",
-				"godel.bytedance.com/pod-resource-type": "guaranteed",
-				"godel.bytedance.com/pod-launcher":      "kubelet",
+				"eno.io/pod-state":         "pending",
+				"eno.io/pod-resource-type": "guaranteed",
+				"eno.io/pod-launcher":      "kubelet",
 			},
 		},
 		{
@@ -880,7 +880,7 @@ func TestEnsureNamespace(t *testing.T) {
 // ═══════════════════════════════════════════════════════════════════
 
 func BenchmarkBuildBasicPod(b *testing.B) {
-	flagScheduler = "godel-scheduler"
+	flagScheduler = "eno-scheduler"
 	flagNamespace = "bench"
 	flagImage = "registry.k8s.io/pause:3.9"
 	flagCPU = 100
@@ -893,7 +893,7 @@ func BenchmarkBuildBasicPod(b *testing.B) {
 }
 
 func BenchmarkBuildGangPod(b *testing.B) {
-	flagScheduler = "godel-scheduler"
+	flagScheduler = "eno-scheduler"
 	flagNamespace = "bench"
 	flagImage = "registry.k8s.io/pause:3.9"
 	flagCPU = 100
@@ -943,7 +943,7 @@ func BenchmarkCreateWorker_DryRun(b *testing.B) {
 	go createWorker(ctx, client, ch, &submitted, &errors, &wg)
 
 	flagNamespace = "bench"
-	flagScheduler = "godel-scheduler"
+	flagScheduler = "eno-scheduler"
 	flagImage = "pause:latest"
 	flagCPU = 100
 	flagMem = 128

@@ -1,12 +1,12 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: godel-binder-config
-  namespace: godel-system
+  name: eno-binder-config
+  namespace: eno-system
 data:
-  godel-binder-config: |+
+  eno-binder-config: |+
     apiVersion: godelbinder.config.kubewharf.io/v1beta1
-    kind: GodelBinderConfiguration
+    kind: EnoBinderConfiguration
     profile:
       plugins:
         victimChecking:

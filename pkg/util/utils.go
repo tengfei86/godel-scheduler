@@ -46,21 +46,21 @@ import (
 )
 
 const (
-	CanBePreemptedAnnotationKey = "godel.bytedance.com/can-be-preempted"
+	CanBePreemptedAnnotationKey = "eno.io/can-be-preempted"
 	CanBePreempted              = "true"
 	CannotBePreempted           = "false"
-	PreemptionPolicyKey         = "godel.bytedance.com/preemption-policy"
+	PreemptionPolicyKey         = "eno.io/preemption-policy"
 	ObjectNameField             = "metadata.name"
 	// hardcode GPU name here
 
 	// Debug Level
-	DebugModeAnnotationKey = "godel.bytedance.com/debug-mode"
+	DebugModeAnnotationKey = "eno.io/debug-mode"
 	// Debug Mode ON
 	DebugModeOn = "on"
 	// Debug Mode OFF
 	DebugModeOff = "off"
 	// Node that the pod want to watch by node labels
-	WatchNodeNameLabelName = "godel.bytedance.com/watch-node-label"
+	WatchNodeNameLabelName = "eno.io/watch-node-label"
 
 	SemicolonSeperator = ";"
 	CommaSeperator     = ","

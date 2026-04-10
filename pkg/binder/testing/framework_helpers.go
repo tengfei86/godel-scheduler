@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ type MockBinderFrameworkHandle struct {
 	informerFactory    informers.SharedInformerFactory
 	crdInformerFactory crdinformers.SharedInformerFactory
 	cache              godelcache.BinderCache
-	volumeBinder       scheduling.GodelVolumeBinder
+	volumeBinder       scheduling.EnoVolumeBinder
 }
 
 func (mfh *MockBinderFrameworkHandle) ClientSet() clientset.Interface {
@@ -68,7 +68,7 @@ func (mfh *MockBinderFrameworkHandle) GetFrameworkForPod(pod *v1.Pod) (f framewo
 	return
 }
 
-func (mfh *MockBinderFrameworkHandle) VolumeBinder() scheduling.GodelVolumeBinder {
+func (mfh *MockBinderFrameworkHandle) VolumeBinder() scheduling.EnoVolumeBinder {
 	return mfh.volumeBinder
 }
 

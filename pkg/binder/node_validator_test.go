@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ func TestNodeValidator_Validate(t *testing.T) {
 			nodeName:      "node-1",
 			nodeGetter: func(nodeName string) (*v1.Node, error) {
 				return makeTestNode(nodeName, map[string]string{
-					nodeutil.GodelSchedulerNodeAnnotationKey: "scheduler-A",
+					nodeutil.EnoSchedulerNodeAnnotationKey: "scheduler-A",
 				}), nil
 			},
 			wantErr: false,
@@ -64,7 +64,7 @@ func TestNodeValidator_Validate(t *testing.T) {
 			nodeName:      "node-2",
 			nodeGetter: func(nodeName string) (*v1.Node, error) {
 				return makeTestNode(nodeName, map[string]string{
-					nodeutil.GodelSchedulerNodeAnnotationKey: "scheduler-B",
+					nodeutil.EnoSchedulerNodeAnnotationKey: "scheduler-B",
 				}), nil
 			},
 			wantErr:       true,
@@ -86,7 +86,7 @@ func TestNodeValidator_Validate(t *testing.T) {
 			nodeName:      "node-4",
 			nodeGetter: func(nodeName string) (*v1.Node, error) {
 				return makeTestNode(nodeName, map[string]string{
-					nodeutil.GodelSchedulerNodeAnnotationKey: "",
+					nodeutil.EnoSchedulerNodeAnnotationKey: "",
 				}), nil
 			},
 			wantErr: false,

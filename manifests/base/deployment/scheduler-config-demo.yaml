@@ -1,12 +1,12 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: godel-scheduler-config
-  namespace: godel-system
+  name: eno-scheduler-config
+  namespace: eno-system
 data:
-  godel-scheduler-config: |+
+  eno-scheduler-config: |+
     apiVersion: godelscheduler.config.kubewharf.io/v1beta1
-    kind: GodelSchedulerConfiguration
+    kind: EnoSchedulerConfiguration
     subClusterKey: subCluster
     defaultProfile:
       disablePreemption: false

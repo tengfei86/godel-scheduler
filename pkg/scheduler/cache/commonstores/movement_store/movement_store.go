@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -94,7 +94,7 @@ func (s *MovementStore) DeleteMovement(movement *schedulingv1a1.Movement) error 
 }
 
 func (s *MovementStore) AddPod(pod *v1.Pod) error {
-	if !podutil.BoundPod(pod) && !podutil.AssumedPodOfGodel(pod, s.handler.SchedulerType()) {
+	if !podutil.BoundPod(pod) && !podutil.AssumedPodOfEno(pod, s.handler.SchedulerType()) {
 		return nil
 	}
 	s.store.AddAssumedPod(pod, utils.GetNodeNameFromPod(pod))
@@ -125,7 +125,7 @@ func (s *MovementStore) UpdatePod(oldPod, newPod *v1.Pod) error {
 }
 
 func (s *MovementStore) DeletePod(pod *v1.Pod) error {
-	if !podutil.BoundPod(pod) && !podutil.AssumedPodOfGodel(pod, s.handler.SchedulerType()) {
+	if !podutil.BoundPod(pod) && !podutil.AssumedPodOfEno(pod, s.handler.SchedulerType()) {
 		return nil
 	}
 	s.store.RemoveAssumedPod(pod, utils.GetNodeNameFromPod(pod))

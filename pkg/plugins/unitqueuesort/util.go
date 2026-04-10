@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ const (
 	EQUAL
 	GREATER
 
-	PriorityForDebugAnnotation = "godel.bytedance.com/customized-priority-for-debug"
+	PriorityForDebugAnnotation = "eno.io/customized-priority-for-debug"
 )
 
 func GetPriorityForDebug(annotations map[string]string) int {

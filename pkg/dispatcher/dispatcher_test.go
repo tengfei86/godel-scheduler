@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,14 +40,14 @@ import (
 )
 
 const (
-	schedulerName = "godel-scheduler"
+	schedulerName = "eno-scheduler"
 )
 
 func TestSelectSchedulerAccordingToOwner(t *testing.T) {
 	timeNow := metav1.NewTime(time.Now())
 	scheduler0 := &schedulingv1a1.Scheduler{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "godel-scheduler-0",
+			Name: "eno-scheduler-0",
 		},
 		Status: schedulingv1a1.SchedulerStatus{
 			LastUpdateTime: &timeNow,
@@ -55,7 +55,7 @@ func TestSelectSchedulerAccordingToOwner(t *testing.T) {
 	}
 	scheduler1 := &schedulingv1a1.Scheduler{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "godel-scheduler-1",
+			Name: "eno-scheduler-1",
 		},
 		Status: schedulingv1a1.SchedulerStatus{
 			LastUpdateTime: &timeNow,
@@ -63,7 +63,7 @@ func TestSelectSchedulerAccordingToOwner(t *testing.T) {
 	}
 	scheduler2 := &schedulingv1a1.Scheduler{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "godel-scheduler-2",
+			Name: "eno-scheduler-2",
 		},
 		Status: schedulingv1a1.SchedulerStatus{
 			LastUpdateTime: &timeNow,
@@ -231,20 +231,20 @@ func TestSelectSchedulerAccordingToOwner(t *testing.T) {
 			cancelR()
 
 			podListInScheduler0 := sets.NewString()
-			for _, pod := range dispatcher.DispatchInfo.GetPodsOfOneScheduler("godel-scheduler-0") {
+			for _, pod := range dispatcher.DispatchInfo.GetPodsOfOneScheduler("eno-scheduler-0") {
 				podListInScheduler0.Insert(pod)
 			}
-			klog.InfoS(fmt.Sprintf("got pods in godel-scheduler-0: %v", podListInScheduler0))
+			klog.InfoS(fmt.Sprintf("got pods in eno-scheduler-0: %v", podListInScheduler0))
 			podListInScheduler1 := sets.NewString()
-			for _, pod := range dispatcher.DispatchInfo.GetPodsOfOneScheduler("godel-scheduler-1") {
+			for _, pod := range dispatcher.DispatchInfo.GetPodsOfOneScheduler("eno-scheduler-1") {
 				podListInScheduler1.Insert(pod)
 			}
-			klog.InfoS(fmt.Sprintf("got pods in godel-scheduler-1: %v", podListInScheduler1))
+			klog.InfoS(fmt.Sprintf("got pods in eno-scheduler-1: %v", podListInScheduler1))
 			podListInScheduler2 := sets.NewString()
-			for _, pod := range dispatcher.DispatchInfo.GetPodsOfOneScheduler("godel-scheduler-2") {
+			for _, pod := range dispatcher.DispatchInfo.GetPodsOfOneScheduler("eno-scheduler-2") {
 				podListInScheduler2.Insert(pod)
 			}
-			klog.InfoS(fmt.Sprintf("got pods in godel-scheduler-2: %v", podListInScheduler2))
+			klog.InfoS(fmt.Sprintf("got pods in eno-scheduler-2: %v", podListInScheduler2))
 			for _, podsInSameScheduler := range tt.expectedSameSchedulers {
 				if !podListInScheduler0.HasAll(podsInSameScheduler...) && podListInScheduler0.HasAny(podsInSameScheduler...) {
 					t.Errorf("these pods need be in the same scheduler: %v", podsInSameScheduler)

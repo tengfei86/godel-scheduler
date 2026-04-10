@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Godel Scheduler Authors.
+Copyright 2024 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,8 +21,8 @@ import (
 	"github.com/kubewharf/godel-scheduler/pkg/util/tracing"
 )
 
-func NewEmptyGodelControllerManagerConfiguration() *GodelControllerManagerConfiguration {
-	return &GodelControllerManagerConfiguration{
+func NewEmptyEnoControllerManagerConfiguration() *EnoControllerManagerConfiguration {
+	return &EnoControllerManagerConfiguration{
 		Generic:               &GenericControllerManagerConfiguration{},
 		ReservationController: &reservationconfig.ReservationControllerConfiguration{},
 		Tracer:                &tracing.TracerConfiguration{},

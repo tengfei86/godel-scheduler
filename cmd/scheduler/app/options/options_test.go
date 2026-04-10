@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -52,8 +52,8 @@ var (
 	INT64_256 = int64(256)
 )
 
-func getSubClusterProfile(compomentConfig schedulerconfig.GodelSchedulerConfiguration, subCluster string) *schedulerconfig.GodelSchedulerProfile {
-	var ret *schedulerconfig.GodelSchedulerProfile
+func getSubClusterProfile(compomentConfig schedulerconfig.EnoSchedulerConfiguration, subCluster string) *schedulerconfig.EnoSchedulerProfile {
+	var ret *schedulerconfig.EnoSchedulerProfile
 	for i, p := range compomentConfig.SubClusterProfiles {
 		if p.SubClusterName == subCluster {
 			if ret == nil {
@@ -97,7 +97,7 @@ func TestLoadFileV1beta1(t *testing.T) {
 
 	// DefaultProfile
 	{
-		expectedProfile := &schedulerconfig.GodelSchedulerProfile{
+		expectedProfile := &schedulerconfig.EnoSchedulerProfile{
 			SubClusterName: "",
 			BasePluginsForKubelet: &schedulerconfig.Plugins{
 				Filter: &schedulerconfig.PluginSet{
@@ -234,7 +234,7 @@ func TestLoadFileV1beta1(t *testing.T) {
 
 	// SubClusterProfiles: subCluster 1
 	{
-		expectedProfile := &schedulerconfig.GodelSchedulerProfile{
+		expectedProfile := &schedulerconfig.EnoSchedulerProfile{
 			SubClusterName:             "subCluster 1",
 			DisablePreemption:          &TRUE,
 			MaxWaitingDeletionDuration: 300,
@@ -309,7 +309,7 @@ func TestLoadFileV1beta1(t *testing.T) {
 
 	// SubClusterProfiles: subCluster blockqueue
 	{
-		expectedProfile := &schedulerconfig.GodelSchedulerProfile{
+		expectedProfile := &schedulerconfig.EnoSchedulerProfile{
 			SubClusterName:    "subCluster blockqueue",
 			DisablePreemption: &FALSE,
 			BlockQueue:        &TRUE,
@@ -326,7 +326,7 @@ func TestLoadFileV1beta1(t *testing.T) {
 
 	// SubClusterProfiles: subCluster priorityqueue
 	{
-		expectedProfile := &schedulerconfig.GodelSchedulerProfile{
+		expectedProfile := &schedulerconfig.EnoSchedulerProfile{
 			SubClusterName:    "subCluster priorityqueue",
 			DisablePreemption: &FALSE,
 
@@ -342,7 +342,7 @@ func TestLoadFileV1beta1(t *testing.T) {
 
 	// SubClusterProfiles: subCluster different percentageOfNodesToScore & unitInitialBackoffSeconds & unitMaxBackoffSeconds
 	{
-		expectedProfile := &schedulerconfig.GodelSchedulerProfile{
+		expectedProfile := &schedulerconfig.EnoSchedulerProfile{
 			SubClusterName:                    "subCluster different percentageOfNodesToScore & unitInitialBackoffSeconds & unitMaxBackoffSeconds",
 			PercentageOfNodesToScore:          &INT32_20,
 			IncreasedPercentageOfNodesToScore: &INT32_40,
@@ -398,7 +398,7 @@ func TestLoadFileV1beta1ForPreemptionDefault(t *testing.T) {
 
 	// DefaultProfile
 	{
-		expectedProfile := &schedulerconfig.GodelSchedulerProfile{
+		expectedProfile := &schedulerconfig.EnoSchedulerProfile{
 			CandidatesSelectPolicy: utilpointer.String(schedulerconfig.CandidateSelectPolicyRandom),
 			BetterSelectPolicies: &schedulerconfig.StringSlice{
 				schedulerconfig.BetterPreemptionPolicyAscending,
@@ -417,7 +417,7 @@ func TestLoadFileV1beta1ForPreemptionDefault(t *testing.T) {
 
 	// SubClusterProfiles: subCluster 1
 	{
-		expectedProfile := &schedulerconfig.GodelSchedulerProfile{}
+		expectedProfile := &schedulerconfig.EnoSchedulerProfile{}
 
 		profile := getSubClusterProfile(cfg.ComponentConfig, "subCluster 1")
 		if diff := cmp.Diff(expectedProfile.CandidatesSelectPolicy, profile.CandidatesSelectPolicy); len(diff) > 0 {
@@ -430,7 +430,7 @@ func TestLoadFileV1beta1ForPreemptionDefault(t *testing.T) {
 
 	// SubClusterProfiles: subCluster 2
 	{
-		expectedProfile := &schedulerconfig.GodelSchedulerProfile{
+		expectedProfile := &schedulerconfig.EnoSchedulerProfile{
 			CandidatesSelectPolicy: utilpointer.String(schedulerconfig.CandidateSelectPolicyBetter),
 			BetterSelectPolicies: &schedulerconfig.StringSlice{
 				schedulerconfig.BetterPreemptionPolicyDichotomy,
@@ -470,7 +470,7 @@ func TestLoadFileV1beta1ForPreemptionProfileConfig(t *testing.T) {
 
 	// DefaultProfile
 	{
-		expectedProfile := &schedulerconfig.GodelSchedulerProfile{
+		expectedProfile := &schedulerconfig.EnoSchedulerProfile{
 			CandidatesSelectPolicy: utilpointer.String(schedulerconfig.CandidateSelectPolicyRandom),
 			BetterSelectPolicies: &schedulerconfig.StringSlice{
 				schedulerconfig.BetterPreemptionPolicyDichotomy,
@@ -489,7 +489,7 @@ func TestLoadFileV1beta1ForPreemptionProfileConfig(t *testing.T) {
 
 	// SubClusterProfiles: subCluster 1
 	{
-		expectedProfile := &schedulerconfig.GodelSchedulerProfile{
+		expectedProfile := &schedulerconfig.EnoSchedulerProfile{
 			CandidatesSelectPolicy: utilpointer.String(schedulerconfig.CandidateSelectPolicyBest),
 			BetterSelectPolicies: &schedulerconfig.StringSlice{
 				schedulerconfig.BetterPreemptionPolicyAscending,
@@ -508,7 +508,7 @@ func TestLoadFileV1beta1ForPreemptionProfileConfig(t *testing.T) {
 
 	// SubClusterProfiles: subCluster 2
 	{
-		expectedProfile := &schedulerconfig.GodelSchedulerProfile{}
+		expectedProfile := &schedulerconfig.EnoSchedulerProfile{}
 		profile := getSubClusterProfile(cfg.ComponentConfig, "subCluster 2")
 		if diff := cmp.Diff(expectedProfile.CandidatesSelectPolicy, profile.CandidatesSelectPolicy); len(diff) > 0 {
 			t.Errorf("subCluster 2 got diff: %s", diff)

@@ -23,8 +23,8 @@ function create_cluster() {
 # 1. Create the local kind cluster
 create_cluster "${REPO_ROOT}"/manifests/quickstart-feature-examples/${CLUSTER_NAME}.yaml
 
-# 2. Load godel docker images into the cluster
-kind load docker-image --nodes ${CLUSTER_NAME}-control-plane godel-local:latest --name ${CLUSTER_NAME}
+# 2. Load eno docker images into the cluster
+kind load docker-image --nodes ${CLUSTER_NAME}-control-plane eno-local:latest --name ${CLUSTER_NAME}
 
 # 3. Use kustomize to generate related CRDs, ClusterRole & Deployments
 # KUSTOMIZE_PATH can be overridden to apply a different overlay (e.g. embedded-binder).

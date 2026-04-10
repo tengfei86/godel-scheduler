@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -48,12 +48,12 @@ type SchedulerMaintainer struct {
 	// customizedSchedulers stores the schedulers with specific requirements, for example: specific task selector, specific node selector
 	// the nodes satisfy schedulers node selector can not be managed by general schedulers any more.
 	// TODO: we may need to specify/adjust preemption policy for this later
-	// customizedSchedulers map[string]*sche.GodelScheduler
+	// customizedSchedulers map[string]*sche.EnoScheduler
 
 	// TODO: add a more fine-grained lock for generalSchedulers later if we want to remove schedulerMux
 	// schedulers CRUD operations should be atomic and should be locked.
 	// generalSchedulers are the schedulers who are not designed for specific pods and nodes
-	generalSchedulers map[string]*sche.GodelScheduler
+	generalSchedulers map[string]*sche.EnoScheduler
 }
 
 // NewSchedulerMaintainer creates a new SchedulerMaintainer struct object
@@ -62,7 +62,7 @@ func NewSchedulerMaintainer(crdClient crdclient.Interface, schedulerLister sched
 		NodePartitionType: string(Logical),
 		crdClient:         crdClient,
 		schedulerLister:   schedulerLister,
-		generalSchedulers: make(map[string]*sche.GodelScheduler),
+		generalSchedulers: make(map[string]*sche.EnoScheduler),
 	}
 }
 

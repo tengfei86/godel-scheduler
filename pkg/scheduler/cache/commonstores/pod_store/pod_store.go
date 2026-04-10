@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -89,7 +89,7 @@ func NewSnapshot(handler commoncache.CacheHandler) commonstore.Store {
 }
 
 func (s *PodStore) AddPod(pod *v1.Pod) error {
-	if !podutil.BoundPod(pod) && !podutil.AssumedPodOfGodel(pod, s.handler.SchedulerType()) {
+	if !podutil.BoundPod(pod) && !podutil.AssumedPodOfEno(pod, s.handler.SchedulerType()) {
 		return nil
 	}
 	return s.podOp(pod, true)
@@ -123,7 +123,7 @@ func (s *PodStore) UpdatePod(oldPod *v1.Pod, newPod *v1.Pod) error {
 }
 
 func (s *PodStore) DeletePod(pod *v1.Pod) error {
-	if !podutil.BoundPod(pod) && !podutil.AssumedPodOfGodel(pod, s.handler.SchedulerType()) {
+	if !podutil.BoundPod(pod) && !podutil.AssumedPodOfEno(pod, s.handler.SchedulerType()) {
 		return nil
 	}
 	return s.podOp(pod, false)

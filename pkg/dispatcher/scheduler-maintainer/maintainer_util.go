@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -113,7 +113,7 @@ func IsSchedulerActive(scheduler *schedulerapi.Scheduler) bool {
 }
 
 // GetEarliestInactiveScheduler gets the earliest inactive schedulers
-func (maintainer *SchedulerMaintainer) GetEarliestInactiveCloneScheduler() *sche.GodelScheduler {
+func (maintainer *SchedulerMaintainer) GetEarliestInactiveCloneScheduler() *sche.EnoScheduler {
 	maintainer.schedulerMux.Lock()
 	defer maintainer.schedulerMux.Unlock()
 
@@ -121,7 +121,7 @@ func (maintainer *SchedulerMaintainer) GetEarliestInactiveCloneScheduler() *sche
 		return nil
 	}
 
-	var result *sche.GodelScheduler
+	var result *sche.EnoScheduler
 	for _, gs := range maintainer.generalSchedulers {
 		if !gs.IsSchedulerActive() {
 			if result == nil {

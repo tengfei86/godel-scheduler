@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import (
 	"github.com/kubewharf/godel-scheduler/pkg/binder/apis/config/v1beta1"
 )
 
-func loadProfileFromFile(file string) (*godelbinderconfig.GodelBinderProfile, error) {
+func loadProfileFromFile(file string) (*godelbinderconfig.EnoBinderProfile, error) {
 	data, err := ioutil.ReadFile(file)
 	if err != nil {
 		return nil, err
@@ -34,19 +34,19 @@ func loadProfileFromFile(file string) (*godelbinderconfig.GodelBinderProfile, er
 	return loadProfile(data)
 }
 
-func loadProfile(data []byte) (*godelbinderconfig.GodelBinderProfile, error) {
+func loadProfile(data []byte) (*godelbinderconfig.EnoBinderProfile, error) {
 	// The UniversalDecoder runs defaulting and returns the internal type by default.
 	obj, gvk, err := godelbinderscheme.Codecs.UniversalDecoder().Decode(data, nil, nil)
 	if err != nil {
 		return nil, err
 	}
-	if cfgObj, ok := obj.(*godelbinderconfig.GodelBinderProfile); ok {
+	if cfgObj, ok := obj.(*godelbinderconfig.EnoBinderProfile); ok {
 		return cfgObj, nil
 	}
-	return nil, fmt.Errorf("couldn't decode as GodelBinderProfile, got %s: ", gvk)
+	return nil, fmt.Errorf("couldn't decode as EnoBinderProfile, got %s: ", gvk)
 }
 
-func loadConfigFromFile(file string) (*godelbinderconfig.GodelBinderConfiguration, error) {
+func loadConfigFromFile(file string) (*godelbinderconfig.EnoBinderConfiguration, error) {
 	data, err := ioutil.ReadFile(file)
 	if err != nil {
 		return nil, err
@@ -55,20 +55,20 @@ func loadConfigFromFile(file string) (*godelbinderconfig.GodelBinderConfiguratio
 	return loadConfig(data)
 }
 
-func loadConfig(data []byte) (*godelbinderconfig.GodelBinderConfiguration, error) {
+func loadConfig(data []byte) (*godelbinderconfig.EnoBinderConfiguration, error) {
 	// The UniversalDecoder runs defaulting and returns the internal type by default.
 	obj, gvk, err := godelbinderscheme.Codecs.UniversalDecoder().Decode(data, nil, nil)
 	if err != nil {
 		return nil, err
 	}
-	if cfgObj, ok := obj.(*godelbinderconfig.GodelBinderConfiguration); ok {
+	if cfgObj, ok := obj.(*godelbinderconfig.EnoBinderConfiguration); ok {
 		cfgObj.TypeMeta.APIVersion = gvk.GroupVersion().String()
 		switch cfgObj.TypeMeta.APIVersion {
 		case v1beta1.SchemeGroupVersion.String():
-			fmt.Printf("GodelBinderConfiguration v1beta1 is loaded.\n")
+			fmt.Printf("EnoBinderConfiguration v1beta1 is loaded.\n")
 		}
 
 		return cfgObj, nil
 	}
-	return nil, fmt.Errorf("couldn't decode as GodelBinderConfiguration, got %s: ", gvk)
+	return nil, fmt.Errorf("couldn't decode as EnoBinderConfiguration, got %s: ", gvk)
 }

@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -241,7 +241,7 @@ func TestAssumePodScheduled(t *testing.T) {
 		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
 			cacheHandler := commoncache.MakeCacheHandlerWrapper().
 				Period(time.Second).PodAssumedTTL(time.Second).StopCh(nil).
-				ComponentName("godel-binder").Obj()
+				ComponentName("eno-binder").Obj()
 			cache := newBinderCache(cacheHandler)
 			for _, pod := range tt.pods {
 				podInfo := framework.MakeCachePodInfoWrapper().Pod(pod).Obj()
@@ -336,7 +336,7 @@ func TestExpirePod(t *testing.T) {
 		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
 			cacheHandler := commoncache.MakeCacheHandlerWrapper().
 				Period(time.Second).PodAssumedTTL(ttl).StopCh(nil).
-				ComponentName("godel-binder").Obj()
+				ComponentName("eno-binder").Obj()
 			cache := newBinderCache(cacheHandler)
 			for _, pod := range tt.pods {
 				if err := cache.AssumePod(framework.MakeCachePodInfoWrapper().Pod(pod.pod).Obj()); err != nil {
@@ -416,7 +416,7 @@ func TestAddPodWillConfirm(t *testing.T) {
 		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
 			cacheHandler := commoncache.MakeCacheHandlerWrapper().
 				Period(time.Second).PodAssumedTTL(ttl).StopCh(nil).
-				ComponentName("godel-binder").Obj()
+				ComponentName("eno-binder").Obj()
 			cache := newBinderCache(cacheHandler)
 			for _, podToAssume := range tt.podsToAssume {
 				if err := assumeAndFinishBinding(cache, podToAssume, now); err != nil {
@@ -495,7 +495,7 @@ func TestAddPodWillReplaceAssumed(t *testing.T) {
 		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
 			cacheHandler := commoncache.MakeCacheHandlerWrapper().
 				Period(time.Second).PodAssumedTTL(ttl).StopCh(nil).
-				ComponentName("godel-binder").Obj()
+				ComponentName("eno-binder").Obj()
 			cache := newBinderCache(cacheHandler)
 			for _, podToAssume := range tt.podsToAssume {
 				if err := assumeAndFinishBinding(cache, podToAssume, now); err != nil {
@@ -556,7 +556,7 @@ func TestAddPodAfterExpiration(t *testing.T) {
 			now := time.Now()
 			cacheHandler := commoncache.MakeCacheHandlerWrapper().
 				Period(time.Second).PodAssumedTTL(ttl).StopCh(nil).
-				ComponentName("godel-binder").Obj()
+				ComponentName("eno-binder").Obj()
 			cache := newBinderCache(cacheHandler)
 			if err := assumeAndFinishBinding(cache, tt.pod, now); err != nil {
 				t.Fatalf("assumePod failed: %v", err)
@@ -631,7 +631,7 @@ func TestUpdatePod(t *testing.T) {
 		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
 			cacheHandler := commoncache.MakeCacheHandlerWrapper().
 				Period(time.Second).PodAssumedTTL(ttl).StopCh(nil).
-				ComponentName("godel-binder").Obj()
+				ComponentName("eno-binder").Obj()
 			cache := newBinderCache(cacheHandler)
 			for _, podToAdd := range tt.podsToAdd {
 				if err := cache.AddPod(podToAdd); err != nil {
@@ -696,7 +696,7 @@ func TestUpdateAssumedPod(t *testing.T) {
 		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
 			cacheHandler := commoncache.MakeCacheHandlerWrapper().
 				Period(time.Second).PodAssumedTTL(ttl).StopCh(nil).
-				ComponentName("godel-binder").Obj()
+				ComponentName("eno-binder").Obj()
 			cache := newBinderCache(cacheHandler)
 			if err := cache.AddPod(tt.podToAdd); err != nil {
 				t.Fatalf("AddPod failed: %v", err)
@@ -754,7 +754,7 @@ func TestUpdatePodAndGet(t *testing.T) {
 	for _, tt := range tests {
 		cacheHandler := commoncache.MakeCacheHandlerWrapper().
 			Period(time.Second).PodAssumedTTL(ttl).StopCh(nil).
-			ComponentName("godel-binder").Obj()
+			ComponentName("eno-binder").Obj()
 		cache := newBinderCache(cacheHandler)
 
 		if err := tt.handler(cache, tt.pod); err != nil {
@@ -832,7 +832,7 @@ func TestExpireAddUpdatePod(t *testing.T) {
 			now := time.Now()
 			cacheHandler := commoncache.MakeCacheHandlerWrapper().
 				Period(time.Second).PodAssumedTTL(ttl).StopCh(nil).
-				ComponentName("godel-binder").Obj()
+				ComponentName("eno-binder").Obj()
 			cache := newBinderCache(cacheHandler)
 			for _, podToAssume := range tt.podsToAssume {
 				if err := assumeAndFinishBinding(cache, podToAssume, now); err != nil {
@@ -918,7 +918,7 @@ func TestEphemeralStorageResource(t *testing.T) {
 		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
 			cacheHandler := commoncache.MakeCacheHandlerWrapper().
 				Period(time.Second).PodAssumedTTL(time.Second).StopCh(nil).
-				ComponentName("godel-binder").Obj()
+				ComponentName("eno-binder").Obj()
 			cache := newBinderCache(cacheHandler)
 			if err := cache.AddPod(tt.pod); err != nil {
 				t.Fatalf("AddPod failed: %v", err)
@@ -978,7 +978,7 @@ func TestRemovePod(t *testing.T) {
 			nodeName := tt.pod.Spec.NodeName
 			cacheHandler := commoncache.MakeCacheHandlerWrapper().
 				Period(time.Second).PodAssumedTTL(time.Second).StopCh(nil).
-				ComponentName("godel-binder").Obj()
+				ComponentName("eno-binder").Obj()
 			cache := newBinderCache(cacheHandler)
 			// Add pod succeeds even before adding the nodes.
 			if err := cache.AddPod(tt.pod); err != nil {
@@ -1015,7 +1015,7 @@ func TestForgetPod(t *testing.T) {
 
 	cacheHandler := commoncache.MakeCacheHandlerWrapper().
 		Period(time.Second).PodAssumedTTL(ttl).StopCh(nil).
-		ComponentName("godel-binder").Obj()
+		ComponentName("eno-binder").Obj()
 	cache := newBinderCache(cacheHandler)
 
 	for _, pod := range pods {
@@ -1202,7 +1202,7 @@ func TestNodeOperators(t *testing.T) {
 
 			cacheHandler := commoncache.MakeCacheHandlerWrapper().
 				Period(time.Second).PodAssumedTTL(time.Second).StopCh(nil).
-				ComponentName("godel-binder").Obj()
+				ComponentName("eno-binder").Obj()
 			cache := newBinderCache(cacheHandler)
 
 			if err := cache.AddNode(node); err != nil {

@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ type binderOptions struct {
 type Option func(*binderOptions)
 
 // WithPluginsAndConfigs sets Preemption Plugins and Configs, the default value is nil
-func WithPluginsAndConfigs(profile *config.GodelBinderProfile) Option {
+func WithPluginsAndConfigs(profile *config.EnoBinderProfile) Option {
 	return func(o *binderOptions) {
 		if profile == nil {
 			return

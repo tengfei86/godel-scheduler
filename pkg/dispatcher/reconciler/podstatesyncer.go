@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -146,7 +146,7 @@ func (psr *PodStateReconciler) StaleDispatchedPodsSyncer() {
 }
 
 func (psr *PodStateReconciler) updateStaleDispatchedStatePod(pod *corev1.Pod) error {
-	if podutil.DispatchedPodOfGodel(pod, psr.schedulerName) {
+	if podutil.DispatchedPodOfEno(pod, psr.schedulerName) {
 		schedulerName := pod.Annotations[podutil.SchedulerAnnotationKey]
 		if psr.schedulerMaintainer.IsSchedulerInInactiveQueue(schedulerName) || !psr.schedulerMaintainer.SchedulerExist(schedulerName) {
 			klog.V(3).InfoS("Reset the dispatched pod to Pending state on inactive/nonexistent scheduler", "pod", klog.KObj(pod), "schedulerName", schedulerName)
@@ -206,7 +206,7 @@ func (psr *PodStateReconciler) AbnormalStatePodsSyncer() {
 
 // updatePodState tries to update pod state if it is abnormal
 func (psr *PodStateReconciler) updateAbnormalStatePod(pod *corev1.Pod) error {
-	abnormal := podutil.AbnormalPodStateOfGodel(pod, psr.schedulerName)
+	abnormal := podutil.AbnormalPodStateOfEno(pod, psr.schedulerName)
 	if abnormal {
 		klog.V(3).InfoS("Reset the abnormal pod to Pending state", "pod", klog.KObj(pod))
 		// pod is still abnormal

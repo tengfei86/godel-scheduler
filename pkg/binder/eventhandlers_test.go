@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -170,7 +170,7 @@ func TestAddNominatedPod(t *testing.T) {
 
 	cacheHandler := commoncache.MakeCacheHandlerWrapper().
 		Period(10 * time.Second).PodAssumedTTL(ttl).StopCh(stopCh).
-		ComponentName("godel-binder").Obj()
+		ComponentName("eno-binder").Obj()
 	binderCache := cache.New(cacheHandler)
 	binderQueue := queue.NewPriorityQueue(nil, nil, nil, binderCache)
 
@@ -255,7 +255,7 @@ func TestAddAssignedPod(t *testing.T) {
 
 	cacheHandler := commoncache.MakeCacheHandlerWrapper().
 		Period(10 * time.Second).PodAssumedTTL(ttl).StopCh(stopCh).
-		ComponentName("godel-binder").Obj()
+		ComponentName("eno-binder").Obj()
 	binderCache := cache.New(cacheHandler)
 	binderQueue := queue.NewPriorityQueue(nil, nil, nil, binderCache)
 
@@ -320,7 +320,7 @@ func TestDeletePodWithNominatedNode(t *testing.T) {
 
 	cacheHandler := commoncache.MakeCacheHandlerWrapper().
 		Period(10 * time.Second).PodAssumedTTL(ttl).StopCh(stopCh).
-		ComponentName("godel-binder").Obj()
+		ComponentName("eno-binder").Obj()
 	binderCache := cache.New(cacheHandler)
 	binderQueue := queue.NewPriorityQueue(nil, nil, nil, binderCache)
 
@@ -369,7 +369,7 @@ func TestNode(t *testing.T) {
 
 	cacheHandler := commoncache.MakeCacheHandlerWrapper().
 		Period(10 * time.Second).PodAssumedTTL(ttl).StopCh(stopCh).
-		ComponentName("godel-binder").Obj()
+		ComponentName("eno-binder").Obj()
 	binderCache := cache.New(cacheHandler)
 	binderQueue := queue.NewPriorityQueue(nil, nil, nil, binderCache)
 
@@ -404,7 +404,7 @@ func TestNode_Error(t *testing.T) {
 
 	cacheHandler := commoncache.MakeCacheHandlerWrapper().
 		Period(10 * time.Second).PodAssumedTTL(ttl).StopCh(stopCh).
-		ComponentName("godel-binder").Obj()
+		ComponentName("eno-binder").Obj()
 	binderCache := cache.New(cacheHandler)
 	binderQueue := queue.NewPriorityQueue(nil, nil, nil, binderCache)
 
@@ -437,7 +437,7 @@ func TestNMNode(t *testing.T) {
 
 	cacheHandler := commoncache.MakeCacheHandlerWrapper().
 		Period(10 * time.Second).PodAssumedTTL(ttl).StopCh(stopCh).
-		ComponentName("godel-binder").Obj()
+		ComponentName("eno-binder").Obj()
 	binderCache := cache.New(cacheHandler)
 	binderQueue := queue.NewPriorityQueue(nil, nil, nil, binderCache)
 
@@ -473,7 +473,7 @@ func TestNMNode_Error(t *testing.T) {
 
 	cacheHandler := commoncache.MakeCacheHandlerWrapper().
 		Period(10 * time.Second).PodAssumedTTL(ttl).StopCh(stopCh).
-		ComponentName("godel-binder").Obj()
+		ComponentName("eno-binder").Obj()
 	binderCache := cache.New(cacheHandler)
 	binderQueue := queue.NewPriorityQueue(nil, nil, nil, binderCache)
 

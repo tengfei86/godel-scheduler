@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -136,12 +136,12 @@ func Run(ctx context.Context, cc config.CompletedConfig) error {
 	dispatcher := dispatcher.New(
 		ctx.Done(),
 		cc.Client,
-		cc.GodelCrdClient,
+		cc.EnoCrdClient,
 		cc.InformerFactory.Core().V1().Pods(),
 		cc.InformerFactory.Core().V1().Nodes(),
-		cc.GodelCrdInformerFactory.Scheduling().V1alpha1().Schedulers(),
-		cc.GodelCrdInformerFactory.Node().V1alpha1().NMNodes(),
-		cc.GodelCrdInformerFactory.Scheduling().V1alpha1().PodGroups(),
+		cc.EnoCrdInformerFactory.Scheduling().V1alpha1().Schedulers(),
+		cc.EnoCrdInformerFactory.Node().V1alpha1().NMNodes(),
+		cc.EnoCrdInformerFactory.Scheduling().V1alpha1().PodGroups(),
 		cc.InformerFactory.Scheduling().V1().PriorityClasses(),
 		*cc.DispatcherConfig.SchedulerName,
 		getEventRecorder(&cc),
@@ -173,8 +173,8 @@ func Run(ctx context.Context, cc config.CompletedConfig) error {
 
 	cc.InformerFactory.Start(ctx.Done())
 	cc.InformerFactory.WaitForCacheSync(ctx.Done())
-	cc.GodelCrdInformerFactory.Start(ctx.Done())
-	cc.GodelCrdInformerFactory.WaitForCacheSync(ctx.Done())
+	cc.EnoCrdInformerFactory.Start(ctx.Done())
+	cc.EnoCrdInformerFactory.WaitForCacheSync(ctx.Done())
 
 	// Prepare a reusable runCommand function.
 	run := func(ctx context.Context) {
@@ -247,7 +247,7 @@ func installMetricHandler(pathRecorderMux *mux.PathRecorderMux) {
 }
 
 // newMetricsHandler builds a metrics server from the config.
-func newMetricsHandler(config *godeldispatcherconfig.GodelDispatcherConfiguration) http.Handler {
+func newMetricsHandler(config *godeldispatcherconfig.EnoDispatcherConfiguration) http.Handler {
 	pathRecorderMux := mux.NewPathRecorderMux(ComponentName)
 	installMetricHandler(pathRecorderMux)
 	if *config.EnableProfiling {
@@ -263,7 +263,7 @@ func newMetricsHandler(config *godeldispatcherconfig.GodelDispatcherConfiguratio
 // newHealthzHandler creates a healthz server from the config, and will also
 // embed the metrics handler if the healthz and metrics address configurations
 // are the same.
-func newHealthzHandler(config *godeldispatcherconfig.GodelDispatcherConfiguration, separateMetrics bool, checks ...healthz.HealthChecker) http.Handler {
+func newHealthzHandler(config *godeldispatcherconfig.EnoDispatcherConfiguration, separateMetrics bool, checks ...healthz.HealthChecker) http.Handler {
 	pathRecorderMux := mux.NewPathRecorderMux(ComponentName)
 	healthz.InstallHandler(pathRecorderMux, checks...)
 	if !separateMetrics {

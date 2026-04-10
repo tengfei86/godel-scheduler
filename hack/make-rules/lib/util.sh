@@ -2,7 +2,7 @@
 
 util::ensure_temp_dir() {
     if [[ -z ${REPO_TEMP:-} ]]; then
-        REPO_TEMP="$(mktemp -d 2>/dev/null || mktemp -d -t godel.XXXXXX)"
+        REPO_TEMP="$(mktemp -d 2>/dev/null || mktemp -d -t eno.XXXXXX)"
     fi
 }
 

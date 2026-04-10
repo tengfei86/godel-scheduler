@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import (
 	godelvalidation "github.com/kubewharf/godel-scheduler/pkg/util/validation"
 )
 
-func ValidateGodelSchedulerConfiguration(cc *config.GodelSchedulerConfiguration) field.ErrorList {
+func ValidateEnoSchedulerConfiguration(cc *config.EnoSchedulerConfiguration) field.ErrorList {
 	errs := field.ErrorList{}
 	// 1. LeaderElection & SchedulerRenewIntervalSeconds
 	{
@@ -50,10 +50,10 @@ func ValidateGodelSchedulerConfiguration(cc *config.GodelSchedulerConfiguration)
 	// 3. DebuggingConfiguration
 	// Do nothing.
 
-	// 4. Godel Scheduler
+	// 4. Eno Scheduler
 	{
-		if len(cc.GodelSchedulerName) == 0 {
-			errs = append(errs, field.Required(field.NewPath("GodelSchedulerName"), ""))
+		if len(cc.EnoSchedulerName) == 0 {
+			errs = append(errs, field.Required(field.NewPath("EnoSchedulerName"), ""))
 		}
 		if cc.SchedulerName == nil {
 			errs = append(errs, field.Required(field.NewPath("schedulerName"), ""))
@@ -67,7 +67,7 @@ func ValidateGodelSchedulerConfiguration(cc *config.GodelSchedulerConfiguration)
 		// }
 	}
 
-	// 5. Godel Profiles
+	// 5. Eno Profiles
 	{
 		if cc.DefaultProfile == nil {
 			errs = append(errs, field.Required(field.NewPath("defaultProfile"), ""))
@@ -134,7 +134,7 @@ func ValidatePluginArgsConfiguration(pluginArgs []config.PluginConfig, fldPath *
 	return errs
 }
 
-func ValidateSubClusterArgs(cc *config.GodelSchedulerProfile, fldPath *field.Path) field.ErrorList {
+func ValidateSubClusterArgs(cc *config.EnoSchedulerProfile, fldPath *field.Path) field.ErrorList {
 	errs := field.ErrorList{}
 
 	errs = append(errs, ValidateBasePluginsConfiguration(cc.BasePluginsForKubelet, field.NewPath("baseKubeletPlugins"))...)

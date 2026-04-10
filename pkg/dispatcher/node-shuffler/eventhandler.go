@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,12 +24,12 @@ import (
 )
 
 func (ns *NodeShuffler) addNodeToProcessingQueueIfNecessary(nodeName string, annotations map[string]string) {
-	if len(annotations[nodeutil.GodelSchedulerNodeAnnotationKey]) == 0 {
+	if len(annotations[nodeutil.EnoSchedulerNodeAnnotationKey]) == 0 {
 		ns.nodeProcessingQueue.Add(&NodeToBeProcessed{
 			nodeName: nodeName,
 			reason:   NoSchedulerName,
 		})
-	} else if !ns.schedulerMaintainer.SchedulerExist(annotations[nodeutil.GodelSchedulerNodeAnnotationKey]) || ns.schedulerMaintainer.IsSchedulerInInactiveQueue(annotations[nodeutil.GodelSchedulerNodeAnnotationKey]) {
+	} else if !ns.schedulerMaintainer.SchedulerExist(annotations[nodeutil.EnoSchedulerNodeAnnotationKey]) || ns.schedulerMaintainer.IsSchedulerInInactiveQueue(annotations[nodeutil.EnoSchedulerNodeAnnotationKey]) {
 		ns.nodeProcessingQueue.Add(&NodeToBeProcessed{
 			nodeName: nodeName,
 			reason:   InactiveScheduler,

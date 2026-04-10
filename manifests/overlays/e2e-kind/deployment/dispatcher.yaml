@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: dispatcher
-  namespace: godel-system
+  namespace: eno-system
   labels:
     component: dispatcher
 spec:

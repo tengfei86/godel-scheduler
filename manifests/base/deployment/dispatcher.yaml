@@ -2,22 +2,22 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: dispatcher
-  namespace: godel-system
+  namespace: eno-system
   labels:
     component: dispatcher
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: godel-dispatcher
+      app: eno-dispatcher
   template:
     metadata:
       labels:
-        app: godel-dispatcher
+        app: eno-dispatcher
     spec:
       nodeSelector:
         node-role.kubernetes.io/control-plane: ""
-      serviceAccountName: godel
+      serviceAccountName: eno
       tolerations:
         - key: "node-role.kubernetes.io/master"
           operator: "Exists"
@@ -27,7 +27,7 @@ spec:
           effect: "NoSchedule"
       containers:
         - name: dispatcher
-          image: godel-local:latest
+          image: eno-local:latest
           imagePullPolicy: Never
           command: ["/usr/local/bin/dispatcher"]
           ports:

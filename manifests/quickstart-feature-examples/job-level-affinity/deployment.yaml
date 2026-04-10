@@ -12,11 +12,11 @@ spec:
       name: nginx
       labels:
         name: nginx
-        godel.bytedance.com/pod-group-name: "nginx"
+        eno.io/pod-group-name: "nginx"
       annotations:
-        godel.bytedance.com/pod-group-name: "nginx"
+        eno.io/pod-group-name: "nginx"
     spec:
-      schedulerName: godel-scheduler
+      schedulerName: eno-scheduler
       containers:
         - name: nginx
           image: nginx

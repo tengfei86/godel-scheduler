@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -102,7 +102,7 @@ func TestSchedulerMaintainer_GetSchedulersWithMostAndLeastNumberOfNodes(t *testi
 			}
 
 			for nodeName, schedulerName := range tt.nodesToScheduler {
-				maintainer.addNodeToGodelScheduler(schedulerName, nodeName)
+				maintainer.addNodeToEnoScheduler(schedulerName, nodeName)
 			}
 
 			if got := maintainer.GetSchedulersWithMostAndLeastNumberOfNodes(); !reflect.DeepEqual(got, tt.want) {
@@ -156,7 +156,7 @@ func TestSchedulerMaintainer_GetGeneralActiveSchedulerWithLeastNumberOfNodes(t *
 			}
 
 			for nodeName, schedulerName := range tt.nodesToScheduler {
-				maintainer.addNodeToGodelScheduler(schedulerName, nodeName)
+				maintainer.addNodeToEnoScheduler(schedulerName, nodeName)
 			}
 
 			if got := maintainer.GetGeneralActiveSchedulerWithLeastNumberOfNodes(); !reflect.DeepEqual(got, tt.want) {

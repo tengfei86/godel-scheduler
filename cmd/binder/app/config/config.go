@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -35,9 +35,9 @@ type Config struct {
 	Client          clientset.Interface
 	InformerFactory informers.SharedInformerFactory
 
-	// godel crd client & informer
-	GodelCrdClient          godelclient.Interface
-	GodelCrdInformerFactory crdinformers.SharedInformerFactory
+	// eno crd client & informer
+	EnoCrdClient          godelclient.Interface
+	EnoCrdInformerFactory crdinformers.SharedInformerFactory
 
 	KatalystCrdClient          katalystclient.Interface
 	KatalystCrdInformerFactory katalystinformers.SharedInformerFactory
@@ -47,7 +47,7 @@ type Config struct {
 	// More details can be found at https://github.com/kubernetes/enhancements/blob/master/keps/sig-instrumentation/383-new-event-api-ga-graduation/README.md
 	EventBroadcaster cmdutil.EventBroadcasterAdapter
 
-	BinderConfig binderconfig.GodelBinderConfiguration
+	BinderConfig binderconfig.EnoBinderConfiguration
 
 	LeaderElection *leaderelection.LeaderElectionConfig
 

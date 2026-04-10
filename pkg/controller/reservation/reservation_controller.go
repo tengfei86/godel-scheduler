@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Godel Scheduler Authors.
+Copyright 2024 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ const (
 )
 
 type ReservationController struct {
-	godelClient godelclient.Interface
+	enoClient godelclient.Interface
 	// eventRecorder   record.EventRecorder
 	podReservationLister       reservationlister.ReservationLister
 	podReservationListerSynced cache.InformerSynced
@@ -68,7 +68,7 @@ func init() {
 
 func NewReservationController(
 	ctx context.Context,
-	godelClient godelclient.Interface,
+	enoClient godelclient.Interface,
 	podInformer coreinformers.PodInformer,
 	deployInformer appsinformers.DeploymentInformer,
 	podReservationInformer reservationinformer.ReservationInformer,
@@ -77,7 +77,7 @@ func NewReservationController(
 	matchedPodExtraTTL int64,
 ) *ReservationController {
 	rc := &ReservationController{
-		godelClient:                godelClient,
+		enoClient:                enoClient,
 		podReservationLister:       podReservationInformer.Lister(),
 		podReservationListerSynced: podReservationInformer.Informer().HasSynced,
 		podReservationQueue:        workqueue.NewNamedDelayingQueue("pod_reservation_request"),
@@ -232,7 +232,7 @@ func (rc *ReservationController) isReservationMatched(prr *schedulingv1a1.Reserv
 }
 
 func (rc *ReservationController) createReservation(prr *schedulingv1a1.Reservation) error {
-	_, err := rc.godelClient.SchedulingV1alpha1().Reservations(prr.Namespace).Create(context.TODO(), prr, metav1.CreateOptions{})
+	_, err := rc.enoClient.SchedulingV1alpha1().Reservations(prr.Namespace).Create(context.TODO(), prr, metav1.CreateOptions{})
 	if err != nil {
 		return err
 	}
@@ -243,7 +243,7 @@ func (rc *ReservationController) createReservation(prr *schedulingv1a1.Reservati
 func (rc *ReservationController) deleteReservation(prr *schedulingv1a1.Reservation) error {
 	result := reservationmetrics.SuccessResult
 
-	err := rc.godelClient.SchedulingV1alpha1().Reservations(prr.Namespace).Delete(context.TODO(), prr.Name, metav1.DeleteOptions{})
+	err := rc.enoClient.SchedulingV1alpha1().Reservations(prr.Namespace).Delete(context.TODO(), prr.Name, metav1.DeleteOptions{})
 	if err != nil {
 		result = reservationmetrics.FailureResult
 	}

@@ -71,7 +71,7 @@ type Framework struct {
 
 	clientConfig                     *rest.Config
 	ClientSet                        clientset.Interface
-	Godelclient                      godelclient.Interface
+	Enoclient                      godelclient.Interface
 	KubemarkExternalClusterClientSet clientset.Interface
 
 	DynamicClient dynamic.Interface
@@ -207,7 +207,7 @@ func (f *Framework) BeforeEach() {
 		jsonConfig.ContentType = "application/json"
 		ExpectNoError(err)
 		// PodGroup is based on CRD, which is served only as JSON
-		f.Godelclient, err = godelclient.NewForConfig(jsonConfig)
+		f.Enoclient, err = godelclient.NewForConfig(jsonConfig)
 		ExpectNoError(err)
 
 		// create scales getter, set GroupVersion and NegotiatedSerializer to default values
@@ -488,7 +488,7 @@ func (f *Framework) CreateNamespace(baseName string, labels map[string]string) (
 	f.AddNamespacesToDelete(ns)
 
 	if err == nil && !f.SkipPrivilegedPSPBinding {
-		// TODO skip this, Godel Scheduler should support this or not?
+		// TODO skip this, Eno Scheduler should support this or not?
 		// CreatePrivilegedPSPBinding(f.ClientSet, ns.Name)
 	}
 

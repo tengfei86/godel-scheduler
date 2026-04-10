@@ -958,7 +958,7 @@ func DeployHasReservationRequirement(deploy *apps.Deployment) bool {
 		return false
 	}
 
-	if value, ok := deploy.Annotations[podutil.PodResourceReservationAnnotationForGodel]; ok {
+	if value, ok := deploy.Annotations[podutil.PodResourceReservationAnnotationForEno]; ok {
 		return value == podutil.PodHasReservationRequirement
 	} else {
 		return false

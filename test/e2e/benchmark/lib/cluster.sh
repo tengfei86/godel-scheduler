@@ -273,7 +273,7 @@ show_cluster_status() {
   kubectl get nodes -l fake.byted.org/node --no-headers 2>/dev/null | wc -l | xargs -I {} echo "  KWOK 节点数: {}"
   echo ""
   echo "── Gödel 组件 ──"
-  kubectl get pods -n "${GODEL_NAMESPACE}" --no-headers 2>/dev/null || echo "  (未部署)"
+  kubectl get pods -n "${ENO_NAMESPACE}" --no-headers 2>/dev/null || echo "  (未部署)"
   echo ""
   echo "── Prometheus ──"
   kubectl get pods -n "${PROMETHEUS_NAMESPACE}" --no-headers 2>/dev/null || echo "  (未部署)"
@@ -285,7 +285,7 @@ show_node_partition() {
   log_info "节点分区分配 (Node Shuffler):"
   local schedulers
   # 支持两种命名方式：scheduler / scheduler-0,1,2
-  schedulers=$(kubectl get deployment -n "${GODEL_NAMESPACE}" --no-headers 2>/dev/null \
+  schedulers=$(kubectl get deployment -n "${ENO_NAMESPACE}" --no-headers 2>/dev/null \
     | awk '{print $1}' | grep -E '^(scheduler|scheduler-)' || true)
 
   if [[ -z "${schedulers}" ]]; then
@@ -299,7 +299,7 @@ show_node_partition() {
   # 检查是否有节点被物理分区（DispatcherNodeShuffle 特性门控）
   local annotated_count
   annotated_count=$(kubectl get nodes -o json 2>/dev/null | \
-    jq '[.items[] | select(.metadata.annotations["godel.bytedance.com/scheduler-name"] != null)] | length')
+    jq '[.items[] | select(.metadata.annotations["eno.io/scheduler-name"] != null)] | length')
 
   if (( annotated_count == 0 )); then
     # 逻辑分区模式：NodeShuffle 未启用，所有 scheduler 共享全部节点
@@ -314,14 +314,14 @@ show_node_partition() {
   echo "  模式: 物理分区 (DispatcherNodeShuffle 已启用)"
   local assigned_total=0
   for sched in $schedulers; do
-    # 物理分区注解值是 Scheduler CRD 名称（如 godel-scheduler），不是 deployment 名
+    # 物理分区注解值是 Scheduler CRD 名称（如 eno-scheduler），不是 deployment 名
     # 尝试用 Scheduler CRD 查找对应的调度器名称
     local sched_names
     sched_names=$(kubectl get scheduler --no-headers 2>/dev/null | awk '{print $1}' || true)
     for sname in ${sched_names:-$sched}; do
       local count
       count=$(kubectl get nodes -o json 2>/dev/null | \
-        jq "[.items[] | select(.metadata.annotations[\"godel.bytedance.com/scheduler-name\"]==\"${sname}\")] | length")
+        jq "[.items[] | select(.metadata.annotations[\"eno.io/scheduler-name\"]==\"${sname}\")] | length")
       if (( count > 0 )); then
         echo "  ${sname}: ${count} 个节点"
         assigned_total=$((assigned_total + count))

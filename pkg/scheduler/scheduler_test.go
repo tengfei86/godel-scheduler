@@ -440,7 +440,7 @@ func TestScheduleUnit_Preemption(t *testing.T) {
 		Status:     v1.NodeStatus{Capacity: makeResources(50, 20, 32, 20).Capacity, Allocatable: makeAllocatableResources(50, 20, 32, 20)},
 	}
 	testNodeSuccess := &v1.Node{
-		ObjectMeta: metav1.ObjectMeta{Name: "machine2", UID: types.UID("machine2"), Annotations: map[string]string{node.GodelSchedulerNodeAnnotationKey: testSchedulerSysName}},
+		ObjectMeta: metav1.ObjectMeta{Name: "machine2", UID: types.UID("machine2"), Annotations: map[string]string{node.EnoSchedulerNodeAnnotationKey: testSchedulerSysName}},
 		Status:     v1.NodeStatus{Capacity: makeResources(50, 20, 32, 20).Capacity, Allocatable: makeAllocatableResources(50, 20, 32, 20)},
 	}
 
@@ -610,7 +610,7 @@ func TestScheduleUnit_Preemption(t *testing.T) {
 		eventRecorder,
 		60*time.Second,
 		WithDefaultProfile(
-			&config.GodelSchedulerProfile{
+			&config.EnoSchedulerProfile{
 				DisablePreemption: &disablePodPreemption,
 			},
 		),
@@ -924,7 +924,7 @@ func TestScheduleUnit_RemoveVictims(t *testing.T) {
 		eventRecorder,
 		60*time.Second,
 		WithDefaultProfile(
-			&config.GodelSchedulerProfile{
+			&config.EnoSchedulerProfile{
 				DisablePreemption: &disablePodPreemption,
 			},
 		),

@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -95,7 +95,7 @@ type Dispatcher struct {
 	reconciler *reconciler.PodStateReconciler
 
 	// SchedulerName here is the higher level scheduler name, which is used to select pods
-	// that godel schedulers should be responsible for and filter out irrelevant pods.
+	// that eno schedulers should be responsible for and filter out irrelevant pods.
 	SchedulerName string
 
 	recorder events.EventRecorder
@@ -247,7 +247,7 @@ func (d *Dispatcher) dispatchingPod(ctx context.Context, podInfo *queue.QueuedPo
 
 	pod, err := d.podLister.Pods(namespace).Get(name)
 	if apierrs.IsNotFound(err) || pod.DeletionTimestamp != nil ||
-		!podutil.PendingPodOfGodel(pod, d.SchedulerName) {
+		!podutil.PendingPodOfEno(pod, d.SchedulerName) {
 		// podInfo was deleted before or is being deleted, or is not in pending state now
 		// return directly without re-enqueuing the podInfo
 		return

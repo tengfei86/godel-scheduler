@@ -58,10 +58,10 @@ import (
 // nodes that they fit on and writes bindings back to the api server. Scheduler is the wrapper that watches for all
 // pod and node event, the actual scheduling process is handled by schedule framework.
 type Scheduler struct {
-	// Name identifies the Godel Scheduler
+	// Name identifies the Eno Scheduler
 	Name string
 	// SchedulerName here is the higher level scheduler name, which is used to select pods
-	// that godel schedulers should be responsible for and filter out irrelevant pods.
+	// that eno schedulers should be responsible for and filter out irrelevant pods.
 	SchedulerName *string
 
 	// Close this to shut down the scheduler.
@@ -101,7 +101,7 @@ type Scheduler struct {
 
 // New returns a Scheduler
 func New(
-	godelSchedulerName string,
+	enoSchedulerName string,
 	schedulerName *string,
 	client clientset.Interface,
 	crdClient godelclient.Interface,
@@ -116,7 +116,7 @@ func New(
 	// 1. Prepare Dependencies
 	// register metrics before everything
 	// see https://github.com/kubewharf/godel-scheduler/issues/79 for more details
-	metrics.Register(godelSchedulerName)
+	metrics.Register(enoSchedulerName)
 	stopEverything := stopCh
 	if stopEverything == nil {
 		stopEverything = wait.NeverStop
@@ -132,7 +132,7 @@ func New(
 	mayHasPreemption := parseProfilesBoolConfiguration(options, profileNeedPreemption)
 
 	handlerWrapper := commoncache.MakeCacheHandlerWrapper().
-		ComponentName(godelSchedulerName).SchedulerType(*schedulerName).SubCluster(framework.DefaultSubCluster).
+		ComponentName(enoSchedulerName).SchedulerType(*schedulerName).SubCluster(framework.DefaultSubCluster).
 		PodAssumedTTL(15 * time.Minute).Period(10 * time.Second).ReservationTTL(reservationTTL).StopCh(stopEverything).
 		PodLister(podLister).PodInformer(podInformer).PVCLister(pvcLister)
 	if mayHasPreemption {
@@ -141,7 +141,7 @@ func New(
 
 	// 2. Make Scheduler
 	sched := &Scheduler{
-		Name:                   godelSchedulerName,
+		Name:                   enoSchedulerName,
 		SchedulerName:          schedulerName,
 		StopEverything:         stopEverything,
 		scheduledPodsHasSynced: informerFactory.Core().V1().Pods().Informer().HasSynced,
@@ -161,9 +161,9 @@ func New(
 		mayHasPreemption:        mayHasPreemption,
 		defaultSubClusterConfig: newDefaultSubClusterConfig(options.defaultProfile),
 
-		schedulerMaintainer: NewSchedulerStatusMaintainer(globalClock, crdClient, godelSchedulerName, options.renewInterval),
+		schedulerMaintainer: NewSchedulerStatusMaintainer(globalClock, crdClient, enoSchedulerName, options.renewInterval),
 		recorder:            recorder,
-		metricsRecorder:     godelcache.NewEmptyClusterCollectable(godelSchedulerName),
+		metricsRecorder:     godelcache.NewEmptyClusterCollectable(enoSchedulerName),
 	}
 
 	if utilfeature.DefaultFeatureGate.Enabled(features.SupportRescheduling) {
@@ -174,7 +174,7 @@ func New(
 		)
 		movementQueue := workqueue.NewNamedRateLimitingQueue(rateLimiter, "Movement")
 		movementLister := crdInformerFactory.Scheduling().V1alpha1().Movements().Lister()
-		sched.movementController = controller.NewMovementController(movementQueue, stopEverything, movementLister, godelSchedulerName, crdClient)
+		sched.movementController = controller.NewMovementController(movementQueue, stopEverything, movementLister, enoSchedulerName, crdClient)
 	}
 
 	// 3. Create sub-cluster workflows.

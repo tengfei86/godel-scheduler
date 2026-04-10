@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import (
 const (
 	Cluster         = "default"
 	IDC             = "lq"
-	DefaultSpanType = "GodelScheduler"
+	DefaultSpanType = "EnoScheduler"
 
 	PodTag     = "pod"
 	ClusterTag = "cluster"

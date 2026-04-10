@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ func NewNodeValidator(schedulerName string, nodeGetter NodeGetter) *NodeValidato
 }
 
 // Validate checks that the node identified by nodeName is owned by this
-// Scheduler (i.e., its godel.bytedance.com/scheduler-name annotation matches
+// Scheduler (i.e., its eno.io/scheduler-name annotation matches
 // schedulerName). Returns nil on success, or an error explaining the mismatch.
 func (v *NodeValidator) Validate(nodeName string) error {
 	if v.nodeGetter == nil {
@@ -68,7 +68,7 @@ func (v *NodeValidator) Validate(nodeName string) error {
 
 	owner := ""
 	if node.Annotations != nil {
-		owner = node.Annotations[nodeutil.GodelSchedulerNodeAnnotationKey]
+		owner = node.Annotations[nodeutil.EnoSchedulerNodeAnnotationKey]
 	}
 
 	// When the annotation is absent the node has not been partitioned yet

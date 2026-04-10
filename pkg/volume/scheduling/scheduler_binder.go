@@ -75,7 +75,7 @@ type InTreeToCSITranslator interface {
 	TranslateInTreePVToCSI(pv *v1.PersistentVolume) (*v1.PersistentVolume, error)
 }
 
-// GodelVolumeBinder is used by the scheduler to handle PVC/PV binding
+// EnoVolumeBinder is used by the scheduler to handle PVC/PV binding
 // and dynamic provisioning.  The binding decisions are integrated into the pod scheduling
 // workflow so that the PV NodeAffinity is also considered along with the pod's other
 // scheduling requirements.
@@ -99,7 +99,7 @@ type InTreeToCSITranslator interface {
 //     ii. After BindPodVolumes() is complete, then the scheduler does the final Pod->Node binding.
 //  2. Once all the assume operations are done in d), the scheduler processes the next Pod in the scheduler queue
 //     while the actual binding operation occurs in the background.
-type GodelVolumeBinder interface {
+type EnoVolumeBinder interface {
 	// FindPodVolumes checks if all of a Pod's PVCs can be satisfied by the node.
 	//
 	// If a PVC is bound, it checks if the PV's NodeAffinity matches the Node.
@@ -245,7 +245,7 @@ func NewVolumeBinder(
 	pvInformer coreinformers.PersistentVolumeInformer,
 	storageClassInformer storageinformers.StorageClassInformer,
 	bindTimeout time.Duration,
-) GodelVolumeBinder {
+) EnoVolumeBinder {
 	b := &volumeBinder{
 		baseVolumeBinder: newBaseVolumeBinder(csiNodeInformer, pvcInformer, pvInformer, storageClassInformer),
 		kubeClient:       kubeClient,

@@ -12,7 +12,7 @@
 
 set -eu
 
-CLUSTER_NAME="${1:-godel-bench}"
+CLUSTER_NAME="${1:-eno-bench}"
 CONTROL_PLANE="${CLUSTER_NAME}-control-plane"
 
 echo "[INFO] 在 ${CONTROL_PLANE} 中部署事件专用 etcd..."

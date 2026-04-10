@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,8 +22,8 @@ import (
 	"github.com/kubewharf/godel-scheduler/pkg/util/tracing"
 )
 
-// GodelDispatcherConfiguration configures a godel dispatcher.
-type GodelDispatcherConfiguration struct {
+// EnoDispatcherConfiguration configures a eno dispatcher.
+type EnoDispatcherConfiguration struct {
 	// DebuggingConfiguration holds configuration for Debugging related features
 	// TODO: We might wanna make this a substruct like Debugging componentbaseconfig.DebuggingConfiguration
 	componentbaseconfig.DebuggingConfiguration

@@ -2,22 +2,22 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: scheduler
-  namespace: godel-system
+  namespace: eno-system
   labels:
     component: scheduler
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: godel-scheduler
+      app: eno-scheduler
   template:
     metadata:
       labels:
-        app: godel-scheduler
+        app: eno-scheduler
     spec:
       nodeSelector:
         node-role.kubernetes.io/control-plane: ""
-      serviceAccountName: godel
+      serviceAccountName: eno
       tolerations:
         - key: "node-role.kubernetes.io/master"
           operator: "Exists"
@@ -27,7 +27,7 @@ spec:
           effect: "NoSchedule"
       containers:
         - name: scheduler
-          image: godel-local:latest
+          image: eno-local:latest
           imagePullPolicy: Never
           command: ["/usr/local/bin/scheduler"]
           ports:
@@ -55,7 +55,7 @@ spec:
       volumes:
         - name: scheduler-config
           configMap:
-            name: godel-scheduler-config
+            name: eno-scheduler-config
             items:
-            - key: godel-scheduler-config
+            - key: eno-scheduler-config
               path: scheduler.config

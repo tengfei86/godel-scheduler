@@ -202,7 +202,7 @@ verify_scheduler_ready() {
 
 case "$GROUP" in
   a|b)
-    verify_scheduler_ready "${GODEL_NAMESPACE}" "app=godel-scheduler" "Gödel Scheduler" '^scheduler(-|$)'
+    verify_scheduler_ready "${ENO_NAMESPACE}" "app=eno-scheduler" "Gödel Scheduler" '^scheduler(-|$)'
     ;;
   c)
     verify_scheduler_ready "kube-system" "component=kube-scheduler" "kube-scheduler" '^kube-scheduler(-|$)'

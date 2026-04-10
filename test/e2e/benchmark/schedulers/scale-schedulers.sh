@@ -3,7 +3,7 @@
 #
 # 将基础 "scheduler" deployment 缩容到 0，然后创建 N 个独立的
 # scheduler-0, scheduler-1, ..., scheduler-(N-1) 实例。
-# 每个实例拥有独立的 --godel-scheduler-name、端口和 hostNetwork。
+# 每个实例拥有独立的 --eno-scheduler-name、端口和 hostNetwork。
 #
 # 用法:
 #   ./scale-schedulers.sh <instance_count> [--embedded-binder]
@@ -45,24 +45,24 @@ fi
 log_info "调整 Scheduler 实例数: ${COUNT} (embedded-binder=${EMBEDDED_BINDER})"
 
 # ── Step 1: 缩容基础 scheduler deployment ──
-if kubectl get deployment scheduler -n "${GODEL_NAMESPACE}" >/dev/null 2>&1; then
+if kubectl get deployment scheduler -n "${ENO_NAMESPACE}" >/dev/null 2>&1; then
   log_info "缩容基础 scheduler deployment 到 0"
-  kubectl scale deployment scheduler -n "${GODEL_NAMESPACE}" --replicas=0
+  kubectl scale deployment scheduler -n "${ENO_NAMESPACE}" --replicas=0
 fi
 
 # ── Step 2: 删除已有的 scheduler-* deployment ──
-existing=$(kubectl get deployment -n "${GODEL_NAMESPACE}" --no-headers 2>/dev/null \
+existing=$(kubectl get deployment -n "${ENO_NAMESPACE}" --no-headers 2>/dev/null \
   | awk '{print $1}' | grep "^scheduler-" || true)
 for deploy in $existing; do
   log_info "删除: ${deploy}"
-  kubectl delete deployment "$deploy" -n "${GODEL_NAMESPACE}" --ignore-not-found
+  kubectl delete deployment "$deploy" -n "${ENO_NAMESPACE}" --ignore-not-found
 done
 
 # ── Step 3: 生成并应用 N 个 Scheduler Deployment ──
 generate_scheduler_yaml() {
   local idx="$1"
   local name="scheduler-${idx}"
-  local sched_name="godel-scheduler-${idx}"
+  local sched_name="eno-scheduler-${idx}"
   local port=$((10251 + idx * 1000))
   local secure_port=$((10959 + idx * 1000))
 
@@ -71,25 +71,25 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ${name}
-  namespace: ${GODEL_NAMESPACE}
+  namespace: ${ENO_NAMESPACE}
   labels:
     component: scheduler
 spec:
   replicas: 1
   selector:
     matchLabels:
-      godel-scheduler-name: ${sched_name}
+      eno-scheduler-name: ${sched_name}
   template:
     metadata:
       labels:
-        godel-scheduler-name: ${sched_name}
-        app: godel-scheduler
+        eno-scheduler-name: ${sched_name}
+        app: eno-scheduler
         component: scheduler
     spec:
       hostNetwork: true
       nodeSelector:
         node-role.kubernetes.io/control-plane: ""
-      serviceAccountName: godel
+      serviceAccountName: eno
       tolerations:
         - key: node-role.kubernetes.io/master
           operator: Exists
@@ -99,7 +99,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: scheduler
-          image: ${GODEL_IMAGE}
+          image: ${ENO_IMAGE}
           imagePullPolicy: Never
           command: ["/usr/local/bin/scheduler"]
           args:
@@ -111,7 +111,7 @@ spec:
             - --reservation-ttl=60
             - --feature-gates=ResourceReservation=true
             - --secure-port=${secure_port}
-            - --godel-scheduler-name=${sched_name}
+            - --eno-scheduler-name=${sched_name}
             - --port=${port}
 YAML
 
@@ -142,9 +142,9 @@ YAML
       volumes:
         - name: scheduler-config
           configMap:
-            name: godel-scheduler-config
+            name: eno-scheduler-config
             items:
-              - key: godel-scheduler-config
+              - key: eno-scheduler-config
                 path: scheduler.config
 YAML
 }
@@ -158,9 +158,9 @@ YAML
 
 # ── Step 4: 等待所有实例就绪 ──
 for i in $(seq 0 $((COUNT - 1))); do
-  wait_deployment_ready "${GODEL_NAMESPACE}" "scheduler-${i}" "${WAIT_READY_TIMEOUT}"
+  wait_deployment_ready "${ENO_NAMESPACE}" "scheduler-${i}" "${WAIT_READY_TIMEOUT}"
 done
 
 log_info "✓ ${COUNT} 个 Scheduler 实例已就绪"
 echo ""
-kubectl get deployment -n "${GODEL_NAMESPACE}" --no-headers | grep "^scheduler"
+kubectl get deployment -n "${ENO_NAMESPACE}" --no-headers | grep "^scheduler"

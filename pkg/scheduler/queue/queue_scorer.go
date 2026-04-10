@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import (
 
 const (
 	// Name is the name of the plugin used in the plugin registry and configurations.
-	Name = "GodelSort"
+	Name = "EnoSort"
 )
 
 func (p *PriorityQueue) getMinPriorityInQueueIfExists() (int32, bool) {

@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Godel Scheduler Authors.
+Copyright 2024 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -69,25 +69,25 @@ import (
 )
 
 const (
-	ComponentName = "godel-controller-manager"
+	ComponentName = "eno-controller-manager"
 	// ControllerStartJitter is the Jitter used when starting controller managers
 	ControllerStartJitter = 1.0
-	ConfigzName           = "godel-controller-manager-config"
+	ConfigzName           = "eno-controller-manager-config"
 )
 
 var ControllersDisabledByDefault = sets.NewString()
 
-func NewGodelControllerCmd() *cobra.Command {
-	opts, err := options.NewGodelControllerManagerOptions()
+func NewEnoControllerCmd() *cobra.Command {
+	opts, err := options.NewEnoControllerManagerOptions()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "unable to initialize command options: %v\n", err)
 		os.Exit(1)
 	}
 
-	godelControllerCmd := &cobra.Command{
+	enoControllerCmd := &cobra.Command{
 		Use:   ComponentName,
-		Short: "manager for godel controllers such as podgroup,reservation...",
-		Long:  `manager for godel controllers such as podgroup, reservation...`,
+		Short: "manager for eno controllers such as podgroup,reservation...",
+		Long:  `manager for eno controllers such as podgroup, reservation...`,
 		// Uncomment the following line if your bare application
 		// has an action associated with it:
 		Run: func(cmd *cobra.Command, args []string) {
@@ -98,30 +98,30 @@ func NewGodelControllerCmd() *cobra.Command {
 		},
 	}
 
-	fs := godelControllerCmd.Flags()
+	fs := enoControllerCmd.Flags()
 	namedFlagSets := opts.Flags(KnownControllers(), ControllersDisabledByDefault.List())
-	globalflag.AddGlobalFlags(namedFlagSets.FlagSet("global"), godelControllerCmd.Name())
+	globalflag.AddGlobalFlags(namedFlagSets.FlagSet("global"), enoControllerCmd.Name())
 	verflag.AddFlags(namedFlagSets.FlagSet("global"))
 	for _, f := range namedFlagSets.FlagSets {
 		fs.AddFlagSet(f)
 	}
 
 	usageFmt := "Usage:\n  %s\n"
-	cols, _, _ := term.TerminalSize(godelControllerCmd.OutOrStdout())
-	godelControllerCmd.SetUsageFunc(func(cmd *cobra.Command) error {
+	cols, _, _ := term.TerminalSize(enoControllerCmd.OutOrStdout())
+	enoControllerCmd.SetUsageFunc(func(cmd *cobra.Command) error {
 		fmt.Fprintf(cmd.OutOrStderr(), usageFmt, cmd.UseLine())
 		cliflag.PrintSections(cmd.OutOrStderr(), namedFlagSets, cols)
 		return nil
 	})
-	godelControllerCmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+	enoControllerCmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
 		fmt.Fprintf(cmd.OutOrStdout(), "%s\n\n"+usageFmt, cmd.Long, cmd.UseLine())
 		cliflag.PrintSections(cmd.OutOrStdout(), namedFlagSets, cols)
 	})
 
-	return godelControllerCmd
+	return enoControllerCmd
 }
 
-func runCommand(cmd *cobra.Command, opts *options.GodelControllerManagerOptions, args []string) error {
+func runCommand(cmd *cobra.Command, opts *options.EnoControllerManagerOptions, args []string) error {
 	verflag.PrintAndExitIfRequested()
 	initKlogV2WithV1Flags(cmd.Flags())
 	if len(args) != 0 {
@@ -195,10 +195,10 @@ func Run(ctx context.Context, cc *controllerappconfig.CompletedConfig) error {
 		}
 	}
 
-	clientBuilder, rootClientBuilder, godelClientBuilder := createClientBuilders(cc)
+	clientBuilder, rootClientBuilder, enoClientBuilder := createClientBuilders(cc)
 
 	run := func(ctx context.Context, initializersFunc ControllerInitializersFunc) {
-		controllerContext, err := CreateControllerContext(cc, rootClientBuilder, clientBuilder, godelClientBuilder, ctx.Done())
+		controllerContext, err := CreateControllerContext(cc, rootClientBuilder, clientBuilder, enoClientBuilder, ctx.Done())
 		if err != nil {
 			klog.ErrorS(err, "Error building controller context")
 			klog.FlushAndExit(klog.ExitFlushTimeout, 1)
@@ -210,7 +210,7 @@ func Run(ctx context.Context, cc *controllerappconfig.CompletedConfig) error {
 		}
 
 		controllerContext.InformerFactory.Start(ctx.Done())
-		controllerContext.GodelInformerFactory.Start(ctx.Done())
+		controllerContext.EnoInformerFactory.Start(ctx.Done())
 		close(controllerContext.InformersStarted)
 
 		closer := tracing.NewTracer(
@@ -243,7 +243,7 @@ func Run(ctx context.Context, cc *controllerappconfig.CompletedConfig) error {
 		klog.V(4).InfoS("starting leader migration")
 
 		leaderMigrator = leadermigration.NewLeaderMigrator(&cc.ComponentConfig.Generic.LeaderMigration,
-			"godel-controller-manager")
+			"eno-controller-manager")
 
 		// FIXME:Wrap saTokenControllerInitFunc to signal readiness for migration after starting
 		//  the controller.
@@ -252,7 +252,7 @@ func Run(ctx context.Context, cc *controllerappconfig.CompletedConfig) error {
 	// shallow copy, do not modify the kubeConfig.Timeout.
 	restConfig := *cc.Kubeconfig
 	restConfig.Timeout = cc.ComponentConfig.Generic.LeaderElection.RenewDeadline.Duration
-	leaderElectionClient, err := clientset.NewForConfig(restclient.AddUserAgent(&restConfig, "godel-controller-manager-leader-election"))
+	leaderElectionClient, err := clientset.NewForConfig(restclient.AddUserAgent(&restConfig, "eno-controller-manager-leader-election"))
 	if err != nil {
 		return err
 	}
@@ -316,13 +316,13 @@ func Run(ctx context.Context, cc *controllerappconfig.CompletedConfig) error {
 type ControllerContext struct {
 	// ClientBuilder will provide a client for this controller to use
 	ClientBuilder      clientbuilder.ControllerClientBuilder
-	GodelClientBuilder clientbuilder.GodelClientBuilder
+	EnoClientBuilder clientbuilder.EnoClientBuilder
 
 	// InformerFactory gives access to informers for the controller.
 	InformerFactory informers.SharedInformerFactory
 
-	// godel Informer factory
-	GodelInformerFactory crdinformers.SharedInformerFactory
+	// eno Informer factory
+	EnoInformerFactory crdinformers.SharedInformerFactory
 
 	// TODO: ObjectOrMetadataInformerFactory gives access to informers for typed resources
 	// and dynamic resources by their metadata. All generic controllers currently use
@@ -331,7 +331,7 @@ type ControllerContext struct {
 	// ObjectOrMetadataInformerFactory informerfactory.InformerFactory
 
 	// ComponentConfig provides access to init options for a given controller
-	ComponentConfig *godelctrlmgrconfig.GodelControllerManagerConfiguration
+	ComponentConfig *godelctrlmgrconfig.EnoControllerManagerConfiguration
 
 	// TODO: DeferredDiscoveryRESTMapper is a RESTMapper that will defer
 	// initialization of the RESTMapper until the first mapping is
@@ -472,12 +472,12 @@ func newBaseHandler(c *componentbaseconfig.DebuggingConfiguration, healthzHandle
 }
 
 // createClientBuilders creates clientBuilder and rootClientBuilder from the given configuration
-func createClientBuilders(c *controllerappconfig.CompletedConfig) (clientBuilder clientbuilder.ControllerClientBuilder, rootClientBuilder clientbuilder.ControllerClientBuilder, godelClientBuilder clientbuilder.GodelClientBuilder) {
+func createClientBuilders(c *controllerappconfig.CompletedConfig) (clientBuilder clientbuilder.ControllerClientBuilder, rootClientBuilder clientbuilder.ControllerClientBuilder, enoClientBuilder clientbuilder.EnoClientBuilder) {
 	rootClientBuilder = clientbuilder.SimpleControllerClientBuilder{
 		ClientConfig: c.Kubeconfig,
 	}
 
-	godelClientBuilder = clientbuilder.SimpleGodelClientBuilder{
+	enoClientBuilder = clientbuilder.SimpleEnoClientBuilder{
 		ClientConfig: c.CrdKubeconfig,
 	}
 
@@ -491,14 +491,14 @@ func createClientBuilders(c *controllerappconfig.CompletedConfig) (clientBuilder
 func CreateControllerContext(
 	s *controllerappconfig.CompletedConfig,
 	rootClientBuilder, clientBuilder clientbuilder.ControllerClientBuilder,
-	godelClientBuilder clientbuilder.GodelClientBuilder,
+	enoClientBuilder clientbuilder.EnoClientBuilder,
 	stop <-chan struct{},
 ) (ControllerContext, error) {
 	versionedClient := rootClientBuilder.ClientOrDie("shared-informers")
-	godelClient := godelClientBuilder.ClientOrDie("shared-informers")
+	enoClient := enoClientBuilder.ClientOrDie("shared-informers")
 
 	sharedInformers := informers.NewSharedInformerFactory(versionedClient, ResyncPeriod(s)())
-	godelInformers := crdinformers.NewSharedInformerFactory(godelClient, ResyncPeriod(s)())
+	enoInformers := crdinformers.NewSharedInformerFactory(enoClient, ResyncPeriod(s)())
 
 	// If apiserver is not running we should wait for some time and fail only then. This is particularly
 	// important when we start apiserver and controller manager at the same time.
@@ -513,9 +513,9 @@ func CreateControllerContext(
 
 	ctx := ControllerContext{
 		ClientBuilder:        clientBuilder,
-		GodelClientBuilder:   godelClientBuilder,
+		EnoClientBuilder:   enoClientBuilder,
 		InformerFactory:      sharedInformers,
-		GodelInformerFactory: godelInformers,
+		EnoInformerFactory: enoInformers,
 		ComponentConfig:      s.ComponentConfig,
 		AvailableResources:   availableResources,
 		InformersStarted:     make(chan struct{}),

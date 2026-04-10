@@ -5,11 +5,11 @@ metadata:
   labels:
     app: back-pod
   annotations:
-    godel.bytedance.com/pod-resource-type: guaranteed
-    godel.bytedance.com/pod-launcher: kubelet
-    godel.bytedance.com/reservation-index: "reservation-pod"
+    eno.io/pod-resource-type: guaranteed
+    eno.io/pod-launcher: kubelet
+    eno.io/reservation-index: "reservation-pod"
 spec:
-  schedulerName: godel-scheduler
+  schedulerName: eno-scheduler
   containers:
     - name: back-pod
       image: nginx

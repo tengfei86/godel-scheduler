@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ func (o *CombinedInsecureServingOptions) AddFlags(fs *pflag.FlagSet) {
 	// fs.MarkDeprecated("port", "see --secure-port instead.")
 }
 
-func (o *CombinedInsecureServingOptions) applyTo(c *binderappconfig.Config, componentConfig *godelbinderconfig.GodelBinderConfiguration) error {
+func (o *CombinedInsecureServingOptions) applyTo(c *binderappconfig.Config, componentConfig *godelbinderconfig.EnoBinderConfiguration) error {
 	if err := updateAddressFromDeprecatedInsecureServingOptions(&componentConfig.HealthzBindAddress, o.Healthz); err != nil {
 		return err
 	}
@@ -73,7 +73,7 @@ func (o *CombinedInsecureServingOptions) applyTo(c *binderappconfig.Config, comp
 }
 
 // ApplyTo applies the insecure serving options to the given scheduler app configuration, and updates the componentConfig.
-func (o *CombinedInsecureServingOptions) ApplyTo(c *binderappconfig.Config, componentConfig *godelbinderconfig.GodelBinderConfiguration) error {
+func (o *CombinedInsecureServingOptions) ApplyTo(c *binderappconfig.Config, componentConfig *godelbinderconfig.EnoBinderConfiguration) error {
 	if o == nil {
 		componentConfig.HealthzBindAddress = ""
 		componentConfig.MetricsBindAddress = ""
@@ -93,7 +93,7 @@ func (o *CombinedInsecureServingOptions) ApplyTo(c *binderappconfig.Config, comp
 }
 
 // ApplyToFromLoadedConfig updates the insecure serving options from the component config and then applies it to the given scheduler app configuration.
-func (o *CombinedInsecureServingOptions) ApplyToFromLoadedConfig(c *binderappconfig.Config, componentConfig *godelbinderconfig.GodelBinderConfiguration) error {
+func (o *CombinedInsecureServingOptions) ApplyToFromLoadedConfig(c *binderappconfig.Config, componentConfig *godelbinderconfig.EnoBinderConfiguration) error {
 	if o == nil {
 		return nil
 	}

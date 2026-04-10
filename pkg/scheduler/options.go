@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,8 +27,8 @@ import (
 )
 
 type schedulerOptions struct {
-	defaultProfile     *config.GodelSchedulerProfile
-	subClusterProfiles map[string]config.GodelSchedulerProfile
+	defaultProfile     *config.EnoSchedulerProfile
+	subClusterProfiles map[string]config.EnoSchedulerProfile
 
 	renewInterval int64
 	subClusterKey string
@@ -37,15 +37,15 @@ type schedulerOptions struct {
 // Option configures a Scheduler
 type Option func(*schedulerOptions)
 
-func WithDefaultProfile(profile *config.GodelSchedulerProfile) Option {
+func WithDefaultProfile(profile *config.EnoSchedulerProfile) Option {
 	return func(o *schedulerOptions) {
 		o.defaultProfile = profile
 	}
 }
 
-func WithSubClusterProfiles(profiles []config.GodelSchedulerProfile) Option {
+func WithSubClusterProfiles(profiles []config.EnoSchedulerProfile) Option {
 	return func(o *schedulerOptions) {
-		subClusterProfiles := make(map[string]config.GodelSchedulerProfile, 0)
+		subClusterProfiles := make(map[string]config.EnoSchedulerProfile, 0)
 		for _, profile := range profiles {
 			subClusterProfiles[profile.SubClusterName] = profile
 		}
@@ -102,7 +102,7 @@ type subClusterConfig struct {
 	EnableStore map[string]bool
 }
 
-func (c *subClusterConfig) complete(profile *config.GodelSchedulerProfile) {
+func (c *subClusterConfig) complete(profile *config.EnoSchedulerProfile) {
 	if profile == nil {
 		return
 	}
@@ -163,7 +163,7 @@ func (c *subClusterConfig) Equal(other *subClusterConfig) bool {
 	return reflect.DeepEqual(c, other)
 }
 
-func newDefaultSubClusterConfig(profile *config.GodelSchedulerProfile) *subClusterConfig {
+func newDefaultSubClusterConfig(profile *config.EnoSchedulerProfile) *subClusterConfig {
 	c := &subClusterConfig{
 		PercentageOfNodesToScore:          config.DefaultPercentageOfNodesToScore,
 		IncreasedPercentageOfNodesToScore: config.DefaultIncreasedPercentageOfNodesToScore,
@@ -193,7 +193,7 @@ func newDefaultSubClusterConfig(profile *config.GodelSchedulerProfile) *subClust
 	return c
 }
 
-func newSubClusterConfigFromDefaultConfig(profile *config.GodelSchedulerProfile, defaultConfig *subClusterConfig) *subClusterConfig {
+func newSubClusterConfigFromDefaultConfig(profile *config.EnoSchedulerProfile, defaultConfig *subClusterConfig) *subClusterConfig {
 	c := &subClusterConfig{
 		PercentageOfNodesToScore:          defaultConfig.PercentageOfNodesToScore,
 		IncreasedPercentageOfNodesToScore: defaultConfig.IncreasedPercentageOfNodesToScore,

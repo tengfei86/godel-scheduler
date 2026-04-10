@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,11 +29,11 @@ import (
 )
 
 func (sched *Scheduler) assumedOrBoundPod(pod *v1.Pod) bool {
-	return podutil.BoundPod(pod) || podutil.AssumedPodOfGodel(pod, *sched.SchedulerName)
+	return podutil.BoundPod(pod) || podutil.AssumedPodOfEno(pod, *sched.SchedulerName)
 }
 
 func (sched *Scheduler) dispatchedPodOfThisScheduler(pod *v1.Pod) bool {
-	return podutil.DispatchedPodOfGodel(pod, *sched.SchedulerName) && podutil.DispatchedPodOfThisScheduler(pod, sched.Name)
+	return podutil.DispatchedPodOfEno(pod, *sched.SchedulerName) && podutil.DispatchedPodOfThisScheduler(pod, sched.Name)
 }
 
 func (sched *Scheduler) triggerQueueOnAssumedOrBoundPodAdd(pod *v1.Pod) error {

@@ -64,13 +64,13 @@ docker-images:
 	./hack/make-rules/build-images.sh
 
 local-up: docker-images
-	bash ./hack/make-rules/local-up.sh godel-demo-default
+	bash ./hack/make-rules/local-up.sh eno-demo-default
 
 local-up-labels: docker-images
-	bash ./hack/make-rules/local-up.sh godel-demo-labels
+	bash ./hack/make-rules/local-up.sh eno-demo-labels
 
 local-up-embedded: docker-images
-	KUSTOMIZE_PATH=$(REPO_ROOT)/manifests/overlays/embedded-binder bash ./hack/make-rules/local-up.sh godel-demo-labels
+	KUSTOMIZE_PATH=$(REPO_ROOT)/manifests/overlays/embedded-binder bash ./hack/make-rules/local-up.sh eno-demo-labels
 
 define GO_BUILD_HELP_INFO
 # Build code.

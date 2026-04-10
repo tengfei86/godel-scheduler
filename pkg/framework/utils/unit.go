@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -71,7 +71,7 @@ func CreateScheduleUnit(pcLister schedulingv1.PriorityClassLister, pgLister v1al
 
 		var priority int32
 		if len(podGroup.Spec.PriorityClassName) == 0 {
-			priority = podutil.GetDefaultPriorityForGodelPod(info.Pod)
+			priority = podutil.GetDefaultPriorityForEnoPod(info.Pod)
 		} else {
 			sc, err := pcLister.Get(podGroup.Spec.PriorityClassName)
 			if err != nil {

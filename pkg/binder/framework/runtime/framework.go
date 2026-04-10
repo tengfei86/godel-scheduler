@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -36,9 +36,9 @@ const (
 	maxTimeout = 15 * time.Minute
 )
 
-// GodelFramework is the component responsible for initializing and running scheduler
+// EnoFramework is the component responsible for initializing and running scheduler
 // plugins, determining plugins to run in each scheduling phase(or extension point)
-type GodelFramework struct {
+type EnoFramework struct {
 	checkConflictsPlugins       []framework.CheckConflictsPlugin
 	checkTopologyPlugins        []framework.CheckTopologyPlugin
 	reservePlugins              []framework.ReservePlugin
@@ -51,7 +51,7 @@ type GodelFramework struct {
 	postVictimCheckingPlugins   []framework.PostVictimCheckingPlugin
 }
 
-func (f *GodelFramework) runCheckConflictsPlugin(ctx context.Context, pl framework.CheckConflictsPlugin, state *framework.CycleState, pod *v1.Pod, nodeInfo framework.NodeInfo) *framework.Status {
+func (f *EnoFramework) runCheckConflictsPlugin(ctx context.Context, pl framework.CheckConflictsPlugin, state *framework.CycleState, pod *v1.Pod, nodeInfo framework.NodeInfo) *framework.Status {
 	if !state.ShouldRecordPluginMetrics() {
 		return pl.CheckConflicts(ctx, state, pod, nodeInfo)
 	}
@@ -63,7 +63,7 @@ func (f *GodelFramework) runCheckConflictsPlugin(ctx context.Context, pl framewo
 	return status
 }
 
-func (f *GodelFramework) RunCheckConflictsPlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeInfo framework.NodeInfo) framework.PluginToStatus {
+func (f *EnoFramework) RunCheckConflictsPlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeInfo framework.NodeInfo) framework.PluginToStatus {
 	statuses := make(framework.PluginToStatus)
 	for _, pl := range f.checkConflictsPlugins {
 		pluginStatus := f.runCheckConflictsPlugin(ctx, pl, state, pod, nodeInfo)
@@ -82,7 +82,7 @@ func (f *GodelFramework) RunCheckConflictsPlugins(ctx context.Context, state *fr
 	return statuses
 }
 
-func (f *GodelFramework) runCheckTopologyPlugin(ctx context.Context, pl framework.CheckTopologyPlugin, state *framework.CycleState, pod *v1.Pod, nodeInfo framework.NodeInfo) *framework.Status {
+func (f *EnoFramework) runCheckTopologyPlugin(ctx context.Context, pl framework.CheckTopologyPlugin, state *framework.CycleState, pod *v1.Pod, nodeInfo framework.NodeInfo) *framework.Status {
 	if !state.ShouldRecordPluginMetrics() {
 		return pl.CheckTopology(ctx, state, pod, nodeInfo)
 	}
@@ -94,7 +94,7 @@ func (f *GodelFramework) runCheckTopologyPlugin(ctx context.Context, pl framewor
 	return status
 }
 
-func (f *GodelFramework) RunCheckTopologyPlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeInfo framework.NodeInfo) framework.PluginToStatus {
+func (f *EnoFramework) RunCheckTopologyPlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeInfo framework.NodeInfo) framework.PluginToStatus {
 	statuses := make(framework.PluginToStatus)
 	for _, pl := range f.checkTopologyPlugins {
 		pluginStatus := f.runCheckTopologyPlugin(ctx, pl, state, pod, nodeInfo)
@@ -116,7 +116,7 @@ func (f *GodelFramework) RunCheckTopologyPlugins(ctx context.Context, state *fra
 // RunPreBindPlugins runs the set of configured binder plugins. It returns a
 // failure (bool) if any of the plugins returns an error. It also returns an
 // error containing the rejection message or the error occurred in the plugin.
-func (f *GodelFramework) RunPreBindPlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (status *framework.Status) {
+func (f *EnoFramework) RunPreBindPlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (status *framework.Status) {
 	for _, pl := range f.preBindPlugins {
 		status = f.runPreBindPlugin(ctx, pl, state, pod, nodeName)
 		if !status.IsSuccess() {
@@ -128,7 +128,7 @@ func (f *GodelFramework) RunPreBindPlugins(ctx context.Context, state *framework
 	return nil
 }
 
-func (f *GodelFramework) runPreBindPlugin(ctx context.Context, pl framework.PreBindPlugin, state *framework.CycleState, pod *v1.Pod, nodeName string) *framework.Status {
+func (f *EnoFramework) runPreBindPlugin(ctx context.Context, pl framework.PreBindPlugin, state *framework.CycleState, pod *v1.Pod, nodeName string) *framework.Status {
 	if !state.ShouldRecordPluginMetrics() {
 		return pl.PreBind(ctx, state, pod, nodeName)
 	}
@@ -141,7 +141,7 @@ func (f *GodelFramework) runPreBindPlugin(ctx context.Context, pl framework.PreB
 }
 
 // RunBindPlugins runs the set of configured bind plugins until one returns a non `Skip` status.
-func (f *GodelFramework) RunBindPlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (status *framework.Status) {
+func (f *EnoFramework) RunBindPlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (status *framework.Status) {
 	if len(f.bindPlugins) == 0 {
 		return framework.NewStatus(framework.Skip, "")
 	}
@@ -160,7 +160,7 @@ func (f *GodelFramework) RunBindPlugins(ctx context.Context, state *framework.Cy
 	return status
 }
 
-func (f *GodelFramework) runBindPlugin(ctx context.Context, bp framework.BindPlugin, state *framework.CycleState, pod *v1.Pod, nodeName string) *framework.Status {
+func (f *EnoFramework) runBindPlugin(ctx context.Context, bp framework.BindPlugin, state *framework.CycleState, pod *v1.Pod, nodeName string) *framework.Status {
 	if !state.ShouldRecordPluginMetrics() {
 		return bp.Bind(ctx, state, pod, nodeName)
 	}
@@ -173,13 +173,13 @@ func (f *GodelFramework) runBindPlugin(ctx context.Context, bp framework.BindPlu
 }
 
 // RunPostBindPlugins runs the set of configured postbind plugins.
-func (f *GodelFramework) RunPostBindPlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) {
+func (f *EnoFramework) RunPostBindPlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) {
 	for _, pl := range f.postBindPlugins {
 		f.runPostBindPlugin(ctx, pl, state, pod, nodeName)
 	}
 }
 
-func (f *GodelFramework) runPostBindPlugin(ctx context.Context, pl framework.PostBindPlugin, state *framework.CycleState, pod *v1.Pod, nodeName string) {
+func (f *EnoFramework) runPostBindPlugin(ctx context.Context, pl framework.PostBindPlugin, state *framework.CycleState, pod *v1.Pod, nodeName string) {
 	if !state.ShouldRecordPluginMetrics() {
 		pl.PostBind(ctx, state, pod, nodeName)
 		return
@@ -196,7 +196,7 @@ func (f *GodelFramework) runPostBindPlugin(ctx context.Context, pl framework.Pos
 // continue running the remaining ones and returns the error. In such a case,
 // the pod will not be scheduled and the caller will be expected to call
 // RunReservePluginsUnreserve.
-func (f *GodelFramework) RunReservePluginsReserve(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (status *framework.Status) {
+func (f *EnoFramework) RunReservePluginsReserve(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (status *framework.Status) {
 	for _, pl := range f.reservePlugins {
 		status = f.runReservePluginReserve(ctx, pl, state, pod, nodeName)
 		if !status.IsSuccess() {
@@ -208,7 +208,7 @@ func (f *GodelFramework) RunReservePluginsReserve(ctx context.Context, state *fr
 	return nil
 }
 
-func (f *GodelFramework) runReservePluginReserve(ctx context.Context, pl framework.ReservePlugin, state *framework.CycleState, pod *v1.Pod, nodeName string) *framework.Status {
+func (f *EnoFramework) runReservePluginReserve(ctx context.Context, pl framework.ReservePlugin, state *framework.CycleState, pod *v1.Pod, nodeName string) *framework.Status {
 	if !state.ShouldRecordPluginMetrics() {
 		return pl.Reserve(ctx, state, pod, nodeName)
 	}
@@ -222,7 +222,7 @@ func (f *GodelFramework) runReservePluginReserve(ctx context.Context, pl framewo
 
 // RunReservePluginsUnreserve runs the Unreserve method in the set of
 // configured reserve plugins.
-func (f *GodelFramework) RunReservePluginsUnreserve(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) {
+func (f *EnoFramework) RunReservePluginsUnreserve(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) {
 	// Execute the Unreserve operation of each reserve plugin in the
 	// *reverse* order in which the Reserve operation was executed.
 	for i := len(f.reservePlugins) - 1; i >= 0; i-- {
@@ -230,7 +230,7 @@ func (f *GodelFramework) RunReservePluginsUnreserve(ctx context.Context, state *
 	}
 }
 
-func (f *GodelFramework) runReservePluginUnreserve(ctx context.Context, pl framework.ReservePlugin, state *framework.CycleState, pod *v1.Pod, nodeName string) {
+func (f *EnoFramework) runReservePluginUnreserve(ctx context.Context, pl framework.ReservePlugin, state *framework.CycleState, pod *v1.Pod, nodeName string) {
 	if !state.ShouldRecordPluginMetrics() {
 		pl.Unreserve(ctx, state, pod, nodeName)
 		return
@@ -248,7 +248,7 @@ func (f *GodelFramework) runReservePluginUnreserve(ctx context.Context, pl frame
 // plugins returns "Wait", then this function will create and add waiting pod
 // to a map of currently waiting pods and return status with "Wait" code.
 // Pod will remain waiting pod for the minimum duration returned by the permit plugins.
-func (f *GodelFramework) RunPermitPlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (status *framework.Status) {
+func (f *EnoFramework) RunPermitPlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (status *framework.Status) {
 	statusCode := framework.Success
 	for _, pl := range f.permitPlugins {
 		status, _ := f.runPermitPlugin(ctx, pl, state, pod, nodeName)
@@ -273,7 +273,7 @@ func (f *GodelFramework) RunPermitPlugins(ctx context.Context, state *framework.
 	return nil
 }
 
-func (f *GodelFramework) runPermitPlugin(ctx context.Context, pl framework.PermitPlugin, state *framework.CycleState, pod *v1.Pod, nodeName string) (*framework.Status, time.Duration) {
+func (f *EnoFramework) runPermitPlugin(ctx context.Context, pl framework.PermitPlugin, state *framework.CycleState, pod *v1.Pod, nodeName string) (*framework.Status, time.Duration) {
 	if !state.ShouldRecordPluginMetrics() {
 		return pl.Permit(ctx, state, pod, nodeName)
 	}
@@ -286,7 +286,7 @@ func (f *GodelFramework) runPermitPlugin(ctx context.Context, pl framework.Permi
 }
 
 // WaitOnPermit will block, if the pod is a waiting pod, until the waiting pod is rejected or allowed.
-func (f *GodelFramework) WaitOnPermit(ctx context.Context, pod *v1.Pod) (status *framework.Status) {
+func (f *EnoFramework) WaitOnPermit(ctx context.Context, pod *v1.Pod) (status *framework.Status) {
 	/*
 		waitingPod := f.waitingPods.Get(pod.UID)
 			waitingPod := f.waitingTasksManager.GetWaitingTask(pod)
@@ -316,7 +316,7 @@ func (f *GodelFramework) WaitOnPermit(ctx context.Context, pod *v1.Pod) (status 
 	return nil
 }
 
-func (f *GodelFramework) ListPlugins() map[string]sets.String {
+func (f *EnoFramework) ListPlugins() map[string]sets.String {
 	m := map[string]sets.String{
 		framework.CheckTopologyPhase: sets.NewString(),
 		framework.CheckConflictPhase: sets.NewString(),
@@ -352,15 +352,15 @@ func (f *GodelFramework) ListPlugins() map[string]sets.String {
 	return m
 }
 
-func (f *GodelFramework) HasCheckConflictsPlugins() bool {
+func (f *EnoFramework) HasCheckConflictsPlugins() bool {
 	return len(f.checkConflictsPlugins) > 0
 }
 
-func (f *GodelFramework) HasCheckTopologyPlugins() bool {
+func (f *EnoFramework) HasCheckTopologyPlugins() bool {
 	return len(f.checkTopologyPlugins) > 0
 }
 
-func (f *GodelFramework) HasPlugin(pluginName string) bool {
+func (f *EnoFramework) HasPlugin(pluginName string) bool {
 	for _, plugin := range f.checkTopologyPlugins {
 		if plugin.Name() == pluginName {
 			return true
@@ -399,7 +399,7 @@ func (f *GodelFramework) HasPlugin(pluginName string) bool {
 	return false
 }
 
-func (f *GodelFramework) InitCycleState(pod *v1.Pod) (*framework.CycleState, error) {
+func (f *EnoFramework) InitCycleState(pod *v1.Pod) (*framework.CycleState, error) {
 	state := framework.NewCycleState()
 	podResourceType, err := podutil.GetPodResourceType(pod)
 	if err != nil {
@@ -422,7 +422,7 @@ func (f *GodelFramework) InitCycleState(pod *v1.Pod) (*framework.CycleState, err
 	return state, nil
 }
 
-func (f *GodelFramework) RunClusterPrePreemptingPlugins(preemptor *v1.Pod, state, commonState *framework.CycleState) *framework.Status {
+func (f *EnoFramework) RunClusterPrePreemptingPlugins(preemptor *v1.Pod, state, commonState *framework.CycleState) *framework.Status {
 	for _, plugin := range f.clusterPrePreemptingPlugins {
 		if err := plugin.ClusterPrePreempting(preemptor, state, commonState); err != nil {
 			return err
@@ -431,7 +431,7 @@ func (f *GodelFramework) RunClusterPrePreemptingPlugins(preemptor *v1.Pod, state
 	return nil
 }
 
-func (f *GodelFramework) RunVictimCheckingPlugins(preemptor, pod *v1.Pod, state, commonState *framework.CycleState) *framework.Status {
+func (f *EnoFramework) RunVictimCheckingPlugins(preemptor, pod *v1.Pod, state, commonState *framework.CycleState) *framework.Status {
 	for i, pluginCollection := range f.victimCheckingPlugins {
 		status := f.runVictimCheckingPluginCollection(pluginCollection, preemptor, pod, state, commonState)
 		switch status.Code() {
@@ -450,7 +450,7 @@ func (f *GodelFramework) RunVictimCheckingPlugins(preemptor, pod *v1.Pod, state,
 	return framework.NewStatus(framework.PreemptionSucceed)
 }
 
-func (f *GodelFramework) runVictimCheckingPluginCollection(pluginCollection *framework.VictimCheckingPluginCollection, preemptor, pod *v1.Pod, state, commonState *framework.CycleState) *framework.Status {
+func (f *EnoFramework) runVictimCheckingPluginCollection(pluginCollection *framework.VictimCheckingPluginCollection, preemptor, pod *v1.Pod, state, commonState *framework.CycleState) *framework.Status {
 	for _, plugin := range pluginCollection.GetVictimCheckingPlugins() {
 		code, msg := plugin.VictimChecking(preemptor, pod, state, commonState)
 		switch code {
@@ -467,7 +467,7 @@ func (f *GodelFramework) runVictimCheckingPluginCollection(pluginCollection *fra
 	return framework.NewStatus(framework.PreemptionNotSure)
 }
 
-func (f *GodelFramework) RunPostVictimCheckingPlugins(preemptor, pod *v1.Pod, state, commonState *framework.CycleState) *framework.Status {
+func (f *EnoFramework) RunPostVictimCheckingPlugins(preemptor, pod *v1.Pod, state, commonState *framework.CycleState) *framework.Status {
 	for _, plugin := range f.postVictimCheckingPlugins {
 		if err := plugin.PostVictimChecking(preemptor, pod, state, commonState); err != nil {
 			return err
@@ -476,15 +476,15 @@ func (f *GodelFramework) RunPostVictimCheckingPlugins(preemptor, pod *v1.Pod, st
 	return nil
 }
 
-// New creates a new GodelBinderFramework, where pluginRegistry marks which plugins are supported, basePlugins presents which plugins are enabled by default.
+// New creates a new EnoBinderFramework, where pluginRegistry marks which plugins are supported, basePlugins presents which plugins are enabled by default.
 // podConstraintConfigs are used in pod annotation, where hard constraint will be taken as filter plugins and soft constraint will be taken as score plugins.
-// If plugin in podConstraintConfigs not exists in basePlugins, add this plugin to the new Godel Framework.
+// If plugin in podConstraintConfigs not exists in basePlugins, add this plugin to the new Eno Framework.
 func New(
 	pluginRegistry framework.PluginMap,
 	preemptionPluginRegistry framework.PluginMap,
 	basePlugins *apis.BinderPluginCollection,
 ) framework.BinderFramework {
-	f := &GodelFramework{
+	f := &EnoFramework{
 		checkConflictsPlugins: make([]framework.CheckConflictsPlugin, 0),
 		checkTopologyPlugins:  make([]framework.CheckTopologyPlugin, 0),
 		reservePlugins:        make([]framework.ReservePlugin, 0),
@@ -587,7 +587,7 @@ func New(
 	return f
 }
 
-func (f *GodelFramework) addVictimCheckingPlugin(pluginCollectionSpec *framework.VictimCheckingPluginCollectionSpec, preemptionPluginRegistry framework.PluginMap) {
+func (f *EnoFramework) addVictimCheckingPlugin(pluginCollectionSpec *framework.VictimCheckingPluginCollectionSpec, preemptionPluginRegistry framework.PluginMap) {
 	var victimCheckingPlugins []framework.VictimCheckingPlugin
 	for _, pluginSpec := range pluginCollectionSpec.GetSearchingPlugins() {
 		plgName := pluginSpec.GetName()

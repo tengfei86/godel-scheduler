@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -265,7 +265,7 @@ func (binder *Binder) addPodToBinderQueue(obj interface{}) {
 		return
 	}
 
-	if !podutil.AssumedPodOfGodel(pod, *binder.SchedulerName) {
+	if !podutil.AssumedPodOfEno(pod, *binder.SchedulerName) {
 		klog.V(4).InfoS("Pod is not in assumed state", "pod", klog.KObj(pod))
 		return
 	}
@@ -302,8 +302,8 @@ func (binder *Binder) updatePodInBinderQueue(oldObj, newObj interface{}) {
 		return
 	}
 
-	if !podutil.AssumedPodOfGodel(newPod, *binder.SchedulerName) {
-		if podutil.AssumedPodOfGodel(oldPod, *binder.SchedulerName) {
+	if !podutil.AssumedPodOfEno(newPod, *binder.SchedulerName) {
+		if podutil.AssumedPodOfEno(oldPod, *binder.SchedulerName) {
 			// pod is reset to another state
 			// if changed to Bound, the waiting pod is allowed, it will be added to Bound map in waitingTasksManager,
 			// if reset to Pending/Dispatched by binder, the pod is rejected or failed after being allowed,
@@ -340,7 +340,7 @@ func (binder *Binder) deletePodFromBinderQueue(obj interface{}) {
 		return
 	}
 
-	if !podutil.AssumedPodOfGodel(pod, *binder.SchedulerName) {
+	if !podutil.AssumedPodOfEno(pod, *binder.SchedulerName) {
 		return
 	}
 

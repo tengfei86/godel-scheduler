@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,10 +21,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// GodelScheduler stores all necessary metrics about one godel scheduler.
-// We do not create a lock for GodelScheduler here, it is only used by scheduler maintainer and maintainer's lock will protect this too.
-// TODO: if GodelScheduler is used by multiple users, we may need to revisit this to see if we need a lock here.
-type GodelScheduler struct {
+// EnoScheduler stores all necessary metrics about one eno scheduler.
+// We do not create a lock for EnoScheduler here, it is only used by scheduler maintainer and maintainer's lock will protect this too.
+// TODO: if EnoScheduler is used by multiple users, we may need to revisit this to see if we need a lock here.
+type EnoScheduler struct {
 	schedulerName string
 
 	scheduler *schedulerapi.Scheduler
@@ -53,9 +53,9 @@ type GodelScheduler struct {
 	// TODO: track dispatched pods here
 }
 
-// NewGodelSchedulerWithSchedulerName create a GodelScheduler with scheduler name
-func NewGodelSchedulerWithSchedulerName(schedulerName string) *GodelScheduler {
-	return &GodelScheduler{
+// NewEnoSchedulerWithSchedulerName create a EnoScheduler with scheduler name
+func NewEnoSchedulerWithSchedulerName(schedulerName string) *EnoScheduler {
+	return &EnoScheduler{
 		schedulerName: schedulerName,
 		// active field defaulting to true
 		active: true,
@@ -63,11 +63,11 @@ func NewGodelSchedulerWithSchedulerName(schedulerName string) *GodelScheduler {
 	}
 }
 
-// NewGodelSchedulerWithSchedulerCRD creates a GodelScheduler with a scheduler CRD
-func NewGodelSchedulerWithSchedulerCRD(scheduler *schedulerapi.Scheduler) *GodelScheduler {
-	// TODO: initialize more fields for GodelScheduler
+// NewEnoSchedulerWithSchedulerCRD creates a EnoScheduler with a scheduler CRD
+func NewEnoSchedulerWithSchedulerCRD(scheduler *schedulerapi.Scheduler) *EnoScheduler {
+	// TODO: initialize more fields for EnoScheduler
 	// NodePartitionType ...
-	return &GodelScheduler{
+	return &EnoScheduler{
 		schedulerName: scheduler.Name,
 		// active field defaulting to true
 		active:    true,
@@ -76,28 +76,28 @@ func NewGodelSchedulerWithSchedulerCRD(scheduler *schedulerapi.Scheduler) *Godel
 	}
 }
 
-func (gs *GodelScheduler) IsSchedulerActive() bool {
+func (gs *EnoScheduler) IsSchedulerActive() bool {
 	return gs.active
 }
 
-func (gs *GodelScheduler) SetSchedulerActive() {
+func (gs *EnoScheduler) SetSchedulerActive() {
 	gs.active = true
 }
 
-func (gs *GodelScheduler) SetSchedulerInActive() {
+func (gs *EnoScheduler) SetSchedulerInActive() {
 	gs.active = false
 }
 
-func (gs *GodelScheduler) SetScheduler(scheduler *schedulerapi.Scheduler) {
+func (gs *EnoScheduler) SetScheduler(scheduler *schedulerapi.Scheduler) {
 	gs.scheduler = scheduler
 }
 
-func (gs *GodelScheduler) GetScheduler() *schedulerapi.Scheduler {
+func (gs *EnoScheduler) GetScheduler() *schedulerapi.Scheduler {
 	return gs.scheduler
 }
 
-func (gs *GodelScheduler) Clone() *GodelScheduler {
-	gsClone := &GodelScheduler{
+func (gs *EnoScheduler) Clone() *EnoScheduler {
+	gsClone := &EnoScheduler{
 		schedulerName:     gs.schedulerName,
 		scheduler:         gs.scheduler.DeepCopy(),
 		nodePartitionType: gs.nodePartitionType,
@@ -111,19 +111,19 @@ func (gs *GodelScheduler) Clone() *GodelScheduler {
 	return gsClone
 }
 
-func (gs *GodelScheduler) AddNode(nodeName string) {
+func (gs *EnoScheduler) AddNode(nodeName string) {
 	gs.nodes[nodeName] = struct{}{}
 }
 
-func (gs *GodelScheduler) RemoveNode(nodeName string) {
+func (gs *EnoScheduler) RemoveNode(nodeName string) {
 	delete(gs.nodes, nodeName)
 }
 
-func (gs *GodelScheduler) NodeExists(nodeName string) bool {
+func (gs *EnoScheduler) NodeExists(nodeName string) bool {
 	_, found := gs.nodes[nodeName]
 	return found
 }
 
-func (gs *GodelScheduler) GetNodes() map[string]struct{} {
+func (gs *EnoScheduler) GetNodes() map[string]struct{} {
 	return gs.nodes
 }

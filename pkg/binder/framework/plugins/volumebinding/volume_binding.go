@@ -30,7 +30,7 @@ import (
 
 // VolumeBinding is a plugin that binds pod volumes in scheduling.
 type VolumeBinding struct {
-	binder scheduling.GodelVolumeBinder
+	binder scheduling.EnoVolumeBinder
 }
 
 var _ framework.CheckConflictsPlugin = &VolumeBinding{}

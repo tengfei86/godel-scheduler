@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -60,7 +60,7 @@ var DefaultLeaderElectionConfig = "scheduler"
 
 type Options struct {
 	// The default values. These are overridden if ConfigFile is set or by values in InsecureServing.
-	ComponentConfig godelschedulerconfig.GodelSchedulerConfiguration
+	ComponentConfig godelschedulerconfig.EnoSchedulerConfiguration
 
 	SecureServing           *apiserveroptions.SecureServingOptionsWithLoopback
 	CombinedInsecureServing *CombinedInsecureServingOptions
@@ -163,8 +163,8 @@ func splitHostIntPort(s string) (string, int, error) {
 	return host, portInt, err
 }
 
-func newDefaultComponentConfig() (*godelschedulerconfig.GodelSchedulerConfiguration, error) {
-	cfg := godelschedulerconfig.GodelSchedulerConfiguration{}
+func newDefaultComponentConfig() (*godelschedulerconfig.EnoSchedulerConfiguration, error) {
+	cfg := godelschedulerconfig.EnoSchedulerConfiguration{}
 
 	godelschedulerscheme.Scheme.Default(&cfg)
 	return &cfg, nil
@@ -200,7 +200,7 @@ func (o *Options) Flags() (nfs cliflag.NamedFlagSets) {
 		fs.Int64Var(&o.UnitMaxBackoffSeconds, "max-backoff-seconds", o.UnitMaxBackoffSeconds, "max backoff period for units from backoffQ to enter activeQ, in seconds. This parameter overrides the value defined in config file, which is specified in --config.")
 		fs.Int64Var(&o.UnitInitialBackoffSeconds, "initial-backoff-seconds", o.UnitInitialBackoffSeconds, "initial backoff for units from backoffQ to enter activeQ, in seconds. If specified, it must be greater than 0. This parameter overrides the value defined in config file, which is specified in --config.")
 		fs.BoolVar(&o.DisablePreemption, "disable-preemption", o.DisablePreemption, "Flag to disable preemption. This parameter overrides the value defined in config file, which is specified in --config.")
-		fs.Float64Var(&o.AttemptImpactFactorOnPriority, "attempt-impact-factor-on-priority", o.AttemptImpactFactorOnPriority, "factor used in godel sort to get scheduling attempts impact, the bigger the factor is, the more impact one scheduling attempt will make, default value is 2.0. This parameter overrides the value defined in config file, which is specified in --config.")
+		fs.Float64Var(&o.AttemptImpactFactorOnPriority, "attempt-impact-factor-on-priority", o.AttemptImpactFactorOnPriority, "factor used in eno sort to get scheduling attempts impact, the bigger the factor is, the more impact one scheduling attempt will make, default value is 2.0. This parameter overrides the value defined in config file, which is specified in --config.")
 		fs.Int64Var(&o.ComponentConfig.ReservationTimeOutSeconds, "reservation-ttl", o.ComponentConfig.ReservationTimeOutSeconds, "how long resources will be reserved (for resource reservation).")
 	}
 
@@ -210,7 +210,7 @@ func (o *Options) Flags() (nfs cliflag.NamedFlagSets) {
 }
 
 func (o *Options) addSchedulerConfigFlags(fs *pflag.FlagSet) {
-	fs.StringVar(&o.ComponentConfig.GodelSchedulerName, "godel-scheduler-name", o.ComponentConfig.GodelSchedulerName, "godel scheduler name, to register scheduler crd.")
+	fs.StringVar(&o.ComponentConfig.EnoSchedulerName, "eno-scheduler-name", o.ComponentConfig.EnoSchedulerName, "eno scheduler name, to register scheduler crd.")
 	fs.StringVar(o.ComponentConfig.SchedulerName, "scheduler-name", *o.ComponentConfig.SchedulerName, "components will deal with pods that pod.Spec.SchedulerName is equal to scheduler-name / is default-scheduler or empty. This parameter overrides the value defined in config file, which is specified in --config.")
 	fs.StringVar(o.ComponentConfig.SubClusterKey, "sub-cluster-key", *o.ComponentConfig.SubClusterKey, "the key to determine a sub cluster. This parameter overrides the value defined in config file, which is specified in --config.")
 }
@@ -229,7 +229,7 @@ func (o *Options) ApplyTo(c *schedulerappconfig.Config) error {
 			return err
 		}
 
-		if err := validation.ValidateGodelSchedulerConfiguration(cfg).ToAggregate(); err != nil {
+		if err := validation.ValidateEnoSchedulerConfiguration(cfg).ToAggregate(); err != nil {
 			return err
 		}
 
@@ -281,12 +281,12 @@ func (o *Options) ApplyTo(c *schedulerappconfig.Config) error {
 		// 3. DebuggingConfiguration
 		// do nothing
 
-		// 4. Godel Scheduler
+		// 4. Eno Scheduler
 		{
 			// use the loaded config file if options are not set to default
 			// if scheduler name specified, replace the default value.
-			if o.ComponentConfig.GodelSchedulerName != godelschedulerconfig.DefaultGodelSchedulerName {
-				toUse.GodelSchedulerName = o.ComponentConfig.GodelSchedulerName
+			if o.ComponentConfig.EnoSchedulerName != godelschedulerconfig.DefaultEnoSchedulerName {
+				toUse.EnoSchedulerName = o.ComponentConfig.EnoSchedulerName
 			}
 			if *o.ComponentConfig.SchedulerName != godelschedulerconfig.DefaultSchedulerName {
 				toUse.SchedulerName = o.ComponentConfig.SchedulerName
@@ -304,7 +304,7 @@ func (o *Options) ApplyTo(c *schedulerappconfig.Config) error {
 				toUse.SubClusterKey = o.ComponentConfig.SubClusterKey
 			}
 		}
-		// 5. Godel Profiles (Default)
+		// 5. Eno Profiles (Default)
 		{
 			// if unitMaxBackoffSeconds is not set as default
 			if o.ComponentConfig.DefaultProfile.UnitMaxBackoffSeconds != nil && *o.ComponentConfig.DefaultProfile.UnitMaxBackoffSeconds != godelschedulerconfig.DefaultUnitMaxBackoffInSeconds {
@@ -353,7 +353,7 @@ func (o *Options) ApplyTo(c *schedulerappconfig.Config) error {
 
 		// check listen port and override is not default
 		if o.CombinedInsecureServing.BindPort != godelschedulerconfig.DefaultInsecureSchedulerPort ||
-			o.CombinedInsecureServing.BindAddress != godelschedulerconfig.DefaultGodelSchedulerAddress {
+			o.CombinedInsecureServing.BindAddress != godelschedulerconfig.DefaultEnoSchedulerAddress {
 			if err := o.CombinedInsecureServing.ApplyTo(c, &c.ComponentConfig); err != nil {
 				return err
 			}
@@ -377,10 +377,10 @@ func (o *Options) ApplyTo(c *schedulerappconfig.Config) error {
 	// TODO: The following fields are reserved for backward compatibility only.
 	// We need to remove this logic in the near future.
 	//
-	// Overwrite Godel Profiles (Default)
+	// Overwrite Eno Profiles (Default)
 	{
 		if c.ComponentConfig.DefaultProfile == nil {
-			c.ComponentConfig.DefaultProfile = &godelschedulerconfig.GodelSchedulerProfile{}
+			c.ComponentConfig.DefaultProfile = &godelschedulerconfig.EnoSchedulerProfile{}
 		}
 		if o.UnitMaxBackoffSeconds != godelschedulerconfig.DefaultUnitMaxBackoffInSeconds {
 			c.ComponentConfig.DefaultProfile.UnitMaxBackoffSeconds = &o.UnitMaxBackoffSeconds
@@ -417,7 +417,7 @@ func (o *Options) addEmbeddedBinderFlags(fs *pflag.FlagSet) {
 			"instead of retried locally. 0 means unlimited local retries (embedded binder only).")
 }
 
-func applyPreemptionConfig(configProfile, optionProfile *godelschedulerconfig.GodelSchedulerProfile) {
+func applyPreemptionConfig(configProfile, optionProfile *godelschedulerconfig.EnoSchedulerProfile) {
 	if configProfile.CandidatesSelectPolicy == nil {
 		if optionProfile != nil && optionProfile.CandidatesSelectPolicy != nil {
 			configProfile.CandidatesSelectPolicy = optionProfile.CandidatesSelectPolicy
@@ -433,7 +433,7 @@ func applyPreemptionConfig(configProfile, optionProfile *godelschedulerconfig.Go
 // Validate validates all the required options.
 func (o *Options) Validate() []error {
 	var errs []error
-	if err := validation.ValidateGodelSchedulerConfiguration(&o.ComponentConfig).ToAggregate(); err != nil {
+	if err := validation.ValidateEnoSchedulerConfiguration(&o.ComponentConfig).ToAggregate(); err != nil {
 		errs = append(errs, err.Errors()...)
 	}
 	errs = append(errs, o.SecureServing.Validate()...)
@@ -469,7 +469,7 @@ func (o *Options) Config() (*schedulerappconfig.Config, error) {
 
 	// Prepare kube clients.
 	// client, leaderElectionClient, eventClient, err := createClients(c.ComponentConfig.ClientConnection, o.Master, c.ComponentConfig.LeaderElection.RenewDeadline.Duration)
-	client, leaderElectionClient, eventClient, godelCrdClient, katalystCrdClient, err := createClients(c.ComponentConfig.ClientConnection, o.Master, c.ComponentConfig.LeaderElection.RenewDeadline.Duration)
+	client, leaderElectionClient, eventClient, enoCrdClient, katalystCrdClient, err := createClients(c.ComponentConfig.ClientConnection, o.Master, c.ComponentConfig.LeaderElection.RenewDeadline.Duration)
 	if err != nil {
 		return nil, err
 	}
@@ -480,7 +480,7 @@ func (o *Options) Config() (*schedulerappconfig.Config, error) {
 	var leaderElectionConfig *leaderelection.LeaderElectionConfig
 	if *c.ComponentConfig.LeaderElection.LeaderElect {
 		// Use the scheduler name in the first profile to record leader election.
-		coreRecorder := c.EventBroadcaster.DeprecatedNewLegacyRecorder(c.ComponentConfig.GodelSchedulerName)
+		coreRecorder := c.EventBroadcaster.DeprecatedNewLegacyRecorder(c.ComponentConfig.EnoSchedulerName)
 		leaderElectionConfig, err = makeLeaderElectionConfig(c.ComponentConfig.LeaderElection, leaderElectionClient, coreRecorder)
 		if err != nil {
 			return nil, err
@@ -489,8 +489,8 @@ func (o *Options) Config() (*schedulerappconfig.Config, error) {
 
 	c.Client = client
 	c.InformerFactory = cmdutil.NewInformerFactory(client, 0)
-	c.GodelCrdClient = godelCrdClient
-	c.GodelCrdInformerFactory = crdinformers.NewSharedInformerFactory(c.GodelCrdClient, 0)
+	c.EnoCrdClient = enoCrdClient
+	c.EnoCrdInformerFactory = crdinformers.NewSharedInformerFactory(c.EnoCrdClient, 0)
 
 	c.KatalystCrdClient = katalystCrdClient
 	c.KatalystCrdInformerFactory = katalystinformers.NewSharedInformerFactory(c.KatalystCrdClient, 0)
@@ -587,11 +587,11 @@ func createClients(config componentbaseconfig.ClientConnectionConfiguration, mas
 	crdKubeConfig.QPS = config.QPS
 	crdKubeConfig.Burst = int(config.Burst)
 
-	godelCrdClient, err := godelclient.NewForConfig(restclient.AddUserAgent(crdKubeConfig, "scheduler"))
+	enoCrdClient, err := godelclient.NewForConfig(restclient.AddUserAgent(crdKubeConfig, "scheduler"))
 	if err != nil {
 		return nil, nil, nil, nil, nil, err
 	}
 
 	katalystCrdClient, err := katalystclient.NewForConfig(restclient.AddUserAgent(crdKubeConfig, "scheduler"))
-	return client, leaderElectionClient, eventClient, godelCrdClient, katalystCrdClient, nil
+	return client, leaderElectionClient, eventClient, enoCrdClient, katalystCrdClient, nil
 }

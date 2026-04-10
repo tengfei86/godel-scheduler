@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -542,7 +542,7 @@ func TestAssumePodError(t *testing.T) {
 	if e, a := errors.New("assume pod error"), gotError; !reflect.DeepEqual(e, a) {
 		t.Errorf("error: wanted %v, got %v", e, a)
 	}
-	assert.Equal(t, `{"metadata":{"annotations":{"godel.bytedance.com/assumed-node":null,"godel.bytedance.com/pod-state":"dispatched"}}}`,
+	assert.Equal(t, `{"metadata":{"annotations":{"eno.io/assumed-node":null,"eno.io/pod-state":"dispatched"}}}`,
 		actualPatchData)
 
 	// Check error for node
@@ -558,7 +558,7 @@ func TestAssumePodError(t *testing.T) {
 	if e, a := errors.New("node not found"), gotError; !reflect.DeepEqual(e, a) {
 		t.Errorf("error: wanted %v, got %v", e, a)
 	}
-	assert.Equal(t, `{"metadata":{"annotations":{"godel.bytedance.com/assumed-node":null,"godel.bytedance.com/pod-state":"dispatched"}}}`,
+	assert.Equal(t, `{"metadata":{"annotations":{"eno.io/assumed-node":null,"eno.io/pod-state":"dispatched"}}}`,
 		actualPatchData)
 }
 

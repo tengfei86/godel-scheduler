@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -99,7 +99,7 @@ func TestRunSearchingPluginCollection(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pluginCollection := framework.NewVictimCheckingPluginCollection(tt.plugins, true, false)
-			f := &GodelFramework{}
+			f := &EnoFramework{}
 			gotStatus := f.runVictimCheckingPluginCollection(pluginCollection, nil, nil, nil, nil)
 			if !reflect.DeepEqual(tt.expectedStatus, gotStatus) {
 				t.Errorf("expected status: %v, but got: %v", tt.expectedStatus, gotStatus)
@@ -214,7 +214,7 @@ func TestRunSearchingPlugins(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := &GodelFramework{
+			f := &EnoFramework{
 				victimCheckingPlugins: tt.collections,
 			}
 			gotStatus := f.RunVictimCheckingPlugins(nil, nil, nil, nil)

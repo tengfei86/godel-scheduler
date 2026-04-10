@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -61,14 +61,14 @@ const (
 	ComponentName = "binder"
 )
 
-func NewGodelBinderCmd() *cobra.Command {
+func NewEnoBinderCmd() *cobra.Command {
 	opts, err := options.NewOptions()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "unable to initialize command options: %v\n", err)
 		os.Exit(1)
 	}
 
-	godelBinderCmd := &cobra.Command{
+	enoBinderCmd := &cobra.Command{
 		Use:   ComponentName,
 		Short: "A brief description of your application",
 		Long: `A longer description that spans multiple lines and likely contains
@@ -87,28 +87,28 @@ to quickly create a Cobra application.`,
 		},
 	}
 
-	fs := godelBinderCmd.Flags()
+	fs := enoBinderCmd.Flags()
 	namedFlagSets := opts.Flags()
-	globalflag.AddGlobalFlags(namedFlagSets.FlagSet("global"), godelBinderCmd.Name())
+	globalflag.AddGlobalFlags(namedFlagSets.FlagSet("global"), enoBinderCmd.Name())
 	verflag.AddFlags(namedFlagSets.FlagSet("global"))
 	for _, f := range namedFlagSets.FlagSets {
 		fs.AddFlagSet(f)
 	}
 
 	usageFmt := "Usage:\n  %s\n"
-	cols, _, _ := term.TerminalSize(godelBinderCmd.OutOrStdout())
-	godelBinderCmd.SetUsageFunc(func(cmd *cobra.Command) error {
+	cols, _, _ := term.TerminalSize(enoBinderCmd.OutOrStdout())
+	enoBinderCmd.SetUsageFunc(func(cmd *cobra.Command) error {
 		fmt.Fprintf(cmd.OutOrStderr(), usageFmt, cmd.UseLine())
 		cliflag.PrintSections(cmd.OutOrStderr(), namedFlagSets, cols)
 		return nil
 	})
-	godelBinderCmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+	enoBinderCmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
 		fmt.Fprintf(cmd.OutOrStdout(), "%s\n\n"+usageFmt, cmd.Long, cmd.UseLine())
 		cliflag.PrintSections(cmd.OutOrStdout(), namedFlagSets, cols)
 	})
-	godelBinderCmd.MarkFlagFilename("config", "yaml", "yml", "json")
+	enoBinderCmd.MarkFlagFilename("config", "yaml", "yml", "json")
 
-	return godelBinderCmd
+	return enoBinderCmd
 }
 
 func runCommand(cmd *cobra.Command, opts *options.Options, args []string) error {
@@ -161,9 +161,9 @@ func Run(ctx context.Context, cc binderappconfig.CompletedConfig) error {
 
 	binder, err := binder.New(
 		cc.Client,
-		cc.GodelCrdClient,
+		cc.EnoCrdClient,
 		cc.InformerFactory,
-		cc.GodelCrdInformerFactory,
+		cc.EnoCrdInformerFactory,
 		cc.KatalystCrdInformerFactory,
 		ctx.Done(),
 		eventRecorder,
@@ -201,16 +201,16 @@ func Run(ctx context.Context, cc binderappconfig.CompletedConfig) error {
 	}
 
 	// Start podGroup Controllers
-	pgInformer := cc.GodelCrdInformerFactory.Scheduling().V1alpha1().PodGroups()
+	pgInformer := cc.EnoCrdInformerFactory.Scheduling().V1alpha1().PodGroups()
 
 	// Start all informers.
-	cc.GodelCrdInformerFactory.Start(ctx.Done())
+	cc.EnoCrdInformerFactory.Start(ctx.Done())
 	cc.InformerFactory.Start(ctx.Done())
 	cc.KatalystCrdInformerFactory.Start(ctx.Done())
 
 	// Wait for all caches to sync before scheduling.
 	// should wait for cache sync first.
-	cc.GodelCrdInformerFactory.WaitForCacheSync(ctx.Done())
+	cc.EnoCrdInformerFactory.WaitForCacheSync(ctx.Done())
 	cc.InformerFactory.WaitForCacheSync(ctx.Done())
 	cc.KatalystCrdInformerFactory.WaitForCacheSync(ctx.Done())
 	cache.WaitForCacheSync(ctx.Done(), pgInformer.Informer().HasSynced)
@@ -222,7 +222,7 @@ func Run(ctx context.Context, cc binderappconfig.CompletedConfig) error {
 			cc.BinderConfig.Tracer)
 		defer closer.Close()
 
-		controller.SetupPodGroupController(ctx, cc.Client, cc.GodelCrdClient, pgInformer)
+		controller.SetupPodGroupController(ctx, cc.Client, cc.EnoCrdClient, pgInformer)
 		binder.Run(ctx)
 	}
 
@@ -285,7 +285,7 @@ func installMetricHandler(pathRecorderMux *mux.PathRecorderMux) {
 }
 
 // newMetricsHandler builds a metrics server from the config.
-func newMetricsHandler(config *godelbinderconfig.GodelBinderConfiguration) http.Handler {
+func newMetricsHandler(config *godelbinderconfig.EnoBinderConfiguration) http.Handler {
 	pathRecorderMux := mux.NewPathRecorderMux(ComponentName)
 	installMetricHandler(pathRecorderMux)
 	if *config.EnableProfiling {
@@ -301,7 +301,7 @@ func newMetricsHandler(config *godelbinderconfig.GodelBinderConfiguration) http.
 // newHealthzHandler creates a healthz server from the config, and will also
 // embed the metrics handler if the healthz and metrics address configurations
 // are the same.
-func newHealthzHandler(config *godelbinderconfig.GodelBinderConfiguration, separateMetrics bool, checks ...healthz.HealthChecker) http.Handler {
+func newHealthzHandler(config *godelbinderconfig.EnoBinderConfiguration, separateMetrics bool, checks ...healthz.HealthChecker) http.Handler {
 	pathRecorderMux := mux.NewPathRecorderMux(ComponentName)
 	healthz.InstallHandler(pathRecorderMux, checks...)
 	if !separateMetrics {

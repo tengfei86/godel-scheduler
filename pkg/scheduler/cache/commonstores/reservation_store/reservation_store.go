@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Godel Scheduler Authors.
+Copyright 2024 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -200,7 +200,7 @@ func (s *ReservationStore) setMatchedPod(fakePod, matchedPod *v1.Pod) (err error
 // ---------------------------------------------------------------------------------------
 
 func (s *ReservationStore) assumedOrBoundPod(pod *v1.Pod) bool {
-	return podutil.BoundPod(pod) || podutil.AssumedPodOfGodel(pod, s.handler.SchedulerType())
+	return podutil.BoundPod(pod) || podutil.AssumedPodOfEno(pod, s.handler.SchedulerType())
 }
 
 func (s *ReservationStore) shouldReserveResources(pod *v1.Pod) bool {

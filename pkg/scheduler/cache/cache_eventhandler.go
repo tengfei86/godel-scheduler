@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import (
 )
 
 func (cache *schedulerCache) assumedOrBoundPod(pod *v1.Pod) bool {
-	return podutil.BoundPod(pod) || podutil.AssumedPodOfGodel(pod, cache.handler.SchedulerType())
+	return podutil.BoundPod(pod) || podutil.AssumedPodOfEno(pod, cache.handler.SchedulerType())
 }
 
 func (cache *schedulerCache) AssumePod(podInfo *framework.CachePodInfo) error {

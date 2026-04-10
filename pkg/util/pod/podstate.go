@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,14 +28,14 @@ import (
 
 const (
 	// PodStateAnnotationKey is a pod annotation key, value is the pod state
-	PodStateAnnotationKey = "godel.bytedance.com/pod-state"
+	PodStateAnnotationKey = "eno.io/pod-state"
 
 	// SchedulerAnnotationKey is a pod annotation key, value is the scheduler id who is responsible for scheduling this pod
-	SchedulerAnnotationKey = "godel.bytedance.com/selected-scheduler"
+	SchedulerAnnotationKey = "eno.io/selected-scheduler"
 
 	// FailedSchedulersAnnotationKey is a pod annotation key, value is schedulers who have already tried and failed to schedule the pod
 	// this is used only when Node Partition is physical
-	FailedSchedulersAnnotationKey = "godel.bytedance.com/failed-schedulers"
+	FailedSchedulersAnnotationKey = "eno.io/failed-schedulers"
 
 	// TraceContext represents the span context for the pod
 	TraceContext = "trace-context"
@@ -43,62 +43,62 @@ const (
 	// AssumedNodeAnnotationKey is a pod annotation key, value is the assumed node name chosen by one scheduler
 	// the scheduler will reserve the allocated resource for the pod. TODO: should all schedulers be aware of this ?
 	// TODO: figure out if we can return multiple nodes ? if so how to deal with scheduler cache ?
-	AssumedNodeAnnotationKey = "godel.bytedance.com/assumed-node"
+	AssumedNodeAnnotationKey = "eno.io/assumed-node"
 
 	// TODO: figure out how to define cross node constraint and whether we need this annotation
 	// AssumedCrossNodeAnnotationKey is a pod annotation key, value is the assumed node name chosen by one scheduler
 	// the scheduler will reserve the allocated resource for the pod.
 	// Pod need to resolve cross node constraint
-	AssumedCrossNodeAnnotationKey = "godel.bytedance.com/assumed-cross-node"
+	AssumedCrossNodeAnnotationKey = "eno.io/assumed-cross-node"
 
 	// PodGroupNameAnnotationKey is pod annotation key, the value is name of PodGroup custom resource.
-	PodGroupNameAnnotationKey = "godel.bytedance.com/pod-group-name"
+	PodGroupNameAnnotationKey = "eno.io/pod-group-name"
 
 	// PotentialVictimsAnnotationKey is a pod annotation key, value is the victims chosen by dispatcher
 	// this is used for best effort application pods
 	// values can be like: [{queue: queue1, application: app1}, {queue: queue2, application: app2}]...
-	PotentialVictimsAnnotationKey = "godel.bytedance.com/potential-victims"
+	PotentialVictimsAnnotationKey = "eno.io/potential-victims"
 
 	// NominatedNodeAnnotationKey is a pod annotation key,
 	// value is the node name chosen by scheduler for placing the pending pod by evicting others
 	// value can be like: {node: node1, victims: pod1, pod2...}
 	// the scheduler will reserve the allocated resource for the pod. TODO: should all schedulers be aware of this ?
 	// TODO: figure out if we can return multiple nodes ? if so how to deal with scheduler cache ?
-	NominatedNodeAnnotationKey = "godel.bytedance.com/nominated-node"
+	NominatedNodeAnnotationKey = "eno.io/nominated-node"
 
 	// ATTENTION: This annotation key will be DEPRECATED in the future and REPLACED by `QoSLevelKey=katalyst.kubewharf.io/qos_level`.
 	// PodResourceTypeAnnotationKey is a pod annotation key, value is the pod resource type (guaranteed or best-effort)
-	PodResourceTypeAnnotationKey = "godel.bytedance.com/pod-resource-type"
+	PodResourceTypeAnnotationKey = "eno.io/pod-resource-type"
 
 	// PodLauncherAnnotationKey is a pod annotation key, value is the launcher of this pod (kubelet or node-manager)
-	PodLauncherAnnotationKey = "godel.bytedance.com/pod-launcher"
+	PodLauncherAnnotationKey = "eno.io/pod-launcher"
 
-	// InitialHandledTimestampAnnotationKey is a pod annotation key, value is the timestamp when the pod is first handled by Godel Scheduler
-	InitialHandledTimestampAnnotationKey = "godel.bytedance.com/initial-handled-timestamp"
+	// InitialHandledTimestampAnnotationKey is a pod annotation key, value is the timestamp when the pod is first handled by Eno Scheduler
+	InitialHandledTimestampAnnotationKey = "eno.io/initial-handled-timestamp"
 
 	// MicroTopologyKey is an annotation key for pod micro topology assigned by scheduler&binder
-	MicroTopologyKey = "godel.bytedance.com/micro-topology"
+	MicroTopologyKey = "eno.io/micro-topology"
 
-	IgnorePodsLimitAnnotationKey = "godel.bytedance.com/ignore-pods-limit"
+	IgnorePodsLimitAnnotationKey = "eno.io/ignore-pods-limit"
 
-	ProtectionDurationFromPreemptionKey = "godel.bytedance.com/protection-duration-from-preemption"
+	ProtectionDurationFromPreemptionKey = "eno.io/protection-duration-from-preemption"
 
-	UnitScheduledIndexAnnotationKey = "godel.bytedance.com/scheduled-index-in-scheduling-unit"
+	UnitScheduledIndexAnnotationKey = "eno.io/scheduled-index-in-scheduling-unit"
 
 	// E2EExcludedPodAnnotationKey is a pod annotation key, pods with this annotation will be excluded when calculating e2e latency
-	E2EExcludedPodAnnotationKey = "godel.bytedance.com/e2e-excluded"
+	E2EExcludedPodAnnotationKey = "eno.io/e2e-excluded"
 
-	IncreasePercentageOfNodesToScoreAnnotationKey = "godel.bytedance.com/increase-percentage-of-nodes-to-score"
+	IncreasePercentageOfNodesToScoreAnnotationKey = "eno.io/increase-percentage-of-nodes-to-score"
 
 	IncreasePercentageOfNodesToScore = "true"
 
-	MovementNameKey = "godel.bytedance.com/movement-name"
+	MovementNameKey = "eno.io/movement-name"
 
 	// Pods with same request template share the same requirements.
-	PodRequestTemplateAnnotationKey = "godel.bytedance.com/request-template"
+	PodRequestTemplateAnnotationKey = "eno.io/request-template"
 	// reservation related
-	MatchedReservationPlaceholderKey = "godel.bytedance.com/matched-reservation-placeholder"
-	ReservationTTLKey                = "godel.bytedance.com/reservation-ttl"
+	MatchedReservationPlaceholderKey = "eno.io/matched-reservation-placeholder"
+	ReservationTTLKey                = "eno.io/reservation-ttl"
 )
 
 type PodState string
@@ -178,7 +178,7 @@ func DispatchedPod(pod *v1.Pod) bool {
 	return false
 }
 
-func DispatchedPodOfGodel(pod *v1.Pod, schedulerName string) bool {
+func DispatchedPodOfEno(pod *v1.Pod, schedulerName string) bool {
 	if LegalPodResourceTypeAndLauncher(pod) &&
 		responsibleForPod(pod, schedulerName) &&
 		DispatchedPod(pod) {
@@ -187,7 +187,7 @@ func DispatchedPodOfGodel(pod *v1.Pod, schedulerName string) bool {
 	return false
 }
 
-func AssumedPodOfGodel(pod *v1.Pod, schedulerName string) bool {
+func AssumedPodOfEno(pod *v1.Pod, schedulerName string) bool {
 	if LegalPodResourceTypeAndLauncher(pod) &&
 		responsibleForPod(pod, schedulerName) &&
 		AssumedPod(pod) {
@@ -196,7 +196,7 @@ func AssumedPodOfGodel(pod *v1.Pod, schedulerName string) bool {
 	return false
 }
 
-func PendingPodOfGodel(pod *v1.Pod, schedulerName string) bool {
+func PendingPodOfEno(pod *v1.Pod, schedulerName string) bool {
 	if LegalPodResourceTypeAndLauncher(pod) &&
 		responsibleForPod(pod, schedulerName) &&
 		PendingPod(pod) {
@@ -285,7 +285,7 @@ func AbnormalPodState(pod *v1.Pod) bool {
 	}
 }
 
-func AbnormalPodStateOfGodel(pod *v1.Pod, schedulerName string) bool {
+func AbnormalPodStateOfEno(pod *v1.Pod, schedulerName string) bool {
 	if AbnormalPodState(pod) && responsibleForPod(pod, schedulerName) {
 		return true
 	}

@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -108,7 +108,7 @@ var crossNodeQPod = v1.Pod{
 
 var cacheHandler = commoncache.MakeCacheHandlerWrapper().
 	Period(10 * time.Second).PodAssumedTTL(30 * time.Second).StopCh(make(chan struct{})).
-	ComponentName("godel-binder").Obj()
+	ComponentName("eno-binder").Obj()
 
 func newDefaultUnitQueueSort() framework.UnitLessFunc {
 	sort := &unitqueuesort.DefaultUnitQueueSort{}

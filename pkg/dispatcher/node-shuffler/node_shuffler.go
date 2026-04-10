@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -225,13 +225,13 @@ func (ns *NodeShuffler) updateSchedulerNameForNode(node *v1.Node, nmNode *nodev1
 
 // updateNodeSchedulerNameAnnotation updates node annotation
 func (ns *NodeShuffler) updateNodeSchedulerNameAnnotation(node *v1.Node, nmNode *nodev1alpha1.NMNode, schedulerName string) error {
-	if node != nil && node.Annotations[nodeutil.GodelSchedulerNodeAnnotationKey] != schedulerName {
+	if node != nil && node.Annotations[nodeutil.EnoSchedulerNodeAnnotationKey] != schedulerName {
 		nodeClone := node.DeepCopy()
 		if nodeClone.Annotations == nil {
 			nodeClone.Annotations = make(map[string]string)
 		}
-		previousScheduler := node.Annotations[nodeutil.GodelSchedulerNodeAnnotationKey]
-		nodeClone.Annotations[nodeutil.GodelSchedulerNodeAnnotationKey] = schedulerName
+		previousScheduler := node.Annotations[nodeutil.EnoSchedulerNodeAnnotationKey]
+		nodeClone.Annotations[nodeutil.EnoSchedulerNodeAnnotationKey] = schedulerName
 		// update node
 		if _, err := ns.k8sClient.CoreV1().Nodes().Update(context.TODO(), nodeClone, metav1.UpdateOptions{}); err != nil {
 			return err
@@ -242,13 +242,13 @@ func (ns *NodeShuffler) updateNodeSchedulerNameAnnotation(node *v1.Node, nmNode 
 		metrics.NodeInPartitionSizeInc(schedulerName, "node")
 	}
 
-	if nmNode != nil && nmNode.Annotations[nodeutil.GodelSchedulerNodeAnnotationKey] != schedulerName {
+	if nmNode != nil && nmNode.Annotations[nodeutil.EnoSchedulerNodeAnnotationKey] != schedulerName {
 		nmNodeClone := nmNode.DeepCopy()
 		if nmNodeClone.Annotations == nil {
 			nmNodeClone.Annotations = make(map[string]string)
 		}
-		previousScheduler := nmNodeClone.Annotations[nodeutil.GodelSchedulerNodeAnnotationKey]
-		nmNodeClone.Annotations[nodeutil.GodelSchedulerNodeAnnotationKey] = schedulerName
+		previousScheduler := nmNodeClone.Annotations[nodeutil.EnoSchedulerNodeAnnotationKey]
+		nmNodeClone.Annotations[nodeutil.EnoSchedulerNodeAnnotationKey] = schedulerName
 		// update nmNode
 		if _, err := ns.crdClient.NodeV1alpha1().NMNodes().Update(context.TODO(), nmNodeClone, metav1.UpdateOptions{}); err != nil {
 			return err

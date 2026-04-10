@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Godel Scheduler Authors.
+Copyright 2023 The Eno Scheduler Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -190,20 +190,20 @@ func (gs *unitScheduler) EventRecorder() events.EventRecorder {
 }
 
 func (gs *unitScheduler) BootstrapSchedulePod(ctx context.Context, pod *v1.Pod, podTrace tracing.SchedulingTrace, nodeGroup string) (string, framework.SchedulerFramework, framework.SchedulerPreemptionFramework, *framework.CycleState, error) {
-	godelScheduler, switchType, subCluster := gs.Scheduler, gs.switchType, gs.subCluster
+	enoScheduler, switchType, subCluster := gs.Scheduler, gs.switchType, gs.subCluster
 
 	if err := podPassesBasicChecks(pod, gs.pvcLister); err != nil {
 		return "", nil, nil, nil, err
 	}
 
-	fwk, err := godelScheduler.GetFrameworkForPod(pod)
+	fwk, err := enoScheduler.GetFrameworkForPod(pod)
 	if err != nil {
 		// This shouldn't happen, because we only schedule pods having annotations set correctly.
 		// API server is supposed to do the validation for annotation.
 		klog.ErrorS(err, "Failed to get framework for pod", "switchType", switchType, "subCluster", subCluster, "pod", klog.KObj(pod))
 		return "", nil, nil, nil, err
 	}
-	godelScheduler.SetFrameworkForPod(fwk)
+	enoScheduler.SetFrameworkForPod(fwk)
 	klog.V(4).InfoS("Generate ScheduleFramework for pod", "pod", podutil.GetPodKey(pod), "framework", fwk.ListPlugins())
 
 	// init cycle state
@@ -228,8 +228,8 @@ func (gs *unitScheduler) BootstrapSchedulePod(ctx context.Context, pod *v1.Pod, 
 	// set unitProperty to CycleState
 	framework.SetPodProperty(framework.ExtractPodProperty(pod), state)
 
-	pfwk := godelScheduler.GetPreemptionFrameworkForPod(pod)
-	godelScheduler.SetPreemptionFrameworkForPod(pfwk)
+	pfwk := enoScheduler.GetPreemptionFrameworkForPod(pod)
+	enoScheduler.SetPreemptionFrameworkForPod(pfwk)
 
 	return podutil.GetPodKey(pod), fwk, pfwk, state, nil
 }
