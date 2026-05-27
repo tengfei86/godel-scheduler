@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# 组 A: 使用原始 godel-scheduler 二进制（从上游 repo 构建），
+# 部署于 godel-system 命名空间，保持原始 godel 约定。
+# CRDs 共用 base 中定义的 scheduling.godel.kubewharf.io 系列。
+
+resources:
+  - namespace.yaml
+  - service-account.yaml
+  - cluster-role-binding.yaml
+  - scheduler.yaml
+  - binder.yaml
+  - dispatcher.yaml
+  - controller-manager.yaml
+  - scheduler-config.yaml
+  - binder-config.yaml
+  - ../../base/crds

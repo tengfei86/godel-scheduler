@@ -17,12 +17,22 @@ log_step "卸载调度器 (group=${GROUP})"
 
 # ── 卸载 Gödel ──
 teardown_eno() {
-  log_info "卸载 Gödel Scheduler..."
+  log_info "卸载 Gödel Scheduler (eno)..."
   kubectl delete -k "${MANIFESTS_EMBEDDED}" --ignore-not-found 2>/dev/null || true
   kubectl delete -k "${MANIFESTS_BASE}" --ignore-not-found 2>/dev/null || true
   # 等待 Pod 终止
   kubectl wait --for=delete pod --all -n "${ENO_NAMESPACE}" --timeout=60s 2>/dev/null || true
-  log_info "✓ Gödel 已卸载"
+  log_info "✓ Gödel (eno) 已卸载"
+}
+
+# ── 卸载原始 Gödel (Group A) ──
+teardown_godel() {
+  log_info "卸载原始 Gödel Scheduler (godel-system)..."
+  kubectl delete -k "${MANIFESTS_GROUP_A}" --ignore-not-found 2>/dev/null || true
+  kubectl wait --for=delete pod --all -n "${GODEL_NAMESPACE}" --timeout=60s 2>/dev/null || true
+  kubectl delete namespace "${GODEL_NAMESPACE}" --ignore-not-found 2>/dev/null || true
+  kubectl delete clusterrolebinding godel --ignore-not-found 2>/dev/null || true
+  log_info "✓ Gödel (original) 已卸载"
 }
 
 # ── 卸载 Volcano ──
@@ -86,13 +96,20 @@ teardown_bench() {
 
 # ── 执行清理 ──
 case "$GROUP" in
-  a|b)
+  a)
+    teardown_godel
+    teardown_eno  # 确保 eno 不残留
+    teardown_bench
+    ;;
+  b)
     teardown_eno
+    teardown_godel  # 确保 godel 不残留
     teardown_bench
     ;;
   c)
     # kube-scheduler 无需卸载（集群自带）
-    teardown_eno  # 确保 Gödel 不干扰
+    teardown_eno
+    teardown_godel
     teardown_bench
     ;;
   d)
@@ -104,6 +121,7 @@ case "$GROUP" in
     teardown_bench
     ;;
   all)
+    teardown_godel
     teardown_eno
     teardown_volcano
     teardown_koordinator

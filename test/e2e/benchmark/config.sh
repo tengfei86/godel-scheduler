@@ -40,10 +40,12 @@ PROMETHEUS_MAX_POINTS=11000                                  # 超过此数据�
 
 # ── 镜像 ──
 ENO_IMAGE="eno-local:latest"
+GODEL_IMAGE="godel-local:latest"   # 原始 godel-scheduler 镜像（从上游 repo 构建）
 PAUSE_IMAGE="registry.k8s.io/pause:3.9"
 
 # ── 调度器配置 ──
 ENO_NAMESPACE="eno-system"
+GODEL_NAMESPACE="godel-system"     # 原始 godel-scheduler 命名空间
 VOLCANO_NAMESPACE="volcano-system"
 KOORDINATOR_NAMESPACE="koordinator-system"
 
@@ -71,11 +73,20 @@ BENCH_DISPATCHER_LIM_MEM="${BENCH_DISPATCHER_LIM_MEM:-${BENCH_SCHED_LIM_MEM}}"
 
 # ── 组标识 → schedulerName 映射 ──
 declare -A SCHEDULER_NAMES=(
-  [a]="eno-scheduler"
+  [a]="godel-scheduler"   # 组 A 使用原始 godel-scheduler
   [b]="eno-scheduler"
   [c]="default-scheduler"
   [d]="volcano"
   [e]="koord-scheduler"
+)
+
+# ── 组标识 → 注解域映射 ──
+declare -A ANNOTATION_DOMAINS=(
+  [a]="godel.bytedance.com"   # 原始 godel 注解域
+  [b]="eno.io"                # 修改后的 eno 注解域
+  [c]=""                      # kube-scheduler 无需
+  [d]=""                      # Volcano 自有注解
+  [e]=""                      # Koordinator 自有注解
 )
 
 # ── 组标识 → 部署方式描述 ──
@@ -114,6 +125,7 @@ RESULTS_DIR="${_CONFIG_DIR}/results"
 
 # ── Manifests 路径 ──
 MANIFESTS_BASE="${PROJECT_ROOT}/manifests/base"
+MANIFESTS_GROUP_A="${PROJECT_ROOT}/manifests/overlays/group-a"
 MANIFESTS_EMBEDDED="${PROJECT_ROOT}/manifests/overlays/embedded-binder"
 MANIFESTS_MONITORING_BASE="${PROJECT_ROOT}/manifests/monitoring/base"
 

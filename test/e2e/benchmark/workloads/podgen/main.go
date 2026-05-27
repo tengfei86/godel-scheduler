@@ -180,6 +180,13 @@ func buildGangPod(groupIdx, memberIdx int) *corev1.Pod {
 
 	pgName := fmt.Sprintf("bench-gang-%d", groupIdx)
 	switch flagScheduler {
+	case "godel-scheduler":
+		pod.Annotations = map[string]string{
+			"godel.bytedance.com/pod-state":                 "pending",
+			"godel.bytedance.com/pod-resource-type":         "guaranteed",
+			"godel.bytedance.com/pod-launcher":              "kubelet",
+			"scheduling.godel.bytedance.com/pod-group-name": pgName,
+		}
 	case "eno-scheduler":
 		pod.Annotations = map[string]string{
 			"eno.io/pod-state":                 "pending",
@@ -202,6 +209,12 @@ func buildGangPod(groupIdx, memberIdx int) *corev1.Pod {
 
 func addSchedulerAnnotations(pod *corev1.Pod) {
 	switch flagScheduler {
+	case "godel-scheduler":
+		pod.Annotations = map[string]string{
+			"godel.bytedance.com/pod-state":         "pending",
+			"godel.bytedance.com/pod-resource-type": "guaranteed",
+			"godel.bytedance.com/pod-launcher":      "kubelet",
+		}
 	case "eno-scheduler":
 		pod.Annotations = map[string]string{
 			"eno.io/pod-state":         "pending",

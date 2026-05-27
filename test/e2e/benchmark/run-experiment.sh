@@ -201,8 +201,11 @@ verify_scheduler_ready() {
 }
 
 case "$GROUP" in
-  a|b)
-    verify_scheduler_ready "${ENO_NAMESPACE}" "app=eno-scheduler" "Gödel Scheduler" '^scheduler(-|$)'
+  a)
+    verify_scheduler_ready "${GODEL_NAMESPACE}" "app=godel-scheduler" "Gödel Scheduler (Original)" '^scheduler(-|$)'
+    ;;
+  b)
+    verify_scheduler_ready "${ENO_NAMESPACE}" "app=eno-scheduler" "Eno Scheduler (Embedded Binder)" '^scheduler(-|$)'
     ;;
   c)
     verify_scheduler_ready "kube-system" "component=kube-scheduler" "kube-scheduler" '^kube-scheduler(-|$)'
@@ -272,7 +275,8 @@ fi
 # ═══════════════════════════════════════════════
 log_step "Step 12/12: 采集 Pod 分布快照 & 元数据"
 if [[ "$SKIP_COLLECT" != "true" ]]; then
-  bash "${SCRIPT_DIR}/collect/collect-distribution.sh" > "$EXP_RESULTS_DIR/pod-distribution.csv"
+  ANNO_DOMAIN="${ANNOTATION_DOMAINS[$GROUP]:-eno.io}"
+  bash "${SCRIPT_DIR}/collect/collect-distribution.sh" "$ANNO_DOMAIN" > "$EXP_RESULTS_DIR/pod-distribution.csv"
 fi
 
 # 写入元数据

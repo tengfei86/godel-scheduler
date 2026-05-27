@@ -7,14 +7,19 @@
 # 同时采集每 Scheduler 分区的 Pod 数和每节点 Pod 数。
 #
 # 用法:
-#   ./collect-distribution.sh > pod-distribution.csv
+#   ./collect-distribution.sh [annotation_domain]
+#   annotation_domain: godel.bytedance.com | eno.io (默认 eno.io)
 
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 log_stderr() { echo "[collect-distribution] $*" >&2; }
 
-log_stderr "采集 Pod 分布..."
+# 注解域：支持原始 godel 和修改后的 eno
+ANNO_DOMAIN="${1:-eno.io}"
+SELECTED_SCHEDULER_KEY="${ANNO_DOMAIN}/selected-scheduler"
+
+log_stderr "采集 Pod 分布 (annotation domain: ${ANNO_DOMAIN})..."
 
 # CSV header
 echo "node,pod_count,scheduler"
@@ -28,12 +33,12 @@ if [[ -z "$PODS_JSON" ]] || [[ "$(echo "$PODS_JSON" | jq '.items | length')" == 
 fi
 
 # 每节点 Pod 数 + 所属 Scheduler
-echo "$PODS_JSON" | jq -r '
+echo "$PODS_JSON" | jq -r --arg key "$SELECTED_SCHEDULER_KEY" '
   .items[] |
   select(.spec.nodeName != null) |
   {
     node: .spec.nodeName,
-    scheduler: (.metadata.annotations["eno.io/selected-scheduler"] // "unknown")
+    scheduler: (.metadata.annotations[$key] // "unknown")
   }
 ' | jq -rs '
   group_by(.node) |
@@ -63,8 +68,8 @@ log_stderr "✓ 采集完成: ${SCHEDULED}/${TOTAL_PODS} Pod 已调度到 ${UNIQ
 
 # 输出每 Scheduler 分区的汇总（stderr）
 log_stderr "Scheduler 分区分布:"
-echo "$PODS_JSON" | jq -r '
-  [.items[] | .metadata.annotations["eno.io/selected-scheduler"] // "unknown"] |
+echo "$PODS_JSON" | jq -r --arg key "$SELECTED_SCHEDULER_KEY" '
+  [.items[] | .metadata.annotations[$key] // "unknown"] |
   group_by(.) | map({scheduler: .[0], count: length}) | sort_by(-.count) |
   .[] | "  \(.scheduler): \(.count) pods"
 ' 2>/dev/null >&2 || true

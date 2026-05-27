@@ -544,3 +544,23 @@ go wait.UntilWithContext(
 ```
 
 这样两个创新点分别解决调度管线的**中段 (Schedule)** 和**后段 (Bind)**，覆盖完整且互不重叠。
+
+---
+
+## 7. 实验准备 — 构建原始 Gödel Scheduler 基线镜像
+
+组 A（Baseline）使用上游未修改的 godel-scheduler 二进制，确保对比公平性。
+
+```bash
+# 1. 克隆上游仓库
+git clone https://github.com/kubewharf/godel-scheduler.git /tmp/godel-upstream
+cd /tmp/godel-upstream
+
+# 2. 构建 Docker 镜像
+docker build -t godel-local:latest -f docker/godel-local.Dockerfile .
+
+# 3. 加载到 kind 集群
+kind load docker-image godel-local:latest --name eno-bench
+```
+
+构建完成后，`deploy-group-a.sh` 会自动使用 `godel-local:latest` 镜像部署原始架构。
