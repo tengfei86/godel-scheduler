@@ -15,7 +15,7 @@ COPY vendor/ vendor/
 COPY Makefile Makefile
 COPY Makefile.expansion Makefile.expansion
 
-RUN export GO_BUILD_PLATFORMS=linux/amd64 && make build
+RUN mkdir -p build && export GO_BUILD_PLATFORMS=linux/amd64 && make build
 
 FROM debian:bookworm
 RUN apt-get update && \

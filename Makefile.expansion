@@ -21,7 +21,7 @@ GO_STATIC_LIBRARIES :=
 GO_TEST_EXCEPTIONS :=
 
 # Pre-defined all directories containing Dockerfiles for building containers.
-DOCKER_BUILD_TARGETS := $(filter build/%,$(shell find build -maxdepth 2 -name "*Dockerfile" | xargs dirname))
+DOCKER_BUILD_TARGETS := $(filter build/%,$(shell find build -maxdepth 2 -name "*Dockerfile" 2>/dev/null | xargs -r dirname))
 # Container registries.
 # use your own docker registries
 DOCKER_REGISTRIES := registry.example.com
