@@ -168,7 +168,7 @@ func TestBuildGangPod_Eno(t *testing.T) {
 	if pod.Name != "bench-gang-3-2" {
 		t.Errorf("name = %q, want bench-gang-3-2", pod.Name)
 	}
-	if got := pod.Annotations["scheduling.eno.io/pod-group-name"]; got != "bench-gang-3" {
+	if got := pod.Annotations["eno.io/pod-group-name"]; got != "bench-gang-3" {
 		t.Errorf("pod-group-name = %q, want bench-gang-3", got)
 	}
 	if got := pod.Annotations["eno.io/pod-state"]; got != "pending" {
@@ -714,7 +714,7 @@ func TestRunGang_FakeClient(t *testing.T) {
 	// 验证有 10 个不同的 group
 	groups := make(map[string]int)
 	for _, p := range pods.Items {
-		pgName := p.Annotations["scheduling.eno.io/pod-group-name"]
+		pgName := p.Annotations["eno.io/pod-group-name"]
 		groups[pgName]++
 	}
 	if len(groups) != 10 {
