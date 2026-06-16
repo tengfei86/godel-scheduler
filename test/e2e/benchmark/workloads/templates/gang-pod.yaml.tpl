@@ -15,7 +15,7 @@ metadata:
     eno.io/pod-state: pending
     eno.io/pod-resource-type: guaranteed
     eno.io/pod-launcher: kubelet
-    scheduling.eno.io/pod-group-name: bench-gang-${GROUP_INDEX}
+    eno.io/pod-group-name: bench-gang-${GROUP_INDEX}
 spec:
   schedulerName: ${SCHEDULER_NAME}
   terminationGracePeriodSeconds: 0
