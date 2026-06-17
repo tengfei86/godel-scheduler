@@ -182,17 +182,17 @@ func buildGangPod(groupIdx, memberIdx int) *corev1.Pod {
 	switch flagScheduler {
 	case "godel-scheduler":
 		pod.Annotations = map[string]string{
-			"godel.bytedance.com/pod-state":                 "pending",
-			"godel.bytedance.com/pod-resource-type":         "guaranteed",
-			"godel.bytedance.com/pod-launcher":              "kubelet",
-			"scheduling.godel.bytedance.com/pod-group-name": pgName,
+			"godel.bytedance.com/pod-state":         "pending",
+			"godel.bytedance.com/pod-resource-type": "guaranteed",
+			"godel.bytedance.com/pod-launcher":      "kubelet",
+			"godel.bytedance.com/pod-group-name":    pgName,
 		}
 	case "eno-scheduler":
 		pod.Annotations = map[string]string{
-			"eno.io/pod-state":                 "pending",
-			"eno.io/pod-resource-type":         "guaranteed",
-			"eno.io/pod-launcher":              "kubelet",
-			"scheduling.eno.io/pod-group-name": pgName,
+			"eno.io/pod-state":         "pending",
+			"eno.io/pod-resource-type": "guaranteed",
+			"eno.io/pod-launcher":      "kubelet",
+			"eno.io/pod-group-name":    pgName,
 		}
 	case "volcano":
 		pod.Annotations = map[string]string{
@@ -550,10 +550,34 @@ var koordPodGroupGVR = schema.GroupVersionResource{
 	Resource: "podgroups",
 }
 
+// Gödel/Eno PodGroup: scheduling.godel.kubewharf.io/v1alpha1
+var godelPodGroupGVR = schema.GroupVersionResource{
+	Group:    "scheduling.godel.kubewharf.io",
+	Version:  "v1alpha1",
+	Resource: "podgroups",
+}
+
 // createPodGroupForGang 在创建 Gang Pod 之前先创建 PodGroup CRD 对象。
-// Gödel 不需要（通过 Pod annotation 自动关联），仅 Volcano 和 Koordinator 需要。
 func createPodGroupForGang(ctx context.Context, dynClient dynamic.Interface, pgName string, minMember int) error {
 	switch flagScheduler {
+	case "eno-scheduler", "godel-scheduler":
+		pg := &unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"apiVersion": "scheduling.godel.kubewharf.io/v1alpha1",
+				"kind":       "PodGroup",
+				"metadata": map[string]interface{}{
+					"name":      pgName,
+					"namespace": flagNamespace,
+				},
+				"spec": map[string]interface{}{
+					"minMember": int64(minMember),
+				},
+			},
+		}
+		_, err := dynClient.Resource(godelPodGroupGVR).Namespace(flagNamespace).Create(ctx, pg, metav1.CreateOptions{})
+		if err != nil {
+			return fmt.Errorf("创建 Gödel/Eno PodGroup %s 失败: %w", pgName, err)
+		}
 	case "volcano":
 		pg := &unstructured.Unstructured{
 			Object: map[string]interface{}{
@@ -592,7 +616,7 @@ func createPodGroupForGang(ctx context.Context, dynClient dynamic.Interface, pgN
 			return fmt.Errorf("创建 Koordinator PodGroup %s 失败: %w", pgName, err)
 		}
 	}
-	// eno-scheduler / default-scheduler: 不需要 CRD
+	// default-scheduler: 不需要 CRD
 	return nil
 }
 
