@@ -12,7 +12,7 @@ source "${SCRIPT_DIR}/lib/utils.sh"
 source "${SCRIPT_DIR}/lib/cluster.sh"
 source "${SCRIPT_DIR}/lib/prometheus.sh"
 
-KOORDINATOR_VERSION="${KOORDINATOR_VERSION:-1.7.0}"
+KOORDINATOR_VERSION="${KOORDINATOR_VERSION:-1.9.0}"
 
 separator "部署组 E — Koordinator Scheduler"
 

@@ -12,7 +12,7 @@ source "${SCRIPT_DIR}/lib/utils.sh"
 source "${SCRIPT_DIR}/lib/cluster.sh"
 source "${SCRIPT_DIR}/lib/prometheus.sh"
 
-VOLCANO_VERSION="${VOLCANO_VERSION:-1.9.0}"
+VOLCANO_VERSION="${VOLCANO_VERSION:-1.15.0}"
 
 separator "部署组 D — Volcano Scheduler"
 
