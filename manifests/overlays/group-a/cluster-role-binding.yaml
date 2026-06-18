@@ -8,5 +8,5 @@ subjects:
     namespace: godel-system
 roleRef:
   kind: ClusterRole
-  name: eno # 复用同一个 ClusterRole（权限相同）
+  name: godel # 复用同一个 ClusterRole（权限相同）
   apiGroup: rbac.authorization.k8s.io
