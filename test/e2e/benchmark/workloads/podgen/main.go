@@ -188,12 +188,18 @@ func buildGangPod(groupIdx, memberIdx int) *corev1.Pod {
 			"godel.bytedance.com/pod-launcher":      "kubelet",
 			"godel.bytedance.com/pod-group-name":    pgName,
 		}
+		pod.Labels = map[string]string{
+			"godel.bytedance.com/pod-group-name": pgName,
+		}
 	case "eno-scheduler":
 		pod.Annotations = map[string]string{
 			"eno.io/pod-state":         "pending",
 			"eno.io/pod-resource-type": "guaranteed",
 			"eno.io/pod-launcher":      "kubelet",
 			"eno.io/pod-group-name":    pgName,
+		}
+		pod.Labels = map[string]string{
+			"eno.io/pod-group-name": pgName,
 		}
 	case "volcano":
 		pod.Annotations = map[string]string{
