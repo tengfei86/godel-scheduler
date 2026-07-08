@@ -824,6 +824,14 @@ func TestAddSchedulerAnnotations(t *testing.T) {
 		wantAnnotations map[string]string
 	}{
 		{
+			"godel-scheduler",
+			map[string]string{
+				"godel.bytedance.com/pod-state":         "pending",
+				"godel.bytedance.com/pod-resource-type": "guaranteed",
+				"godel.bytedance.com/pod-launcher":      "kubelet",
+			},
+		},
+		{
 			"eno-scheduler",
 			map[string]string{
 				"eno.io/pod-state":         "pending",
@@ -833,9 +841,7 @@ func TestAddSchedulerAnnotations(t *testing.T) {
 		},
 		{
 			"volcano",
-			map[string]string{
-				"scheduling.volcano.sh/group-name": "bench-basic-pg",
-			},
+			nil, // basic 模式下不携带 gang Annotation
 		},
 		{
 			"default-scheduler",
