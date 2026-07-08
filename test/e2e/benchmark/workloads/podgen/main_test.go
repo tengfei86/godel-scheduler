@@ -399,6 +399,36 @@ func TestRateLimiter_ChangeRate(t *testing.T) {
 	}
 }
 
+// TestRateLimiter_ChangeRate_NoBurst 验证 changeRate 后不会因旧 sent 积压产生速率脉冲。
+// 复现路径：以极低速率启动并等待 100ms，此时若不重置 startTime/sent，
+// 切换到 10000/s 后 allowed = floor(0.1×10000)+1 = 1001，而 sent=1，
+// 导致 ~1000 个积压 token 立即释放。修复后应重置基准，10ms 内只能拿到 ~100 个 token。
+func TestRateLimiter_ChangeRate_NoBurst(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	rl := newRateLimiter(1) // 极低速率，确保会积累大量 "欠账"
+	_ = rl.waitForSlot(ctx)
+	time.Sleep(100 * time.Millisecond) // 等待期间积压 ≈ 1000 个 token（若无修复）
+
+	rl.changeRate(10000)
+
+	count := 0
+	deadline := time.Now().Add(10 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		if err := rl.waitForSlot(ctx); err != nil {
+			break
+		}
+		count++
+	}
+
+	// 10ms @ 10000/s ≈ 100 tokens；旧 bug 下 count ≈ 1000
+	if count > 300 {
+		t.Errorf("changeRate 后出现速率脉冲: 10ms 内消耗了 %d tokens（期望 ≈100，旧 bug 约 1000）", count)
+	}
+	t.Logf("changeRate 后 10ms 内消耗 %d tokens（期望 ≈100）", count)
+}
+
 func TestRateLimiter_Concurrent(t *testing.T) {
 	ctx := context.Background()
 	rl := newRateLimiter(2000)
@@ -686,8 +716,8 @@ func TestRunGang_FakeClient(t *testing.T) {
 		flagDryRun = origDryRun
 	}()
 
-	flagRate = 10000
-	flagTotal = 50 // 50 pods = 10 groups × 5
+	flagRate = 10000 // gang 模式单位为 groups/s
+	flagTotal = 50   // 50 pods = 10 groups × 5
 	flagWorkers = 4
 	flagScheduler = "eno-scheduler"
 	flagNamespace = "gang-ns"

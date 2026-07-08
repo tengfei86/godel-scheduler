@@ -24,6 +24,7 @@ import (
 	"math/rand"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -322,6 +323,9 @@ func (rl *rateLimiter) waitForSlot(ctx context.Context) error {
 func (rl *rateLimiter) changeRate(newRate int) {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
+	// 重置时间基准，避免旧 sent 积压导致切换瞬间速率失控
+	rl.startTime = time.Now()
+	rl.sent = 0
 	rl.rate = float64(newRate)
 }
 
@@ -558,7 +562,11 @@ var godelPodGroupGVR = schema.GroupVersionResource{
 }
 
 // createPodGroupForGang 在创建 Gang Pod 之前先创建 PodGroup CRD 对象。
+// dynClient 为 nil 时跳过（用于单元测试或 default-scheduler 场景）。
 func createPodGroupForGang(ctx context.Context, dynClient dynamic.Interface, pgName string, minMember int) error {
+	if dynClient == nil {
+		return nil
+	}
 	switch flagScheduler {
 	case "eno-scheduler", "godel-scheduler":
 		pg := &unstructured.Unstructured{
@@ -623,10 +631,6 @@ func createPodGroupForGang(ctx context.Context, dynClient dynamic.Interface, pgN
 // ── gang 模式 ──
 func runGang(ctx context.Context, client kubernetes.Interface, dynClient dynamic.Interface) {
 	totalGroups := flagTotal / flagGangSize
-	groupRate := flagRate / flagGangSize
-	if groupRate < 1 {
-		groupRate = 1
-	}
 
 	ch := make(chan podTask, flagWorkers*8)
 	var submitted, errors atomic.Int64
@@ -638,7 +642,9 @@ func runGang(ctx context.Context, client kubernetes.Interface, dynClient dynamic
 	}
 	go progressPrinter(ctx, &submitted, &errors, flagTotal)
 
-	rl := newRateLimiter(groupRate)
+	// gang 模式下 -rate 的语义是 groups/s，一次 waitForSlot 对应一整组
+	// 组内 Pod 立即连续入队，保证同组成员尽快被调度器一起看到
+	rl := newRateLimiter(flagRate)
 	for g := 1; g <= totalGroups; g++ {
 		if err := rl.waitForSlot(ctx); err != nil {
 			break
@@ -699,11 +705,12 @@ func parseStages(s string) []int {
 	stages := make([]int, 0, len(parts))
 	for _, p := range parts {
 		p = strings.TrimSpace(p)
-		var v int
-		fmt.Sscanf(p, "%d", &v)
-		if v > 0 {
-			stages = append(stages, v)
+		v, err := strconv.Atoi(p)
+		if err != nil || v <= 0 {
+			fmt.Fprintf(os.Stderr, "[WARN] 忽略无效的 burst-stages 值: %q\n", p)
+			continue
 		}
+		stages = append(stages, v)
 	}
 	if len(stages) == 0 {
 		stages = []int{200, 500, 1000, 2000, 1000, 500, 200}
