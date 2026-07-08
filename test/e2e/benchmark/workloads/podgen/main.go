@@ -222,10 +222,6 @@ func addSchedulerAnnotations(pod *corev1.Pod) {
 			"eno.io/pod-resource-type": "guaranteed",
 			"eno.io/pod-launcher":      "kubelet",
 		}
-	case "volcano":
-		pod.Annotations = map[string]string{
-			"scheduling.volcano.sh/group-name": "bench-basic-pg",
-		}
 	}
 }
 

@@ -85,8 +85,9 @@ func TestBuildBasicPod_Volcano(t *testing.T) {
 	if pod.Spec.SchedulerName != "volcano" {
 		t.Errorf("schedulerName = %q, want volcano", pod.Spec.SchedulerName)
 	}
-	if got := pod.Annotations["scheduling.volcano.sh/group-name"]; got != "bench-basic-pg" {
-		t.Errorf("volcano annotation = %q, want bench-basic-pg", got)
+	// basic 模式下不应携带 gang 相关 Annotation，否则 Volcano 会将所有 Pod 视为同一 Gang 组
+	if len(pod.Annotations) != 0 {
+		t.Errorf("volcano basic pod should have no annotations, got %v", pod.Annotations)
 	}
 
 	cpuReq := pod.Spec.Containers[0].Resources.Requests.Cpu().String()
