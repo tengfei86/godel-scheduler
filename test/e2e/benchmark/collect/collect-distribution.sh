@@ -19,7 +19,7 @@ log_stderr() { echo "[collect-distribution] $*" >&2; }
 ANNO_DOMAIN="${1:-eno.io}"
 SELECTED_SCHEDULER_KEY="${ANNO_DOMAIN}/selected-scheduler"
 
-log_stderr "采集 Pod 分布 (annotation domain: ${ANNO_DOMAIN})..."
+log_stderr "采集 Pod 分布 (annotation domain: ${ANNO_DOMAIN:-<none, 使用 spec.schedulerName>})..."
 
 # CSV header
 echo "node,pod_count,scheduler"
@@ -33,12 +33,19 @@ if [[ -z "$PODS_JSON" ]] || [[ "$(echo "$PODS_JSON" | jq '.items | length')" == 
 fi
 
 # 每节点 Pod 数 + 所属 Scheduler
-echo "$PODS_JSON" | jq -r --arg key "$SELECTED_SCHEDULER_KEY" '
+# kube-scheduler/volcano/koordinator 不写自定义 annotation，回退到 spec.schedulerName
+echo "$PODS_JSON" | jq -r '
   .items[] |
   select(.spec.nodeName != null) |
   {
     node: .spec.nodeName,
-    scheduler: (.metadata.annotations[$key] // "unknown")
+    scheduler: (
+      if .metadata.annotations["'"${SELECTED_SCHEDULER_KEY}"'"] then
+        .metadata.annotations["'"${SELECTED_SCHEDULER_KEY}"'"]
+      else
+        (.spec.schedulerName // "unknown")
+      end
+    )
   }
 ' | jq -rs '
   group_by(.node) |
@@ -54,9 +61,9 @@ echo "$PODS_JSON" | jq -r --arg key "$SELECTED_SCHEDULER_KEY" '
   # 简化版本
   log_stderr "jq 复杂查询失败，使用简化版"
   kubectl get pods -n bench -o json | \
-    jq -r '.items[] | select(.spec.nodeName != null) | .spec.nodeName' | \
+    jq -r '.items[] | select(.spec.nodeName != null) | "\(.spec.nodeName),\(.spec.schedulerName // "unknown")"' | \
     sort | uniq -c | sort -rn | \
-    awk '{print $2","$1",unknown"}'
+    awk '{split($2,a,","); print a[1]","$1","a[2]}'
 }
 
 # 输出汇总到 stderr
@@ -68,8 +75,14 @@ log_stderr "✓ 采集完成: ${SCHEDULED}/${TOTAL_PODS} Pod 已调度到 ${UNIQ
 
 # 输出每 Scheduler 分区的汇总（stderr）
 log_stderr "Scheduler 分区分布:"
-echo "$PODS_JSON" | jq -r --arg key "$SELECTED_SCHEDULER_KEY" '
-  [.items[] | .metadata.annotations[$key] // "unknown"] |
+echo "$PODS_JSON" | jq -r '
+  [.items[] | (
+    if .metadata.annotations["'"${SELECTED_SCHEDULER_KEY}"'"] then
+      .metadata.annotations["'"${SELECTED_SCHEDULER_KEY}"'"]
+    else
+      (.spec.schedulerName // "unknown")
+    end
+  )] |
   group_by(.) | map({scheduler: .[0], count: length}) | sort_by(-.count) |
   .[] | "  \(.scheduler): \(.count) pods"
 ' 2>/dev/null >&2 || true
