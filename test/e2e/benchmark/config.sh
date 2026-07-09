@@ -129,7 +129,7 @@ RESULTS_DIR="${_CONFIG_DIR}/results"
 
 # ── Manifests 路径 ──
 MANIFESTS_BASE="${PROJECT_ROOT}/manifests/base"
-MANIFESTS_GROUP_A="${PROJECT_ROOT}/manifests/overlays/group-a"
+MANIFESTS_GROUP_A="${PROJECT_ROOT}/manifests/overlays/godel-scheduler"
 MANIFESTS_EMBEDDED="${PROJECT_ROOT}/manifests/overlays/embedded-binder"
 MANIFESTS_MONITORING_BASE="${PROJECT_ROOT}/manifests/monitoring/base"
 
