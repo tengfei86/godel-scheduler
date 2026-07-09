@@ -126,7 +126,8 @@ fi
 
 sleep 20
 log_info "等待 kube-scheduler 重启完成..."
-kubectl wait --for=condition=Ready node --all --timeout=120s 2>/dev/null || true
+kubectl wait --for=condition=Ready pod -n kube-system \
+  -l component=kube-scheduler --timeout=120s
 
 # ── Step 4: 验证 ──
 log_step "Step 4: 验证部署"
@@ -134,13 +135,6 @@ echo ""
 kubectl get pods -n kube-system -l component=kube-scheduler -o wide
 echo ""
 
-# 确认 Gödel 已卸载
-if kubectl get namespace "${ENO_NAMESPACE}" &>/dev/null; then
-  local_eno_running=$(kubectl get pods -n "${ENO_NAMESPACE}" --no-headers 2>/dev/null | grep -c "Running" || true)
-  if (( local_eno_running > 0 )); then
-    log_warn "Eno 仍有 ${local_eno_running} 个运行中的 Pod，可能影响测试"
-  fi
-fi
 
 # ── Step 5: 切换 Prometheus 配置（kustomize overlay） ──
 log_step "Step 5: 部署组 C 的 Prometheus 配置"

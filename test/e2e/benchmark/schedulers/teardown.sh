@@ -22,6 +22,8 @@ teardown_eno() {
   kubectl delete -k "${MANIFESTS_BASE}" --ignore-not-found 2>/dev/null || true
   # 等待 Pod 终止
   kubectl wait --for=delete pod --all -n "${ENO_NAMESPACE}" --timeout=60s 2>/dev/null || true
+  # 显式删除 namespace，防止 kustomize delete 失败时残留
+  kubectl delete namespace "${ENO_NAMESPACE}" --ignore-not-found 2>/dev/null || true
   log_info "✓ ENO 已卸载"
 }
 
