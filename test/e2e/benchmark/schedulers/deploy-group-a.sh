@@ -119,7 +119,7 @@ fi
 
 # ── Step 6: 切换 Prometheus 配置（kustomize overlay） ──
 log_step "Step 6: 部署组 A 的 Prometheus 配置"
-kubectl apply -k "${PROJECT_ROOT}/manifests/monitoring/overlays/godel-scheduler/"
+kubectl apply -k "${PROJECT_ROOT}/manifests/monitoring/overlays/group-a/"
 kubectl rollout restart deployment prometheus -n "${PROMETHEUS_NAMESPACE}"
 kubectl rollout status deployment prometheus -n "${PROMETHEUS_NAMESPACE}" --timeout=600s
 wait_prometheus_ready 60 || log_warn "Prometheus 未就绪，手动检查"
