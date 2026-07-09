@@ -15,14 +15,14 @@ GROUP="${1:-all}"
 
 log_step "卸载调度器 (group=${GROUP})"
 
-# ── 卸载 Gödel ──
+# ── 卸载 ENO ──
 teardown_eno() {
-  log_info "卸载 Gödel Scheduler (eno)..."
+  log_info "卸载 ENO Scheduler..."
   kubectl delete -k "${MANIFESTS_EMBEDDED}" --ignore-not-found 2>/dev/null || true
   kubectl delete -k "${MANIFESTS_BASE}" --ignore-not-found 2>/dev/null || true
   # 等待 Pod 终止
   kubectl wait --for=delete pod --all -n "${ENO_NAMESPACE}" --timeout=60s 2>/dev/null || true
-  log_info "✓ Gödel (eno) 已卸载"
+  log_info "✓ ENO 已卸载"
 }
 
 # ── 卸载原始 Gödel (Group A) ──
