@@ -2,20 +2,20 @@
 # These are used by Prometheus service-discovery (endpoints role) to find
 # scrape targets automatically.
 #
-# Group A: Shared Binder — scheduler + dispatcher + standalone binder
+# Group A: Gödel Scheduler (Baseline) — scheduler + dispatcher + standalone binder
 
 # Scheduler metrics (default insecure port: 10251)
 apiVersion: v1
 kind: Service
 metadata:
-  name: eno-scheduler-metrics
-  namespace: eno-system
+  name: godel-scheduler-metrics
+  namespace: godel-system
   labels:
     component: scheduler
 spec:
   clusterIP: None
   selector:
-    app: eno-scheduler
+    app: godel-scheduler
   ports:
     - name: metrics
       port: 10251
@@ -26,14 +26,14 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: eno-dispatcher-metrics
-  namespace: eno-system
+  name: godel-dispatcher-metrics
+  namespace: godel-system
   labels:
     component: dispatcher
 spec:
   clusterIP: None
   selector:
-    app: eno-dispatcher
+    app: godel-dispatcher
   ports:
     - name: metrics
       port: 10351
@@ -44,8 +44,8 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: eno-binder-metrics
-  namespace: eno-system
+  name: godel-binder-metrics
+  namespace: godel-system
   labels:
     component: binder
 spec:
