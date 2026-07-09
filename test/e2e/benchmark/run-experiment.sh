@@ -275,7 +275,7 @@ fi
 # ═══════════════════════════════════════════════
 log_step "Step 12/12: 采集 Pod 分布快照 & 元数据"
 if [[ "$SKIP_COLLECT" != "true" ]]; then
-  ANNO_DOMAIN="${ANNOTATION_DOMAINS[$GROUP]:-eno.io}"
+  ANNO_DOMAIN="${ANNOTATION_DOMAINS[$GROUP]:-}"
   bash "${SCRIPT_DIR}/collect/collect-distribution.sh" "$ANNO_DOMAIN" > "$EXP_RESULTS_DIR/pod-distribution.csv"
 fi
 
