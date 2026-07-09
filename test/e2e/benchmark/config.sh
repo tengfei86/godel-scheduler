@@ -41,6 +41,10 @@ PROMETHEUS_MAX_POINTS=11000                                  # 超过此数据�
 # ── 镜像 ──
 ENO_IMAGE="eno-local:latest"
 GODEL_IMAGE="godel-local:latest"   # 原始 godel-scheduler 镜像（从上游 repo 构建）
+
+# ── 上游 Gödel 源码 ──
+GODEL_UPSTREAM_REPO="https://github.com/kubewharf/godel-scheduler.git"
+GODEL_UPSTREAM_DIR="${TMPDIR:-/tmp}/godel-upstream"
 PAUSE_IMAGE="registry.k8s.io/pause:3.9"
 
 # ── 调度器配置 ──

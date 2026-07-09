@@ -15,10 +15,12 @@ source "${SCRIPT_DIR}/lib/prometheus.sh"
 
 # ── 可选参数 ──
 SCHEDULER_INSTANCES=1
+REBUILD_IMAGE=false
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --instances) SCHEDULER_INSTANCES="$2"; shift 2 ;;
-    *)           log_error "未知参数: $1"; exit 1 ;;
+    --instances)     SCHEDULER_INSTANCES="$2"; shift 2 ;;
+    --rebuild-image) REBUILD_IMAGE=true; shift ;;
+    *)               log_error "未知参数: $1"; exit 1 ;;
   esac
 done
 
@@ -28,14 +30,33 @@ separator "部署组 A — Gödel Scheduler (Baseline)"
 log_step "Step 1: 清理先前的调度器部署"
 bash "${SCRIPT_DIR}/schedulers/teardown.sh"
 
-# ── Step 2: 部署原始 Gödel Scheduler ──
-log_step "Step 2: 部署 Gödel Scheduler (godel-local:latest)"
+# ── Step 2: 构建并加载 Gödel 镜像 ──
+log_step "Step 2: 构建并加载 Gödel Scheduler 镜像"
+if [[ "$REBUILD_IMAGE" == true ]] || ! docker image inspect "${GODEL_IMAGE}" &>/dev/null; then
+  # 拉取上游源码（已存在则 pull 更新，否则 clone）
+  if [[ -d "${GODEL_UPSTREAM_DIR}/.git" ]]; then
+    log_info "更新上游源码 ${GODEL_UPSTREAM_DIR}..."
+    git -C "${GODEL_UPSTREAM_DIR}" pull --ff-only
+  else
+    log_info "克隆上游源码 ${GODEL_UPSTREAM_REPO} → ${GODEL_UPSTREAM_DIR}..."
+    git clone --depth=1 "${GODEL_UPSTREAM_REPO}" "${GODEL_UPSTREAM_DIR}"
+  fi
+  log_info "构建 Docker 镜像 ${GODEL_IMAGE}..."
+  docker build --no-cache -f "${GODEL_UPSTREAM_DIR}/docker/godel-local.Dockerfile" \
+    -t "${GODEL_IMAGE}" "${GODEL_UPSTREAM_DIR}"
+  log_info "✓ 镜像构建完成"
+else
+  log_info "镜像 ${GODEL_IMAGE} 已存在，跳过构建（使用 --rebuild-image 强制重建）"
+fi
 ensure_image_loaded "${GODEL_IMAGE}"
+
+# ── Step 3 (原 Step 2): 部署 Gödel Scheduler ──
+log_step "Step 3: 部署 Gödel Scheduler (${GODEL_IMAGE})"
 kubectl apply -k "${MANIFESTS_GROUP_A}"
 
 # ── 多实例部署 ──
 if (( SCHEDULER_INSTANCES > 1 )); then
-  log_step "Step 2b: 部署 ${SCHEDULER_INSTANCES} 个 Scheduler 实例"
+  log_step "Step 3b: 部署 ${SCHEDULER_INSTANCES} 个 Scheduler 实例"
   # 多实例需手动 scale（原始 godel 在 godel-system 命名空间）
   for i in $(seq 1 $((SCHEDULER_INSTANCES - 1))); do
     local_name="scheduler-${i}"
@@ -62,8 +83,8 @@ set_deploy_resources "dispatcher" "${BENCH_DISPATCHER_REQ_CPU}" "${BENCH_DISPATC
 set_deploy_resources "scheduler" "${BENCH_SCHED_REQ_CPU}" "${BENCH_SCHED_REQ_MEM}" "${BENCH_SCHED_LIM_CPU}" "${BENCH_SCHED_LIM_MEM}"
 set_deploy_resources "controller-manager" "${BENCH_SCHED_REQ_CPU}" "${BENCH_SCHED_REQ_MEM}" "${BENCH_SCHED_LIM_CPU}" "${BENCH_SCHED_LIM_MEM}"
 
-# ── Step 3: 等待组件就绪 ──
-log_step "Step 3: 等待组件就绪"
+# ── Step 4: 等待组件就绪 ──
+log_step "Step 4: 等待组件就绪"
 sleep 10
 
 # 等待 Dispatcher
@@ -81,8 +102,8 @@ else
   wait_deployment_ready "${GODEL_NAMESPACE}" "scheduler" "${WAIT_READY_TIMEOUT}"
 fi
 
-# ── Step 4: 验证 ──
-log_step "Step 4: 验证部署"
+# ── Step 5: 验证 ──
+log_step "Step 5: 验证部署"
 echo ""
 kubectl get pods -n "${GODEL_NAMESPACE}" -o wide
 echo ""
@@ -96,8 +117,8 @@ if (( local_binder_count < 1 )); then
   exit 1
 fi
 
-# ── Step 5: 切换 Prometheus 配置（kustomize overlay） ──
-log_step "Step 5: 部署组 A 的 Prometheus 配置"
+# ── Step 6: 切换 Prometheus 配置（kustomize overlay） ──
+log_step "Step 6: 部署组 A 的 Prometheus 配置"
 kubectl apply -k "${PROJECT_ROOT}/manifests/monitoring/overlays/godel-scheduler/"
 kubectl rollout restart deployment prometheus -n "${PROMETHEUS_NAMESPACE}"
 kubectl rollout status deployment prometheus -n "${PROMETHEUS_NAMESPACE}" --timeout=600s
