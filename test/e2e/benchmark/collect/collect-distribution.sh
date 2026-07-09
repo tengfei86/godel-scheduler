@@ -8,15 +8,15 @@
 #
 # 用法:
 #   ./collect-distribution.sh [annotation_domain]
-#   annotation_domain: godel.bytedance.com | eno.io (默认 eno.io)
+#   annotation_domain: godel.bytedance.com | eno.io | "" (kube-scheduler/volcano/koordinator 留空，回退 spec.schedulerName)
 
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 log_stderr() { echo "[collect-distribution] $*" >&2; }
 
-# 注解域：支持原始 godel 和修改后的 eno
-ANNO_DOMAIN="${1:-eno.io}"
+# 注解域：godel.bytedance.com | eno.io | 空字符串（kube-scheduler/volcano/koordinator）
+ANNO_DOMAIN="${1:-}"
 SELECTED_SCHEDULER_KEY="${ANNO_DOMAIN}/selected-scheduler"
 
 log_stderr "采集 Pod 分布 (annotation domain: ${ANNO_DOMAIN:-<none, 使用 spec.schedulerName>})..."
