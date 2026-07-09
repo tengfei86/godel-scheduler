@@ -1,8 +1,8 @@
-# Group A — Original Gödel Scheduler
+# Group A — Gödel Scheduler (Baseline)
 
 This overlay deploys the **original upstream godel-scheduler** (unmodified) for baseline comparison.
 
-## Build the original godel-scheduler image
+## Build the godel-scheduler image
 
 ```bash
 # Clone upstream repo

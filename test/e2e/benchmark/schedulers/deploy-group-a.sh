@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# schedulers/deploy-group-a.sh — 部署组 A（共享 Binder，原始 Gödel 架构）
+# schedulers/deploy-group-a.sh — 部署组 A（Gödel Scheduler，Baseline）
 #
 # 使用上游原始 godel-scheduler 二进制（godel-local:latest），
 # 部署于 godel-system 命名空间，保持原始 godel 约定。
@@ -22,14 +22,14 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-separator "部署组 A — 原始 Gödel Scheduler (Shared Binder, Baseline)"
+separator "部署组 A — Gödel Scheduler (Baseline)"
 
 # ── Step 1: 清理先前部署 ──
 log_step "Step 1: 清理先前的调度器部署"
 bash "${SCRIPT_DIR}/schedulers/teardown.sh"
 
 # ── Step 2: 部署原始 Gödel Scheduler ──
-log_step "Step 2: 部署原始 Gödel Scheduler (godel-local:latest)"
+log_step "Step 2: 部署 Gödel Scheduler (godel-local:latest)"
 ensure_image_loaded "${GODEL_IMAGE}"
 kubectl apply -k "${MANIFESTS_GROUP_A}"
 
@@ -98,14 +98,14 @@ fi
 
 # ── Step 5: 切换 Prometheus 配置（kustomize overlay） ──
 log_step "Step 5: 部署组 A 的 Prometheus 配置"
-kubectl apply -k "${PROJECT_ROOT}/manifests/monitoring/overlays/group-a/"
+kubectl apply -k "${PROJECT_ROOT}/manifests/monitoring/overlays/godel-scheduler/"
 kubectl rollout restart deployment prometheus -n "${PROMETHEUS_NAMESPACE}"
 kubectl rollout status deployment prometheus -n "${PROMETHEUS_NAMESPACE}" --timeout=600s
 wait_prometheus_ready 60 || log_warn "Prometheus 未就绪，手动检查"
 verify_prometheus_targets
 
 separator "组 A 部署完成"
-log_info "架构: 原始 Gödel — 共享 Binder (所有 Scheduler 共用 1 个 Binder)"
+log_info "架构: Gödel Scheduler (Baseline)"
 log_info "镜像: ${GODEL_IMAGE}"
 log_info "命名空间: ${GODEL_NAMESPACE}"
 log_info "schedulerName: godel-scheduler"

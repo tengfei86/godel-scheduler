@@ -91,7 +91,7 @@ declare -A ANNOTATION_DOMAINS=(
 
 # ── 组标识 → 部署方式描述 ──
 declare -A GROUP_LABELS=(
-  [a]="Shared Binder (Baseline)"
+  [a]="Gödel Scheduler (Baseline)"
   [b]="Embedded Binder (Proposed)"
   [c]="kube-scheduler (Reference)"
   [d]="Volcano"
