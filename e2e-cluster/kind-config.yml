@@ -38,6 +38,7 @@ nodes:
           extraArgs:
             kube-api-qps: "10000"
             kube-api-burst: "10000"
+            leader-elect-lease-duration: "60s"
             leader-elect-renew-deadline: "30s"
             leader-elect-retry-period: "5s"
   - role: worker
