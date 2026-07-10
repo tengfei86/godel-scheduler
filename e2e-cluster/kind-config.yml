@@ -38,6 +38,8 @@ nodes:
           extraArgs:
             kube-api-qps: "10000"
             kube-api-burst: "10000"
+            leader-elect-renew-deadline: "30s"
+            leader-elect-retry-period: "5s"
   - role: worker
     image: kindest/node:v1.34.8
   - role: worker
