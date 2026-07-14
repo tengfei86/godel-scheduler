@@ -66,7 +66,7 @@ declare -A ENO_SHARED_QUERIES=(
   [goroutines]='sum(scheduler_goroutines) by (work)'
 
   # 队列等待
-  [queue_wait_p90]='histogram_quantile(0.90,rate(scheduler_pod_pending_in_queue_duration_seconds_bucket[5m]))'
+  [queue_wait_p90]='histogram_quantile(0.90,sum(rate(scheduler_pod_pending_in_queue_duration_seconds_bucket[5m]))by(le))'
 )
 
 # ═══════════════════════════════════════════════
@@ -96,8 +96,8 @@ declare -A ENO_EMBEDDED_QUERIES=(
   [scheduling_success_rate]='(sum(rate(scheduler_pod_scheduling_attempts{result="scheduled"}[5m])) or on() vector(0)) / clamp_min(sum(rate(scheduler_pod_scheduling_attempts[5m])), 1e-9)'
   [scheduling_error_rate]='(sum(rate(scheduler_pod_scheduling_attempts{result="error"}[5m])) or on() vector(0)) / clamp_min(sum(rate(scheduler_pod_scheduling_attempts[5m])), 1e-9)'
 
-  # Embedded Binder 特有 — 单实例 Gauge，无需聚合
-  [bind_inflight]='binder_embedded_bind_inflight'
+  # Embedded Binder 特有
+  [bind_inflight]='sum(binder_embedded_bind_inflight)'
   [bind_retries]='sum(rate(binder_embedded_bind_retries_total[5m]))'
   [dispatcher_fallback]='sum(rate(binder_dispatcher_fallback_total[5m]))'
   [node_validation_failures]='sum(rate(binder_node_validation_failures_total[5m]))'
@@ -106,7 +106,7 @@ declare -A ENO_EMBEDDED_QUERIES=(
   [goroutines]='sum(scheduler_goroutines) by (work)'
 
   # 队列等待
-  [queue_wait_p90]='histogram_quantile(0.90,rate(scheduler_pod_pending_in_queue_duration_seconds_bucket[5m]))'
+  [queue_wait_p90]='histogram_quantile(0.90,sum(rate(scheduler_pod_pending_in_queue_duration_seconds_bucket[5m]))by(le))'
 )
 
 # ═══════════════════════════════════════════════
