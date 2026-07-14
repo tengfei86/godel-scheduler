@@ -1,0 +1,21 @@
+# ServiceEntry — 将宿主机 NodePort 注册为集群外部服务
+# 用途: 集群内部 Pod 通过宿主机 IP:30091 访问 Grafana（调试/联调场景）
+# 替换 REPLACE_WITH_HOST_IP 为宿主机实际 IP（如 192.168.x.x）
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: grafana-external
+  namespace: monitoring
+spec:
+  hosts:
+    - grafana.external.local
+  ports:
+    - number: 30091
+      name: http
+      protocol: HTTP
+  location: MESH_EXTERNAL
+  resolution: STATIC
+  endpoints:
+    - address: REPLACE_WITH_HOST_IP
+      ports:
+        http: 30091
