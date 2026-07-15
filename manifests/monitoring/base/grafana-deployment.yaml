@@ -84,7 +84,7 @@ data:
     datasources:
       - name: Prometheus
         type: prometheus
-        url: http://prometheus:9090
+        url: http://10.115.225.124:30090
         access: proxy
         isDefault: true
         jsonData:
