@@ -98,6 +98,8 @@ kubectl rollout restart deployment prometheus -n "${PROMETHEUS_NAMESPACE}"
 kubectl rollout status deployment prometheus -n "${PROMETHEUS_NAMESPACE}" --timeout=600s
 wait_prometheus_ready 60 || log_warn "Prometheus 未就绪，手动检查"
 verify_prometheus_targets
+kubectl rollout restart deployment grafana -n "${PROMETHEUS_NAMESPACE}"
+kubectl rollout status deployment grafana -n "${PROMETHEUS_NAMESPACE}" --timeout=600s
 
 separator "组 D 部署完成"
 log_info "架构: Volcano Scheduler v${VOLCANO_VERSION} (单实例)"
