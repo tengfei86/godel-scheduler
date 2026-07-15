@@ -76,23 +76,26 @@ else
 fi
 ensure_image_loaded "${ENO_IMAGE}"
 
-# ── Step 7: 提示 Prometheus 安装方式 ──
-log_step "Step 7/8: Prometheus 说明"
-log_info "Prometheus 将在部署调度器时通过 kustomize overlay 自动安装"
+# ── Step 7: 提示 Prometheus + Grafana 安装方式 ──
+log_step "Step 7/8: Prometheus + Grafana 说明"
+log_info "Prometheus + Grafana 将在部署调度器时通过 kustomize overlay 自动安装"
 log_info "  kubectl apply -k manifests/monitoring/overlays/group-{a,b,c,d,e}/"
 log_info "  每个 overlay 包含该组对应的 scrape targets + recording rules"
 log_info ""
 log_info "如需提前手动安装（使用 base 配置）："
 log_info "  kubectl apply -k ${MANIFESTS_MONITORING_BASE}"
+log_info ""
+log_info "Grafana 访问地址: http://localhost:30091  (账号: admin / 密码: admin)"
+log_info "Prometheus 数据源已通过 ConfigMap 自动配置，无需手动添加"
 
 # ── Step 8: 验证 ──
 log_step "Step 8/8: 验证环境"
 show_cluster_status
-
 separator "环境准备完成"
 log_info "集群: ${KIND_CLUSTER_NAME}"
 log_info "节点数: ${NODE_COUNT}"
 log_info "Prometheus: ${PROMETHEUS_ADDR}"
+log_info "Grafana:    http://localhost:30091  (admin/admin)"
 log_info ""
 log_info "下一步: 部署调度器"
 log_info "  组 A: bash schedulers/deploy-group-a.sh"
