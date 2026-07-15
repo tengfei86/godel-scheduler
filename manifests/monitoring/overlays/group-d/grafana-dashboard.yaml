@@ -1,0 +1,205 @@
+---
+# Grafana dashboard provisioning — 告知 Grafana 从哪里加载 dashboard JSON
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provisioning
+  namespace: monitoring
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: scheduler-dashboards
+        type: file
+        disableDeletion: true
+        editable: false
+        options:
+          path: /etc/grafana/dashboards
+---
+# Grafana dashboard JSON — Group D: Volcano (CNCF batch scheduler)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: monitoring
+data:
+  volcano-scheduler.json: |
+    {
+      "title": "Group D — Volcano Scheduler (CNCF Batch)",
+      "uid": "volcano-scheduler",
+      "timezone": "browser",
+      "refresh": "15s",
+      "time": { "from": "now-30m", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Scheduling Throughput (pods/s)",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "volcano:scheduling_throughput:rate1m",
+              "legendFormat": "pod throughput"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "reqps" }
+          }
+        },
+        {
+          "id": 2,
+          "title": "Session Throughput (cycles/s)",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "volcano:session_throughput:rate1m",
+              "legendFormat": "session throughput"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "reqps" }
+          }
+        },
+        {
+          "id": 3,
+          "title": "E2E Scheduling Latency",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "volcano:e2e_scheduling_latency:p50_seconds",
+              "legendFormat": "P50"
+            },
+            {
+              "expr": "volcano:e2e_scheduling_latency:p90_seconds",
+              "legendFormat": "P90"
+            },
+            {
+              "expr": "volcano:e2e_scheduling_latency:p99_seconds",
+              "legendFormat": "P99"
+            },
+            {
+              "expr": "volcano:e2e_scheduling_latency:avg_seconds",
+              "legendFormat": "avg"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "s" }
+          }
+        },
+        {
+          "id": 4,
+          "title": "Action Scheduling Latency",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "volcano:action_scheduling_latency:p90_seconds",
+              "legendFormat": "P90 {{action}}"
+            },
+            {
+              "expr": "volcano:action_scheduling_latency:p99_seconds",
+              "legendFormat": "P99 {{action}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "s" }
+          }
+        },
+        {
+          "id": 5,
+          "title": "Task Scheduling Latency",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "volcano:task_scheduling_latency:p90_seconds",
+              "legendFormat": "P90"
+            },
+            {
+              "expr": "volcano:task_scheduling_latency:p99_seconds",
+              "legendFormat": "P99"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "s" }
+          }
+        },
+        {
+          "id": 6,
+          "title": "Plugin Scheduling Latency",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "volcano:plugin_scheduling_latency:p90_seconds",
+              "legendFormat": "P90 {{plugin}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "s" }
+          }
+        },
+        {
+          "id": 7,
+          "title": "Unschedulable Tasks",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 24, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "volcano_unschedule_task_count",
+              "legendFormat": "unschedulable tasks"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "short" }
+          }
+        },
+        {
+          "id": 8,
+          "title": "Unschedulable Jobs",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 24, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "volcano_unschedule_job_count",
+              "legendFormat": "unschedulable jobs"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "short" }
+          }
+        },
+        {
+          "id": 9,
+          "title": "Unschedulable Task Rate",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 32, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "volcano:unschedule_task_rate:5m",
+              "legendFormat": "unschedule rate"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "reqps" }
+          }
+        },
+        {
+          "id": 10,
+          "title": "Peak Scheduling Throughput (30m)",
+          "type": "stat",
+          "gridPos": { "x": 12, "y": 32, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "volcano:scheduling_peak_throughput:30m",
+              "legendFormat": "peak throughput"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "reqps" }
+          }
+        }
+      ]
+    }

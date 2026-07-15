@@ -1,0 +1,217 @@
+---
+# Grafana dashboard provisioning — 告知 Grafana 从哪里加载 dashboard JSON
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provisioning
+  namespace: monitoring
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: scheduler-dashboards
+        type: file
+        disableDeletion: true
+        editable: false
+        options:
+          path: /etc/grafana/dashboards
+---
+# Grafana dashboard JSON — Group C: kube-scheduler (Reference)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: monitoring
+data:
+  kube-scheduler.json: |
+    {
+      "title": "Group C — kube-scheduler (Reference)",
+      "uid": "kube-scheduler",
+      "timezone": "browser",
+      "refresh": "15s",
+      "time": { "from": "now-30m", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Scheduling Throughput (pods/s) by Result",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "kube:scheduler_schedule_attempts:rate1m",
+              "legendFormat": "{{result}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "reqps" }
+          }
+        },
+        {
+          "id": 2,
+          "title": "Successful Scheduling Throughput (pods/s)",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "kube:scheduler_schedule_attempts_scheduled:rate1m",
+              "legendFormat": "scheduled"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "reqps" }
+          }
+        },
+        {
+          "id": 3,
+          "title": "Scheduling Attempt Latency (Core Algorithm)",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "kube:scheduler_scheduling_attempt_duration:p50",
+              "legendFormat": "P50"
+            },
+            {
+              "expr": "kube:scheduler_scheduling_attempt_duration:p90",
+              "legendFormat": "P90"
+            },
+            {
+              "expr": "kube:scheduler_scheduling_attempt_duration:p99",
+              "legendFormat": "P99"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "s" }
+          }
+        },
+        {
+          "id": 4,
+          "title": "Pod Scheduling SLI Duration (E2E)",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "kube:scheduler_pod_scheduling_sli_duration:p50",
+              "legendFormat": "P50"
+            },
+            {
+              "expr": "kube:scheduler_pod_scheduling_sli_duration:p90",
+              "legendFormat": "P90"
+            },
+            {
+              "expr": "kube:scheduler_pod_scheduling_sli_duration:p99",
+              "legendFormat": "P99"
+            },
+            {
+              "expr": "kube:scheduler_pod_scheduling_sli_duration:avg",
+              "legendFormat": "avg"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "s" }
+          }
+        },
+        {
+          "id": 5,
+          "title": "Scheduling Algorithm Latency",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "kube:scheduler_scheduling_algorithm_duration:p90",
+              "legendFormat": "P90"
+            },
+            {
+              "expr": "kube:scheduler_scheduling_algorithm_duration:p99",
+              "legendFormat": "P99"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "s" }
+          }
+        },
+        {
+          "id": 6,
+          "title": "Pod Scheduling Attempts Distribution",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "kube:scheduler_pod_scheduling_attempts:p90",
+              "legendFormat": "P90"
+            },
+            {
+              "expr": "kube:scheduler_pod_scheduling_attempts:p99",
+              "legendFormat": "P99"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "short" }
+          }
+        },
+        {
+          "id": 7,
+          "title": "Scheduling Success Rate",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 24, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "kube:scheduler_schedule_attempts:success_rate5m",
+              "legendFormat": "success rate"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "percentunit", "min": 0, "max": 1 }
+          }
+        },
+        {
+          "id": 8,
+          "title": "Scheduling Error Rate",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 24, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "kube:scheduler_schedule_attempts:error_rate5m",
+              "legendFormat": "error rate"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "percentunit", "min": 0, "max": 1 }
+          }
+        },
+        {
+          "id": 9,
+          "title": "Pending Pods by Queue",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 32, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "scheduler_pending_pods",
+              "legendFormat": "{{queue}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "short" }
+          }
+        },
+        {
+          "id": 10,
+          "title": "Framework Extension Point Latency P99",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 32, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "kube:scheduler_framework_extension_point_duration:p90",
+              "legendFormat": "P90 {{extension_point}}"
+            },
+            {
+              "expr": "kube:scheduler_framework_extension_point_duration:p99",
+              "legendFormat": "P99 {{extension_point}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "s" }
+          }
+        }
+      ]
+    }

@@ -7,3 +7,4 @@ kind: Kustomization
 resources:
   - ../../base
   - prometheus-config.yaml
+  - grafana-dashboard.yaml

@@ -8,3 +8,4 @@ resources:
   - ../../base
   - godel-services.yaml
   - prometheus-config.yaml
+  - grafana-dashboard.yaml
