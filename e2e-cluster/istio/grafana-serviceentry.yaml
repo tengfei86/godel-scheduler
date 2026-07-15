@@ -16,6 +16,6 @@ spec:
   location: MESH_EXTERNAL
   resolution: STATIC
   endpoints:
-    - address: REPLACE_WITH_HOST_IP
+    - address: 10.115.225.124
       ports:
         http: 30091

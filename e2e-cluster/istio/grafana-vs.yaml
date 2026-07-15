@@ -5,9 +5,9 @@ metadata:
   namespace: monitoring
 spec:
   hosts:
-    - "*"
+    - grafana.dsif.dawlmkjckdev01.ienergycloud.solutions
   gateways:
-    - grafana-gateway
+    - svc-gateway.plat-system.svc.cluster.local
   http:
     - match:
         - uri:
