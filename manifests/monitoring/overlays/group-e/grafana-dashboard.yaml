@@ -109,21 +109,17 @@ data:
         },
         {
           "id": 5,
-          "title": "Binding Duration",
+          "title": "E2E Scheduling Duration (avg)",
           "type": "timeseries",
           "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
           "targets": [
             {
-              "expr": "koord:scheduler_binding_duration:p90",
-              "legendFormat": "P90"
-            },
-            {
-              "expr": "koord:scheduler_binding_duration:p99",
-              "legendFormat": "P99"
-            },
-            {
-              "expr": "koord:scheduler_binding_duration:avg",
+              "expr": "koord:scheduler_e2e_scheduling_duration:avg",
               "legendFormat": "avg"
+            },
+            {
+              "expr": "koord:scheduler_e2e_scheduling_duration:p50",
+              "legendFormat": "P50"
             }
           ],
           "fieldConfig": {

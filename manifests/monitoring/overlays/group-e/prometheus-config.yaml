@@ -103,41 +103,28 @@ data:
       - name: koord_latency
         interval: 15s
         rules:
-          # E2E scheduling latency
+          # E2E scheduling latency — Koordinator 实际 metric: scheduler_pod_scheduling_duration_seconds
           - record: koord:scheduler_e2e_scheduling_duration:p50
-            expr: histogram_quantile(0.50, sum by (le) (rate(scheduler_e2e_scheduling_duration_seconds_bucket[1m])))
+            expr: histogram_quantile(0.50, sum by (le) (rate(scheduler_pod_scheduling_duration_seconds_bucket{job=~".*koord.*"}[1m])))
 
           - record: koord:scheduler_e2e_scheduling_duration:p90
-            expr: histogram_quantile(0.90, sum by (le) (rate(scheduler_e2e_scheduling_duration_seconds_bucket[1m])))
+            expr: histogram_quantile(0.90, sum by (le) (rate(scheduler_pod_scheduling_duration_seconds_bucket{job=~".*koord.*"}[1m])))
 
           - record: koord:scheduler_e2e_scheduling_duration:p99
-            expr: histogram_quantile(0.99, sum by (le) (rate(scheduler_e2e_scheduling_duration_seconds_bucket[1m])))
+            expr: histogram_quantile(0.99, sum by (le) (rate(scheduler_pod_scheduling_duration_seconds_bucket{job=~".*koord.*"}[1m])))
 
           - record: koord:scheduler_e2e_scheduling_duration:avg
             expr: >
-              rate(scheduler_e2e_scheduling_duration_seconds_sum[1m])
+              sum(rate(scheduler_pod_scheduling_duration_seconds_sum{job=~".*koord.*"}[1m]))
               /
-              rate(scheduler_e2e_scheduling_duration_seconds_count[1m])
+              sum(rate(scheduler_pod_scheduling_duration_seconds_count{job=~".*koord.*"}[1m]))
 
-          # Scheduling attempt latency (core algorithm)
+          # Scheduling attempt latency (includes binding) — scheduler_scheduling_attempt_duration_seconds
           - record: koord:scheduler_scheduling_attempt_duration:p90
-            expr: histogram_quantile(0.90, sum by (le) (rate(scheduler_scheduling_attempt_duration_seconds_bucket[1m])))
+            expr: histogram_quantile(0.90, sum by (le) (rate(scheduler_scheduling_attempt_duration_seconds_bucket{job=~".*koord.*"}[1m])))
 
           - record: koord:scheduler_scheduling_attempt_duration:p99
-            expr: histogram_quantile(0.99, sum by (le) (rate(scheduler_scheduling_attempt_duration_seconds_bucket[1m])))
-
-          # Binding duration
-          - record: koord:scheduler_binding_duration:p90
-            expr: histogram_quantile(0.90, sum by (le) (rate(scheduler_binding_duration_seconds_bucket[1m])))
-
-          - record: koord:scheduler_binding_duration:p99
-            expr: histogram_quantile(0.99, sum by (le) (rate(scheduler_binding_duration_seconds_bucket[1m])))
-
-          - record: koord:scheduler_binding_duration:avg
-            expr: >
-              rate(scheduler_binding_duration_seconds_sum[1m])
-              /
-              rate(scheduler_binding_duration_seconds_count[1m])
+            expr: histogram_quantile(0.99, sum by (le) (rate(scheduler_scheduling_attempt_duration_seconds_bucket{job=~".*koord.*"}[1m])))
 
           # Framework extension point latency
           - record: koord:scheduler_framework_extension_point_duration:p90
