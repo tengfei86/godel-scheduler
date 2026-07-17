@@ -32,7 +32,9 @@ spec:
           args:
             - "--config.file=/etc/prometheus/prometheus.yml"
             - "--storage.tsdb.path=/prometheus"
-            - "--storage.tsdb.retention.time=7d"
+            - "--storage.tsdb.retention.time=2h"
+            - "--storage.tsdb.wal-compression"
+            - "--query.max-concurrency=4"
             - "--web.listen-address=:9090"
             - "--web.enable-lifecycle"
           ports:
@@ -45,11 +47,11 @@ spec:
               mountPath: /prometheus
           resources:
             requests:
-              cpu: 100m
-              memory: 256Mi
-            limits:
-              cpu: 500m
+              cpu: 200m
               memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
       volumes:
         - name: config
           configMap:
