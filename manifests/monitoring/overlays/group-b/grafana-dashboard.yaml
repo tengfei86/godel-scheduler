@@ -167,21 +167,17 @@ data:
         },
         {
           "id": 7,
-          "title": "Pod E2E Duration (Dispatcher → Binder)",
+          "title": "E2E Schedule + Bind Latency (Estimate)",
           "type": "timeseries",
           "gridPos": { "x": 0, "y": 24, "w": 12, "h": 8 },
           "targets": [
             {
-              "expr": "eno:pod_e2e_duration:p50",
-              "legendFormat": "P50"
+              "expr": "eno:e2e_schedule_and_bind_duration:p90_estimate",
+              "legendFormat": "P90 estimate"
             },
             {
-              "expr": "eno:pod_e2e_duration:p90",
-              "legendFormat": "P90"
-            },
-            {
-              "expr": "eno:pod_e2e_duration:p99",
-              "legendFormat": "P99"
+              "expr": "eno:e2e_schedule_and_bind_duration:p99_estimate",
+              "legendFormat": "P99 estimate"
             }
           ],
           "fieldConfig": {
@@ -232,21 +228,17 @@ data:
         },
         {
           "id": 10,
-          "title": "E2E Schedule + Bind Estimate",
+          "title": "Pending Pods",
           "type": "timeseries",
           "gridPos": { "x": 12, "y": 32, "w": 12, "h": 8 },
           "targets": [
             {
-              "expr": "eno:e2e_schedule_and_bind_duration:p90_estimate",
-              "legendFormat": "P90 estimate"
-            },
-            {
-              "expr": "eno:e2e_schedule_and_bind_duration:p99_estimate",
-              "legendFormat": "P99 estimate"
+              "expr": "sum(scheduler_pending_pods)",
+              "legendFormat": "pending"
             }
           ],
           "fieldConfig": {
-            "defaults": { "unit": "s" }
+            "defaults": { "unit": "short" }
           }
         }
       ]
