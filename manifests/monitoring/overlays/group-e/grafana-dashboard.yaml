@@ -63,24 +63,24 @@ data:
         },
         {
           "id": 3,
-          "title": "E2E Scheduling Latency",
+          "title": "Pod E2E Scheduling SLI (Queue → Bound)",
           "type": "timeseries",
           "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
           "targets": [
             {
-              "expr": "koord:scheduler_e2e_scheduling_duration:p50",
+              "expr": "koord:scheduler_pod_scheduling_sli_duration:p50",
               "legendFormat": "P50"
             },
             {
-              "expr": "koord:scheduler_e2e_scheduling_duration:p90",
+              "expr": "koord:scheduler_pod_scheduling_sli_duration:p90",
               "legendFormat": "P90"
             },
             {
-              "expr": "koord:scheduler_e2e_scheduling_duration:p99",
+              "expr": "koord:scheduler_pod_scheduling_sli_duration:p99",
               "legendFormat": "P99"
             },
             {
-              "expr": "koord:scheduler_e2e_scheduling_duration:avg",
+              "expr": "koord:scheduler_pod_scheduling_sli_duration:avg",
               "legendFormat": "avg"
             }
           ],
@@ -90,10 +90,14 @@ data:
         },
         {
           "id": 4,
-          "title": "Scheduling Attempt Latency (Core Algorithm)",
+          "title": "Scheduling Attempt Duration (Filter+Score+Bind)",
           "type": "timeseries",
           "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
           "targets": [
+            {
+              "expr": "koord:scheduler_scheduling_attempt_duration:p50",
+              "legendFormat": "P50"
+            },
             {
               "expr": "koord:scheduler_scheduling_attempt_duration:p90",
               "legendFormat": "P90"
@@ -101,6 +105,10 @@ data:
             {
               "expr": "koord:scheduler_scheduling_attempt_duration:p99",
               "legendFormat": "P99"
+            },
+            {
+              "expr": "koord:scheduler_scheduling_attempt_duration:avg",
+              "legendFormat": "avg"
             }
           ],
           "fieldConfig": {
@@ -109,17 +117,17 @@ data:
         },
         {
           "id": 5,
-          "title": "E2E Scheduling Duration (avg)",
+          "title": "Scheduling Algorithm Duration (Core)",
           "type": "timeseries",
           "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
           "targets": [
             {
-              "expr": "koord:scheduler_e2e_scheduling_duration:avg",
-              "legendFormat": "avg"
+              "expr": "koord:scheduler_scheduling_algorithm_duration:p90",
+              "legendFormat": "P90"
             },
             {
-              "expr": "koord:scheduler_e2e_scheduling_duration:p50",
-              "legendFormat": "P50"
+              "expr": "koord:scheduler_scheduling_algorithm_duration:p99",
+              "legendFormat": "P99"
             }
           ],
           "fieldConfig": {
