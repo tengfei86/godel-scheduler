@@ -98,7 +98,7 @@ data:
 
           # Peak throughput
           - record: volcano:scheduling_peak_throughput:30m
-            expr: max_over_time(sum(rate(volcano_e2e_job_scheduling_latency_milliseconds_count[1m]))[30m:])
+            expr: max_over_time(sum(rate(volcano_e2e_job_scheduling_latency_milliseconds_count[1m]))[30m:]) / 2
 
       # ──────────────────────────────────────────────────
       #  Latency (convert ms → seconds)
