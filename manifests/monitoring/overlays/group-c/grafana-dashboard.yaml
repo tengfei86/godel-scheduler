@@ -196,7 +196,7 @@ data:
         },
         {
           "id": 10,
-          "title": "Framework Extension Point Latency P99",
+          "title": "Framework Extension Point Latency",
           "type": "timeseries",
           "gridPos": { "x": 12, "y": 32, "w": 12, "h": 8 },
           "targets": [
@@ -211,6 +211,36 @@ data:
           ],
           "fieldConfig": {
             "defaults": { "unit": "s" }
+          }
+        },
+        {
+          "id": 11,
+          "title": "Plugin Execution Latency P90",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 40, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "kube:scheduler_plugin_execution_duration:p90",
+              "legendFormat": "P90 {{plugin}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "s" }
+          }
+        },
+        {
+          "id": 12,
+          "title": "Peak Scheduling Throughput (30m)",
+          "type": "stat",
+          "gridPos": { "x": 12, "y": 40, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "kube:scheduler_peak_throughput:30m",
+              "legendFormat": "peak throughput"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "reqps" }
           }
         }
       ]
