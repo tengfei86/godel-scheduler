@@ -92,9 +92,6 @@ data:
           - record: volcano:scheduling_throughput:rate1m
             expr: sum(rate(volcano_e2e_job_scheduling_latency_milliseconds_count[1m])) / 2
 
-          - record: volcano:scheduling_throughput:rate5m
-            expr: sum(rate(volcano_e2e_job_scheduling_latency_milliseconds_count[5m])) / 2
-
           # Session throughput (scheduling-cycles/s)
           - record: volcano:session_throughput:rate1m
             expr: sum(rate(volcano_e2e_scheduling_latency_milliseconds_count[1m]))
@@ -111,37 +108,37 @@ data:
         rules:
           # E2E scheduling latency
           - record: volcano:e2e_scheduling_latency:p50_seconds
-            expr: histogram_quantile(0.50, sum(rate(volcano_e2e_scheduling_latency_milliseconds_bucket[5m])) by (le)) / 1000
+            expr: histogram_quantile(0.50, sum(rate(volcano_e2e_scheduling_latency_milliseconds_bucket[1m])) by (le)) / 1000
 
           - record: volcano:e2e_scheduling_latency:p90_seconds
-            expr: histogram_quantile(0.90, sum(rate(volcano_e2e_scheduling_latency_milliseconds_bucket[5m])) by (le)) / 1000
+            expr: histogram_quantile(0.90, sum(rate(volcano_e2e_scheduling_latency_milliseconds_bucket[1m])) by (le)) / 1000
 
           - record: volcano:e2e_scheduling_latency:p99_seconds
-            expr: histogram_quantile(0.99, sum(rate(volcano_e2e_scheduling_latency_milliseconds_bucket[5m])) by (le)) / 1000
+            expr: histogram_quantile(0.99, sum(rate(volcano_e2e_scheduling_latency_milliseconds_bucket[1m])) by (le)) / 1000
 
           - record: volcano:e2e_scheduling_latency:avg_seconds
             expr: >
-              (sum(rate(volcano_e2e_scheduling_latency_milliseconds_sum[5m]))
+              (sum(rate(volcano_e2e_scheduling_latency_milliseconds_sum[1m]))
               /
-              sum(rate(volcano_e2e_scheduling_latency_milliseconds_count[5m]))) / 1000
+              sum(rate(volcano_e2e_scheduling_latency_milliseconds_count[1m]))) / 1000
 
           # Action scheduling latency (allocate, enqueue, backfill ...)
           - record: volcano:action_scheduling_latency:p90_seconds
-            expr: histogram_quantile(0.90, sum(rate(volcano_action_scheduling_latency_milliseconds_bucket[5m])) by (le, action)) / 1000
+            expr: histogram_quantile(0.90, sum(rate(volcano_action_scheduling_latency_milliseconds_bucket[1m])) by (le, action)) / 1000
 
           - record: volcano:action_scheduling_latency:p99_seconds
-            expr: histogram_quantile(0.99, sum(rate(volcano_action_scheduling_latency_milliseconds_bucket[5m])) by (le, action)) / 1000
+            expr: histogram_quantile(0.99, sum(rate(volcano_action_scheduling_latency_milliseconds_bucket[1m])) by (le, action)) / 1000
 
           # Task scheduling latency
           - record: volcano:task_scheduling_latency:p90_seconds
-            expr: histogram_quantile(0.90, sum(rate(volcano_task_scheduling_latency_milliseconds_bucket[5m])) by (le)) / 1000
+            expr: histogram_quantile(0.90, sum(rate(volcano_task_scheduling_latency_milliseconds_bucket[1m])) by (le)) / 1000
 
           - record: volcano:task_scheduling_latency:p99_seconds
-            expr: histogram_quantile(0.99, sum(rate(volcano_task_scheduling_latency_milliseconds_bucket[5m])) by (le)) / 1000
+            expr: histogram_quantile(0.99, sum(rate(volcano_task_scheduling_latency_milliseconds_bucket[1m])) by (le)) / 1000
 
           # Plugin latency
           - record: volcano:plugin_scheduling_latency:p90_seconds
-            expr: histogram_quantile(0.90, sum(rate(volcano_plugin_scheduling_latency_milliseconds_bucket[5m])) by (le, plugin)) / 1000
+            expr: histogram_quantile(0.90, sum(rate(volcano_plugin_scheduling_latency_milliseconds_bucket[1m])) by (le, plugin)) / 1000
 
       # ──────────────────────────────────────────────────
       #  Pending & Unschedulable
@@ -150,7 +147,7 @@ data:
         interval: 15s
         rules:
           - record: volcano:unschedule_task_rate:5m
-            expr: rate(volcano_unschedule_task_count[5m])
+            expr: rate(volcano_unschedule_task_count[1m])
           # Direct gauges to query:
           #   volcano_unschedule_task_count
           #   volcano_unschedule_job_count

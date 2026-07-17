@@ -167,7 +167,7 @@ data:
           "gridPos": { "x": 12, "y": 24, "w": 12, "h": 8 },
           "targets": [
             {
-              "expr": "koord:scheduler_schedule_attempts:success_rate5m",
+              "expr": "koord:scheduler_schedule_attempts:success_rate1m",
               "legendFormat": "success rate"
             }
           ],
@@ -182,7 +182,7 @@ data:
           "gridPos": { "x": 0, "y": 32, "w": 12, "h": 8 },
           "targets": [
             {
-              "expr": "koord:scheduler_schedule_attempts:error_rate5m",
+              "expr": "koord:scheduler_schedule_attempts:error_rate1m",
               "legendFormat": "error rate"
             }
           ],
