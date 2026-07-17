@@ -128,7 +128,7 @@ data:
           # Binding success rate
           - record: godel:binder_binding_pod_attempts:success_rate1m
             expr: >
-              sum(rate(binder_binding_pod_attempts{result="bound"}[1m]))
+              sum(rate(binder_binding_pod_attempts{result="success"}[1m]))
               /
               sum(rate(binder_binding_pod_attempts[1m]))
 
