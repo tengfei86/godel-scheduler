@@ -79,7 +79,6 @@ data:
           - record: eno:binder_embedded_bind_pods:rate1m
             expr: sum(rate(binder_embedded_bind_pods_total[1m]))
 
-          # Pod bind throughput (pods/s) over 5m window
           # Unit bind throughput (units/s) over 1m window
           - record: eno:binder_embedded_bind_units:rate1m
             expr: sum(rate(binder_embedded_bind_total[1m]))
