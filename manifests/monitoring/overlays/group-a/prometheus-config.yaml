@@ -92,6 +92,10 @@ data:
           - record: godel:scheduler_pod_scheduling_attempts:rate1m
             expr: sum(rate(scheduler_pod_scheduling_attempts[1m]))
 
+          # Peak throughput (max over 30m)
+          - record: godel:scheduler_peak_throughput:30m
+            expr: max_over_time(sum(rate(scheduler_pod_scheduling_attempts[1m]))[30m:])
+
           # ----- E2E scheduling latency -----
           - record: godel:scheduler_e2e_scheduling_duration:p50
             expr: histogram_quantile(0.50, sum by (le) (rate(scheduler_e2e_scheduling_duration_seconds_bucket[1m])))

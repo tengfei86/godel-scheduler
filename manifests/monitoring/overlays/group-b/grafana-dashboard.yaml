@@ -240,6 +240,21 @@ data:
           "fieldConfig": {
             "defaults": { "unit": "short" }
           }
+        },
+        {
+          "id": 11,
+          "title": "Peak Scheduling Throughput (30m)",
+          "type": "stat",
+          "gridPos": { "x": 0, "y": 40, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "eno:scheduler_peak_throughput:30m",
+              "legendFormat": "peak throughput"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "reqps" }
+          }
         }
       ]
     }
