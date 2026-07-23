@@ -18,7 +18,7 @@ log_step "卸载调度器 (group=${GROUP})"
 # ── 卸载 ENO ──
 teardown_eno() {
   log_info "卸载 ENO Scheduler..."
-  kubectl delete -k "${MANIFESTS_EMBEDDED}" --ignore-not-found 2>/dev/null || true
+  kubectl delete -k "${MANIFESTS_ENO}" --ignore-not-found 2>/dev/null || true
   kubectl delete -k "${MANIFESTS_BASE}" --ignore-not-found 2>/dev/null || true
   # 等待 Pod 终止
   kubectl wait --for=delete pod --all -n "${ENO_NAMESPACE}" --timeout=60s 2>/dev/null || true
@@ -30,7 +30,7 @@ teardown_eno() {
 # ── 卸载原始 Gödel (Group A) ──
 teardown_godel() {
   log_info "卸载原始 Gödel Scheduler (godel-system)..."
-  kubectl delete -k "${MANIFESTS_GROUP_A}" --ignore-not-found 2>/dev/null || true
+  kubectl delete -k "${MANIFESTS_GODEL}" --ignore-not-found 2>/dev/null || true
   kubectl wait --for=delete pod --all -n "${GODEL_NAMESPACE}" --timeout=60s 2>/dev/null || true
   kubectl delete namespace "${GODEL_NAMESPACE}" --ignore-not-found 2>/dev/null || true
   kubectl delete clusterrolebinding godel --ignore-not-found 2>/dev/null || true
