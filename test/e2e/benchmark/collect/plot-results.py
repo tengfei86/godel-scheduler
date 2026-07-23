@@ -62,8 +62,8 @@ METRIC_META = {
 
 # 组标签
 GROUP_LABELS = {
-    "a": "Shared Binder (Baseline)",
-    "b": "Embedded Binder (Proposed)",
+    "a": "Embedded Binder (Proposed)",
+    "b": "Shared Binder (Baseline)",
     "c": "kube-scheduler",
     "d": "Volcano",
     "e": "Koordinator",

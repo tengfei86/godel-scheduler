@@ -1,13 +1,10 @@
 # ================================================================
-# Prometheus config for Group B — Embedded Binder (Proposed)
+# Prometheus config for Group A — Gödel Scheduler (Baseline)
 #
 # Scrape targets:
-#   • eno-scheduler  (eno-system, port 10251, includes embedded binder metrics)
-#   • eno-dispatcher (eno-system, port 10351)
-#
-# NOTE: The scheduler /metrics endpoint exposes BOTH scheduler metrics
-# and embedded binder metrics (binder_embedded_*) when
-# --enable-embedded-binder=true.
+#   • godel-scheduler  (godel-system, port 10251)
+#   • godel-dispatcher (godel-system, port 10351)
+#   • godel-binder     (godel-system, port 10451, standalone)
 # ================================================================
 apiVersion: v1
 kind: ConfigMap
@@ -24,16 +21,16 @@ data:
       - "/etc/prometheus/rules.yml"
 
     scrape_configs:
-      # ── Gödel Scheduler (includes embedded binder metrics) ──
-      - job_name: "eno-scheduler"
+      # ── Gödel Scheduler ──
+      - job_name: "godel-scheduler"
         kubernetes_sd_configs:
           - role: endpoints
             namespaces:
-              names: ["eno-system"]
+              names: ["godel-system"]
         relabel_configs:
           - source_labels: [__meta_kubernetes_service_name]
             action: keep
-            regex: eno-scheduler-metrics
+            regex: godel-scheduler-metrics
           - source_labels: [__meta_kubernetes_endpoint_port_name]
             action: keep
             regex: metrics
@@ -45,15 +42,33 @@ data:
             target_label: service
 
       # ── Gödel Dispatcher ──
-      - job_name: "eno-dispatcher"
+      - job_name: "godel-dispatcher"
         kubernetes_sd_configs:
           - role: endpoints
             namespaces:
-              names: ["eno-system"]
+              names: ["godel-system"]
         relabel_configs:
           - source_labels: [__meta_kubernetes_service_name]
             action: keep
-            regex: eno-dispatcher-metrics
+            regex: godel-dispatcher-metrics
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: metrics
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      # ── Standalone Binder (shared by all Schedulers) ──
+      - job_name: "godel-binder"
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names: ["godel-system"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: godel-binder-metrics
           - source_labels: [__meta_kubernetes_endpoint_port_name]
             action: keep
             regex: metrics
@@ -63,149 +78,119 @@ data:
             target_label: pod
 
   # ================================================================
-  # Recording rules for Group B — Embedded Binder
+  # Recording rules for Group A
   # ================================================================
   rules.yml: |
     groups:
-      # ──────────────────────────────────────────────────
-      #  Embedded Binder — throughput & latency
-      # ──────────────────────────────────────────────────
-      - name: embedded_binder
-        interval: 15s
-        rules:
-          # ── Throughput ──
-
-          # Pod bind throughput (pods/s) over 1m window
-          - record: eno:binder_embedded_bind_pods:rate1m
-            expr: sum(rate(binder_embedded_bind_pods_total[1m]))
-
-          # Unit bind throughput (units/s) over 1m window
-          - record: eno:binder_embedded_bind_units:rate1m
-            expr: sum(rate(binder_embedded_bind_total[1m]))
-
-          # ── Latency — Unit level ──
-
-          - record: eno:binder_embedded_bind_duration:p50
-            expr: histogram_quantile(0.50, sum by (le) (rate(binder_embedded_bind_duration_seconds_bucket[1m])))
-
-          - record: eno:binder_embedded_bind_duration:p90
-            expr: histogram_quantile(0.90, sum by (le) (rate(binder_embedded_bind_duration_seconds_bucket[1m])))
-
-          - record: eno:binder_embedded_bind_duration:p99
-            expr: histogram_quantile(0.99, sum by (le) (rate(binder_embedded_bind_duration_seconds_bucket[1m])))
-
-          - record: eno:binder_embedded_bind_duration:avg
-            expr: >
-              sum(rate(binder_embedded_bind_duration_seconds_sum[1m]))
-              /
-              sum(rate(binder_embedded_bind_duration_seconds_count[1m]))
-
-          # ── Latency — Pod level ──
-
-          - record: eno:binder_embedded_bind_pod_duration:p50
-            expr: histogram_quantile(0.50, sum by (le) (rate(binder_embedded_bind_pod_duration_seconds_bucket[1m])))
-
-          - record: eno:binder_embedded_bind_pod_duration:p90
-            expr: histogram_quantile(0.90, sum by (le) (rate(binder_embedded_bind_pod_duration_seconds_bucket[1m])))
-
-          - record: eno:binder_embedded_bind_pod_duration:p99
-            expr: histogram_quantile(0.99, sum by (le) (rate(binder_embedded_bind_pod_duration_seconds_bucket[1m])))
-
-          - record: eno:binder_embedded_bind_pod_duration:avg
-            expr: >
-              sum(rate(binder_embedded_bind_pod_duration_seconds_sum[1m]))
-              /
-              sum(rate(binder_embedded_bind_pod_duration_seconds_count[1m]))
-
-          # ── Success rate ──
-
-          - record: eno:binder_embedded_bind_pods:success_rate1m
-            expr: >
-              sum(rate(binder_embedded_bind_pods_total{result="success"}[1m]))
-              /
-              sum(rate(binder_embedded_bind_pods_total[1m]))
-
-          - record: eno:binder_embedded_bind_units:success_rate1m
-            expr: >
-              sum(rate(binder_embedded_bind_total{result="success"}[1m]))
-              /
-              sum(rate(binder_embedded_bind_total[1m]))
-
-          # ── Retries & fallback ──
-
-          - record: eno:binder_embedded_bind_retries:rate1m
-            expr: sum(rate(binder_embedded_bind_retries_total[1m]))
-
-          - record: eno:binder_dispatcher_fallback:rate1m
-            expr: sum(rate(binder_dispatcher_fallback_total[1m]))
-
-          - record: eno:binder_node_validation_failures:rate1m
-            expr: sum(rate(binder_node_validation_failures_total[1m]))
-
-          # ── Concurrency ──
-          # Query directly: binder_embedded_bind_inflight
-
       # ──────────────────────────────────────────────────
       #  Scheduler pipeline — throughput & latency
       # ──────────────────────────────────────────────────
       - name: scheduler_pipeline
         interval: 15s
         rules:
-          - record: eno:scheduler_pod_scheduling_attempts:rate1m
+          # Scheduling throughput (pods/s)
+          - record: godel:scheduler_pod_scheduling_attempts:rate1m
             expr: sum(rate(scheduler_pod_scheduling_attempts[1m]))
 
           # Peak throughput (max over 30m)
-          - record: eno:scheduler_peak_throughput:30m
+          - record: godel:scheduler_peak_throughput:30m
             expr: max_over_time(sum(rate(scheduler_pod_scheduling_attempts[1m]))[30m:])
 
           # ----- E2E scheduling latency -----
-          - record: eno:scheduler_e2e_scheduling_duration:p50
+          - record: godel:scheduler_e2e_scheduling_duration:p50
             expr: histogram_quantile(0.50, sum by (le) (rate(scheduler_e2e_scheduling_duration_seconds_bucket[1m])))
 
-          - record: eno:scheduler_e2e_scheduling_duration:p90
+          - record: godel:scheduler_e2e_scheduling_duration:p90
             expr: histogram_quantile(0.90, sum by (le) (rate(scheduler_e2e_scheduling_duration_seconds_bucket[1m])))
 
-          - record: eno:scheduler_e2e_scheduling_duration:p99
+          - record: godel:scheduler_e2e_scheduling_duration:p99
             expr: histogram_quantile(0.99, sum by (le) (rate(scheduler_e2e_scheduling_duration_seconds_bucket[1m])))
 
-          - record: eno:scheduler_e2e_scheduling_duration:avg
+          - record: godel:scheduler_e2e_scheduling_duration:avg
             expr: >
               sum(rate(scheduler_e2e_scheduling_duration_seconds_sum[1m]))
               /
               sum(rate(scheduler_e2e_scheduling_duration_seconds_count[1m]))
 
           # ----- Core algorithm latency -----
-          - record: eno:scheduler_scheduling_algorithm_duration:p90
+          - record: godel:scheduler_scheduling_algorithm_duration:p90
             expr: histogram_quantile(0.90, sum by (le) (rate(scheduler_scheduling_algorithm_duration_seconds_bucket[1m])))
 
-          - record: eno:scheduler_scheduling_algorithm_duration:p99
+          - record: godel:scheduler_scheduling_algorithm_duration:p99
             expr: histogram_quantile(0.99, sum by (le) (rate(scheduler_scheduling_algorithm_duration_seconds_bucket[1m])))
 
       # ──────────────────────────────────────────────────
-      #  E2E pipeline (schedule + bind combined)
+      #  Standalone Binder — throughput & latency
+      # ──────────────────────────────────────────────────
+      - name: standalone_binder
+        interval: 15s
+        rules:
+          # Binding pod attempts (pods/s)
+          - record: godel:binder_binding_pod_attempts:rate1m
+            expr: sum(rate(binder_binding_pod_attempts[1m]))
+
+          # Binding success rate
+          - record: godel:binder_binding_pod_attempts:success_rate1m
+            expr: >
+              sum(rate(binder_binding_pod_attempts{result="success"}[1m]))
+              /
+              sum(rate(binder_binding_pod_attempts[1m]))
+
+          # ----- Binding phase latency -----
+          - record: godel:binder_pod_binding_phase_duration:p50
+            expr: histogram_quantile(0.50, sum by (le) (rate(binder_pod_binding_phase_duration_seconds_bucket{phase="binding"}[1m])))
+
+          - record: godel:binder_pod_binding_phase_duration:p90
+            expr: histogram_quantile(0.90, sum by (le) (rate(binder_pod_binding_phase_duration_seconds_bucket{phase="binding"}[1m])))
+
+          - record: godel:binder_pod_binding_phase_duration:p99
+            expr: histogram_quantile(0.99, sum by (le) (rate(binder_pod_binding_phase_duration_seconds_bucket{phase="binding"}[1m])))
+
+          - record: godel:binder_pod_binding_phase_duration:avg
+            expr: >
+              sum(rate(binder_pod_binding_phase_duration_seconds_sum{phase="binding"}[1m]))
+              /
+              sum(rate(binder_pod_binding_phase_duration_seconds_count{phase="binding"}[1m]))
+
+          # ----- Unit E2E latency -----
+          - record: godel:binder_unit_e2e_duration:p90
+            expr: histogram_quantile(0.90, sum by (le) (rate(binder_unit_e2e_duration_seconds_bucket[1m])))
+
+          - record: godel:binder_unit_e2e_duration:p99
+            expr: histogram_quantile(0.99, sum by (le) (rate(binder_unit_e2e_duration_seconds_bucket[1m])))
+
+          # Pod rejection / failure counters
+          - record: godel:binder_pod_rejection:rate1m
+            expr: sum(rate(binder_pod_rejection[1m]))
+
+          - record: godel:binder_pod_binding_failure:rate1m
+            expr: sum(rate(binder_pod_binding_failure[1m]))
+
+      # ──────────────────────────────────────────────────
+      #  E2E pipeline (Gödel pod lifecycle)
       # ──────────────────────────────────────────────────
       - name: e2e_pipeline
         interval: 15s
         rules:
-          # Eno pod E2E latency (dispatcher → scheduler → binder → done)
-          - record: eno:pod_e2e_duration:p50
-            expr: histogram_quantile(0.50, sum by (le) (rate(eno_pod_e2e_duration_seconds_bucket[1m])))
+          # Gödel pod E2E latency (dispatcher → scheduler → binder → done)
+          - record: godel:pod_e2e_duration:p50
+            expr: histogram_quantile(0.50, sum by (le) (rate(godel_pod_e2e_duration_seconds_bucket[1m])))
 
-          - record: eno:pod_e2e_duration:p90
-            expr: histogram_quantile(0.90, sum by (le) (rate(eno_pod_e2e_duration_seconds_bucket[1m])))
+          - record: godel:pod_e2e_duration:p90
+            expr: histogram_quantile(0.90, sum by (le) (rate(godel_pod_e2e_duration_seconds_bucket[1m])))
 
-          - record: eno:pod_e2e_duration:p99
-            expr: histogram_quantile(0.99, sum by (le) (rate(eno_pod_e2e_duration_seconds_bucket[1m])))
+          - record: godel:pod_e2e_duration:p99
+            expr: histogram_quantile(0.99, sum by (le) (rate(godel_pod_e2e_duration_seconds_bucket[1m])))
 
           # Combined schedule + bind P90 estimate
-          - record: eno:e2e_schedule_and_bind_duration:p90_estimate
+          - record: godel:e2e_schedule_and_bind_duration:p90_estimate
             expr: >
-              eno:scheduler_e2e_scheduling_duration:p90
+              godel:scheduler_e2e_scheduling_duration:p90
               +
-              eno:binder_embedded_bind_duration:p90
+              godel:binder_pod_binding_phase_duration:p90
 
-          - record: eno:e2e_schedule_and_bind_duration:p99_estimate
+          - record: godel:e2e_schedule_and_bind_duration:p99_estimate
             expr: >
-              eno:scheduler_e2e_scheduling_duration:p99
+              godel:scheduler_e2e_scheduling_duration:p99
               +
-              eno:binder_embedded_bind_duration:p99
+              godel:binder_pod_binding_phase_duration:p99

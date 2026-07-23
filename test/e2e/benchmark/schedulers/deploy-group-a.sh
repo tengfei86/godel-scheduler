@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# schedulers/deploy-group-a.sh — 部署组 A（Gödel Scheduler，Baseline）
+# schedulers/deploy-group-b.sh — 部署组 B（独立 Binder，论文提出的架构）
 #
-# 使用上游原始 godel-scheduler 二进制（godel-local:latest），
-# 部署于 godel-system 命名空间，保持原始 godel 约定。
-# schedulerName: godel-scheduler
+# 配置: --enable-embedded-binder=true + Binder Deployment replicas=0
+# schedulerName: eno-scheduler
 
 set -eu
 
@@ -15,63 +14,36 @@ source "${SCRIPT_DIR}/lib/prometheus.sh"
 
 # ── 可选参数 ──
 SCHEDULER_INSTANCES=1
-REBUILD_IMAGE=false
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --instances)     SCHEDULER_INSTANCES="$2"; shift 2 ;;
-    --rebuild-image) REBUILD_IMAGE=true; shift ;;
-    *)               log_error "未知参数: $1"; exit 1 ;;
+    --instances) SCHEDULER_INSTANCES="$2"; shift 2 ;;
+    *)           log_error "未知参数: $1"; exit 1 ;;
   esac
 done
 
-separator "部署组 A — Gödel Scheduler (Baseline)"
+separator "部署组 B — 独立 Binder (Proposed)"
 
 # ── Step 1: 清理先前部署 ──
 log_step "Step 1: 清理先前的调度器部署"
 bash "${SCRIPT_DIR}/schedulers/teardown.sh"
 
-# ── Step 2: 构建并加载 Gödel 镜像 ──
-log_step "Step 2: 构建并加载 Gödel Scheduler 镜像"
-if [[ "$REBUILD_IMAGE" == true ]] || ! docker image inspect "${GODEL_IMAGE}" &>/dev/null; then
-  # 拉取上游源码（已存在则 pull 更新，否则 clone）
-  if [[ -d "${GODEL_UPSTREAM_DIR}/.git" ]]; then
-    log_info "更新上游源码 ${GODEL_UPSTREAM_DIR}..."
-    git -C "${GODEL_UPSTREAM_DIR}" pull --ff-only
-  else
-    log_info "克隆上游源码 ${GODEL_UPSTREAM_REPO} → ${GODEL_UPSTREAM_DIR}..."
-    git clone --depth=1 "${GODEL_UPSTREAM_REPO}" "${GODEL_UPSTREAM_DIR}"
-  fi
-  log_info "构建 Docker 镜像 ${GODEL_IMAGE}..."
-  docker build --no-cache -f "${GODEL_UPSTREAM_DIR}/docker/godel-local.Dockerfile" \
-    -t "${GODEL_IMAGE}" "${GODEL_UPSTREAM_DIR}"
-  log_info "✓ 镜像构建完成"
-else
-  log_info "镜像 ${GODEL_IMAGE} 已存在，跳过构建（使用 --rebuild-image 强制重建）"
-fi
-ensure_image_loaded "${GODEL_IMAGE}"
-
-# ── Step 3 (原 Step 2): 部署 Gödel Scheduler ──
-log_step "Step 3: 部署 Gödel Scheduler (${GODEL_IMAGE})"
-kubectl apply -k "${MANIFESTS_GROUP_A}"
+# ── Step 2: 部署 Gödel（独立 Binder） ──
+log_step "Step 2: 部署 Gödel Scheduler (Embedded Binder)"
+ensure_image_loaded "${ENO_IMAGE}"
+kubectl apply -k "${MANIFESTS_EMBEDDED}"
 
 # ── 多实例部署 ──
 if (( SCHEDULER_INSTANCES > 1 )); then
-  log_step "Step 3b: 部署 ${SCHEDULER_INSTANCES} 个 Scheduler 实例"
-  # 多实例需手动 scale（原始 godel 在 godel-system 命名空间）
-  for i in $(seq 1 $((SCHEDULER_INSTANCES - 1))); do
-    local_name="scheduler-${i}"
-    kubectl -n "${GODEL_NAMESPACE}" get deployment scheduler -o json | \
-      jq --arg name "$local_name" '.metadata.name = $name | del(.metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp, .status)' | \
-      kubectl apply -f -
-  done
+  log_step "Step 2b: 部署 ${SCHEDULER_INSTANCES} 个 Scheduler 实例 (内嵌 Binder)"
+  bash "${SCRIPT_DIR}/schedulers/scale-schedulers.sh" "$SCHEDULER_INSTANCES" --embedded-binder
 fi
 
 # 对齐各组件资源，确保与其他调度器组公平对比
 set_deploy_resources() {
   local deploy="$1" req_cpu="$2" req_mem="$3" lim_cpu="$4" lim_mem="$5"
-  if kubectl get deployment "$deploy" -n "${GODEL_NAMESPACE}" >/dev/null 2>&1; then
+  if kubectl get deployment "$deploy" -n "${ENO_NAMESPACE}" >/dev/null 2>&1; then
     kubectl set resources deployment/"$deploy" \
-      -n "${GODEL_NAMESPACE}" \
+      -n "${ENO_NAMESPACE}" \
       --containers='*' \
       --requests="cpu=${req_cpu},memory=${req_mem}" \
       --limits="cpu=${lim_cpu},memory=${lim_mem}" >/dev/null
@@ -80,46 +52,59 @@ set_deploy_resources() {
 
 set_deploy_resources "binder" "${BENCH_BINDER_REQ_CPU}" "${BENCH_BINDER_REQ_MEM}" "${BENCH_BINDER_LIM_CPU}" "${BENCH_BINDER_LIM_MEM}"
 set_deploy_resources "dispatcher" "${BENCH_DISPATCHER_REQ_CPU}" "${BENCH_DISPATCHER_REQ_MEM}" "${BENCH_DISPATCHER_LIM_CPU}" "${BENCH_DISPATCHER_LIM_MEM}"
-set_deploy_resources "scheduler" "${BENCH_SCHED_REQ_CPU}" "${BENCH_SCHED_REQ_MEM}" "${BENCH_SCHED_LIM_CPU}" "${BENCH_SCHED_LIM_MEM}"
+if (( SCHEDULER_INSTANCES <= 1 )); then
+  set_deploy_resources "scheduler" "${BENCH_SCHED_REQ_CPU}" "${BENCH_SCHED_REQ_MEM}" "${BENCH_SCHED_LIM_CPU}" "${BENCH_SCHED_LIM_MEM}"
+fi
 set_deploy_resources "controller-manager" "${BENCH_SCHED_REQ_CPU}" "${BENCH_SCHED_REQ_MEM}" "${BENCH_SCHED_LIM_CPU}" "${BENCH_SCHED_LIM_MEM}"
 
-# ── Step 4: 等待组件就绪 ──
-log_step "Step 4: 等待组件就绪"
+# ── Step 3: 等待组件就绪 ──
+log_step "Step 3: 等待组件就绪"
 sleep 10
 
 # 等待 Dispatcher
-wait_deployment_ready "${GODEL_NAMESPACE}" "dispatcher" "${WAIT_READY_TIMEOUT}"
+wait_deployment_ready "${ENO_NAMESPACE}" "dispatcher" "${WAIT_READY_TIMEOUT}"
 
-# 等待 Binder (replicas=1)
-wait_deployment_ready "${GODEL_NAMESPACE}" "binder" "${WAIT_READY_TIMEOUT}"
+# Binder replicas=0，不需要等待
 
-# 等待 Scheduler 实例
+# 等待 Scheduler 实例（每个内嵌了 Binder）
 if (( SCHEDULER_INSTANCES > 1 )); then
   for i in $(seq 0 $((SCHEDULER_INSTANCES - 1))); do
-    wait_deployment_ready "${GODEL_NAMESPACE}" "scheduler-${i}" "${WAIT_READY_TIMEOUT}"
+    wait_deployment_ready "${ENO_NAMESPACE}" "scheduler-${i}" "${WAIT_READY_TIMEOUT}"
   done
 else
-  wait_deployment_ready "${GODEL_NAMESPACE}" "scheduler" "${WAIT_READY_TIMEOUT}"
+  for deploy in $(kubectl get deployment -n "${ENO_NAMESPACE}" --no-headers 2>/dev/null | awk '{print $1}' | grep "^scheduler"); do
+    wait_deployment_ready "${ENO_NAMESPACE}" "$deploy" "${WAIT_READY_TIMEOUT}"
+  done
 fi
 
-# ── Step 5: 验证 ──
-log_step "Step 5: 验证部署"
+# ── Step 4: 验证 ──
+log_step "Step 4: 验证部署"
 echo ""
-kubectl get pods -n "${GODEL_NAMESPACE}" -o wide
+kubectl get pods -n "${ENO_NAMESPACE}" -o wide
 echo ""
 
-# 确认 Binder 独立运行
-local_binder_count=$(kubectl get pods -n "${GODEL_NAMESPACE}" -l app=binder --no-headers 2>/dev/null | wc -l | tr -d ' ')
-log_info "Binder Pod 数量: ${local_binder_count} (预期: 1)"
+# 确认独立 Binder 未运行
+local_binder_count=$(kubectl get pods -n "${ENO_NAMESPACE}" -l component=binder --no-headers 2>/dev/null | grep -c "Running" || true)
+log_info "独立 Binder Pod 数量: ${local_binder_count} (预期: 0)"
 
-if (( local_binder_count < 1 )); then
-  log_error "Binder Pod 未就绪！"
-  exit 1
+if (( local_binder_count > 0 )); then
+  log_warn "发现运行中的独立 Binder Pod，这不符合组 B 的配置！"
 fi
 
-# ── Step 6: 切换 Prometheus 配置（kustomize overlay） ──
-log_step "Step 6: 部署组 A 的 Prometheus 配置"
-kubectl apply -k "${PROJECT_ROOT}/manifests/monitoring/overlays/group-a/"
+# 验证 Scheduler 中启用了 embedded binder
+scheduler_pod=""
+scheduler_pod=$(kubectl get pods -n "${ENO_NAMESPACE}" -l app=eno-scheduler --no-headers 2>/dev/null | head -1 | awk '{print $1}')
+if [[ -n "$scheduler_pod" ]]; then
+  if kubectl logs "$scheduler_pod" -n "${ENO_NAMESPACE}" --tail=20 2>/dev/null | grep -qi "embedded.*binder\|binder.*embedded"; then
+    log_info "✓ Embedded Binder 已在 Scheduler 中启用"
+  else
+    log_info "检查 Scheduler 日志以确认 Embedded Binder 状态..."
+  fi
+fi
+
+# ── Step 5: 切换 Prometheus 配置（kustomize overlay） ──
+log_step "Step 5: 部署组 B 的 Prometheus 配置"
+kubectl apply -k "${PROJECT_ROOT}/manifests/monitoring/overlays/group-b/"
 kubectl rollout restart deployment prometheus -n "${PROMETHEUS_NAMESPACE}"
 kubectl rollout status deployment prometheus -n "${PROMETHEUS_NAMESPACE}" --timeout=600s
 wait_prometheus_ready 60 || log_warn "Prometheus 未就绪，手动检查"
@@ -127,9 +112,7 @@ verify_prometheus_targets
 kubectl rollout restart deployment grafana -n "${PROMETHEUS_NAMESPACE}"
 kubectl rollout status deployment grafana -n "${PROMETHEUS_NAMESPACE}" --timeout=600s
 
-separator "组 A 部署完成"
-log_info "架构: Gödel Scheduler (Baseline)"
-log_info "镜像: ${GODEL_IMAGE}"
-log_info "命名空间: ${GODEL_NAMESPACE}"
-log_info "schedulerName: godel-scheduler"
+separator "组 B 部署完成"
+log_info "架构: 独立 Binder (每个 Scheduler 内嵌独立 Binder)"
+log_info "schedulerName: eno-scheduler"
 show_node_partition

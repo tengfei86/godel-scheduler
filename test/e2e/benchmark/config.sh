@@ -77,8 +77,8 @@ BENCH_DISPATCHER_LIM_MEM="${BENCH_DISPATCHER_LIM_MEM:-${BENCH_SCHED_LIM_MEM}}"
 
 # ── 组标识 → schedulerName 映射 ──
 declare -A SCHEDULER_NAMES=(
-  [a]="godel-scheduler"   # 组 A 使用原始 godel-scheduler
-  [b]="eno-scheduler"
+  [a]="eno-scheduler"     # 组 A 使用 ENO Embedded Binder
+  [b]="godel-scheduler"   # 组 B 使用原始 godel-scheduler
   [c]="default-scheduler"
   [d]="volcano"
   [e]="koord-scheduler"
@@ -86,8 +86,8 @@ declare -A SCHEDULER_NAMES=(
 
 # ── 组标识 → 注解域映射 ──
 declare -A ANNOTATION_DOMAINS=(
-  [a]="godel.bytedance.com"   # 原始 godel 注解域
-  [b]="eno.io"                # 修改后的 eno 注解域
+  [a]="eno.io"                # ENO 注解域
+  [b]="godel.bytedance.com"   # 原始 godel 注解域
   [c]=""                      # kube-scheduler 无需
   [d]=""                      # Volcano 自有注解
   [e]=""                      # Koordinator 自有注解
@@ -95,8 +95,8 @@ declare -A ANNOTATION_DOMAINS=(
 
 # ── 组标识 → 部署方式描述 ──
 declare -A GROUP_LABELS=(
-  [a]="Gödel Scheduler (Baseline)"
-  [b]="Embedded Binder (Proposed)"
+  [a]="Embedded Binder (Proposed)"
+  [b]="Gödel Scheduler (Baseline)"
   [c]="kube-scheduler (Reference)"
   [d]="Volcano"
   [e]="Koordinator"
@@ -129,8 +129,8 @@ RESULTS_DIR="${_CONFIG_DIR}/results"
 
 # ── Manifests 路径 ──
 MANIFESTS_BASE="${PROJECT_ROOT}/manifests/base"
-MANIFESTS_GROUP_A="${PROJECT_ROOT}/manifests/overlays/godel-scheduler"
-MANIFESTS_EMBEDDED="${PROJECT_ROOT}/manifests/overlays/embedded-binder"
+MANIFESTS_GROUP_A="${PROJECT_ROOT}/manifests/overlays/embedded-binder"
+MANIFESTS_EMBEDDED="${PROJECT_ROOT}/manifests/overlays/godel-scheduler"
 MANIFESTS_MONITORING_BASE="${PROJECT_ROOT}/manifests/monitoring/base"
 
 echo "[config] loaded — project_root=${PROJECT_ROOT}, cluster=${KIND_CLUSTER_NAME}"

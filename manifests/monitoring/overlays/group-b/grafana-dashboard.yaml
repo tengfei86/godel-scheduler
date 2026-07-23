@@ -16,17 +16,17 @@ data:
         options:
           path: /etc/grafana/dashboards
 ---
-# Grafana dashboard JSON — Group B: Embedded Binder (Proposed)
+# Grafana dashboard JSON — Group A: Gödel Scheduler (Baseline)
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: grafana-dashboards
   namespace: monitoring
 data:
-  eno-embedded-binder.json: |
+  godel-scheduler.json: |
     {
-      "title": "Group B — Embedded Binder (Proposed)",
-      "uid": "eno-embedded-binder",
+      "title": "Group A — Gödel Scheduler (Baseline)",
+      "uid": "godel-scheduler",
       "timezone": "browser",
       "refresh": "15s",
       "time": { "from": "now-30m", "to": "now" },
@@ -38,7 +38,7 @@ data:
           "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
           "targets": [
             {
-              "expr": "eno:scheduler_pod_scheduling_attempts:rate1m",
+              "expr": "godel:scheduler_pod_scheduling_attempts:rate1m",
               "legendFormat": "throughput"
             }
           ],
@@ -48,17 +48,13 @@ data:
         },
         {
           "id": 2,
-          "title": "Embedded Bind Throughput (pods/s)",
+          "title": "Bind Throughput (pods/s)",
           "type": "timeseries",
           "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
           "targets": [
             {
-              "expr": "eno:binder_embedded_bind_pods:rate1m",
-              "legendFormat": "pod bind throughput"
-            },
-            {
-              "expr": "eno:binder_embedded_bind_units:rate1m",
-              "legendFormat": "unit bind throughput"
+              "expr": "godel:binder_binding_pod_attempts:rate1m",
+              "legendFormat": "bind throughput"
             }
           ],
           "fieldConfig": {
@@ -72,19 +68,19 @@ data:
           "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
           "targets": [
             {
-              "expr": "eno:scheduler_e2e_scheduling_duration:p50",
+              "expr": "godel:scheduler_e2e_scheduling_duration:p50",
               "legendFormat": "P50"
             },
             {
-              "expr": "eno:scheduler_e2e_scheduling_duration:p90",
+              "expr": "godel:scheduler_e2e_scheduling_duration:p90",
               "legendFormat": "P90"
             },
             {
-              "expr": "eno:scheduler_e2e_scheduling_duration:p99",
+              "expr": "godel:scheduler_e2e_scheduling_duration:p99",
               "legendFormat": "P99"
             },
             {
-              "expr": "eno:scheduler_e2e_scheduling_duration:avg",
+              "expr": "godel:scheduler_e2e_scheduling_duration:avg",
               "legendFormat": "avg"
             }
           ],
@@ -94,24 +90,24 @@ data:
         },
         {
           "id": 4,
-          "title": "Embedded Bind Latency — Pod Level",
+          "title": "Binding Phase Latency",
           "type": "timeseries",
           "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
           "targets": [
             {
-              "expr": "eno:binder_embedded_bind_pod_duration:p50",
+              "expr": "godel:binder_pod_binding_phase_duration:p50",
               "legendFormat": "P50"
             },
             {
-              "expr": "eno:binder_embedded_bind_pod_duration:p90",
+              "expr": "godel:binder_pod_binding_phase_duration:p90",
               "legendFormat": "P90"
             },
             {
-              "expr": "eno:binder_embedded_bind_pod_duration:p99",
+              "expr": "godel:binder_pod_binding_phase_duration:p99",
               "legendFormat": "P99"
             },
             {
-              "expr": "eno:binder_embedded_bind_pod_duration:avg",
+              "expr": "godel:binder_pod_binding_phase_duration:avg",
               "legendFormat": "avg"
             }
           ],
@@ -121,25 +117,17 @@ data:
         },
         {
           "id": 5,
-          "title": "Embedded Bind Latency — Unit Level",
+          "title": "Core Algorithm Latency",
           "type": "timeseries",
           "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
           "targets": [
             {
-              "expr": "eno:binder_embedded_bind_duration:p50",
-              "legendFormat": "P50"
-            },
-            {
-              "expr": "eno:binder_embedded_bind_duration:p90",
+              "expr": "godel:scheduler_scheduling_algorithm_duration:p90",
               "legendFormat": "P90"
             },
             {
-              "expr": "eno:binder_embedded_bind_duration:p99",
+              "expr": "godel:scheduler_scheduling_algorithm_duration:p99",
               "legendFormat": "P99"
-            },
-            {
-              "expr": "eno:binder_embedded_bind_duration:avg",
-              "legendFormat": "avg"
             }
           ],
           "fieldConfig": {
@@ -148,16 +136,20 @@ data:
         },
         {
           "id": 6,
-          "title": "Core Algorithm Latency",
+          "title": "Pod E2E Duration (Dispatcher → Binder)",
           "type": "timeseries",
           "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
           "targets": [
             {
-              "expr": "eno:scheduler_scheduling_algorithm_duration:p90",
+              "expr": "godel:pod_e2e_duration:p50",
+              "legendFormat": "P50"
+            },
+            {
+              "expr": "godel:pod_e2e_duration:p90",
               "legendFormat": "P90"
             },
             {
-              "expr": "eno:scheduler_scheduling_algorithm_duration:p99",
+              "expr": "godel:pod_e2e_duration:p99",
               "legendFormat": "P99"
             }
           ],
@@ -167,36 +159,13 @@ data:
         },
         {
           "id": 7,
-          "title": "E2E Schedule + Bind Latency (Estimate)",
+          "title": "Binding Success Rate",
           "type": "timeseries",
           "gridPos": { "x": 0, "y": 24, "w": 12, "h": 8 },
           "targets": [
             {
-              "expr": "eno:e2e_schedule_and_bind_duration:p90_estimate",
-              "legendFormat": "P90 estimate"
-            },
-            {
-              "expr": "eno:e2e_schedule_and_bind_duration:p99_estimate",
-              "legendFormat": "P99 estimate"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": { "unit": "s" }
-          }
-        },
-        {
-          "id": 8,
-          "title": "Bind Success Rate",
-          "type": "timeseries",
-          "gridPos": { "x": 12, "y": 24, "w": 12, "h": 8 },
-          "targets": [
-            {
-              "expr": "eno:binder_embedded_bind_pods:success_rate1m",
-              "legendFormat": "pod success rate"
-            },
-            {
-              "expr": "eno:binder_embedded_bind_units:success_rate1m",
-              "legendFormat": "unit success rate"
+              "expr": "godel:binder_binding_pod_attempts:success_rate1m",
+              "legendFormat": "success rate"
             }
           ],
           "fieldConfig": {
@@ -204,22 +173,18 @@ data:
           }
         },
         {
-          "id": 9,
-          "title": "Retries & Fallback",
+          "id": 8,
+          "title": "Binder Errors",
           "type": "timeseries",
-          "gridPos": { "x": 0, "y": 32, "w": 12, "h": 8 },
+          "gridPos": { "x": 12, "y": 24, "w": 12, "h": 8 },
           "targets": [
             {
-              "expr": "eno:binder_embedded_bind_retries:rate1m",
-              "legendFormat": "retries"
+              "expr": "godel:binder_pod_rejection:rate1m",
+              "legendFormat": "rejection"
             },
             {
-              "expr": "eno:binder_dispatcher_fallback:rate1m",
-              "legendFormat": "dispatcher fallback"
-            },
-            {
-              "expr": "eno:binder_node_validation_failures:rate1m",
-              "legendFormat": "node validation failures"
+              "expr": "godel:binder_pod_binding_failure:rate1m",
+              "legendFormat": "binding failure"
             }
           ],
           "fieldConfig": {
@@ -227,10 +192,10 @@ data:
           }
         },
         {
-          "id": 10,
+          "id": 9,
           "title": "Pending Pods",
           "type": "timeseries",
-          "gridPos": { "x": 12, "y": 32, "w": 12, "h": 8 },
+          "gridPos": { "x": 0, "y": 32, "w": 12, "h": 8 },
           "targets": [
             {
               "expr": "sum(scheduler_pending_pods)",
@@ -242,13 +207,51 @@ data:
           }
         },
         {
+          "id": 10,
+          "title": "E2E Schedule + Bind Estimate",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 32, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "godel:e2e_schedule_and_bind_duration:p90_estimate",
+              "legendFormat": "P90 estimate"
+            },
+            {
+              "expr": "godel:e2e_schedule_and_bind_duration:p99_estimate",
+              "legendFormat": "P99 estimate"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "s" }
+          }
+        },
+        {
           "id": 11,
-          "title": "Peak Scheduling Throughput (30m)",
-          "type": "stat",
+          "title": "Binder Unit E2E Duration",
+          "type": "timeseries",
           "gridPos": { "x": 0, "y": 40, "w": 12, "h": 8 },
           "targets": [
             {
-              "expr": "eno:scheduler_peak_throughput:30m",
+              "expr": "godel:binder_unit_e2e_duration:p90",
+              "legendFormat": "P90"
+            },
+            {
+              "expr": "godel:binder_unit_e2e_duration:p99",
+              "legendFormat": "P99"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "s" }
+          }
+        },
+        {
+          "id": 12,
+          "title": "Peak Scheduling Throughput (30m)",
+          "type": "stat",
+          "gridPos": { "x": 12, "y": 40, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "godel:scheduler_peak_throughput:30m",
               "legendFormat": "peak throughput"
             }
           ],

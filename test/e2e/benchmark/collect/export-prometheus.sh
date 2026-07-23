@@ -38,7 +38,7 @@ declare -A COMMON_QUERIES=(
 # ═══════════════════════════════════════════════
 # Gödel 查询集（组 A: Shared Binder）
 # ═══════════════════════════════════════════════
-declare -A ENO_SHARED_QUERIES=(
+declare -A GODEL_QUERIES=(
   # 吞吐量
   [scheduling_throughput]='sum(rate(scheduler_pod_scheduling_attempts{result="scheduled"}[1m]))'
   [bind_throughput_pods]='sum(rate(binder_binding_pod_attempts{result="success"}[1m]))'
@@ -263,15 +263,15 @@ export_queries() {
 case "$GROUP" in
   a)
     log_info "导出通用查询..."
-    export_queries COMMON_QUERIES ENO_SHARED_QUERIES
-    log_info "导出 Gödel Shared Binder 查询集 (${#ENO_SHARED_QUERIES[@]} 条)..."
-    export_queries ENO_SHARED_QUERIES
+    export_queries COMMON_QUERIES ENO_EMBEDDED_QUERIES
+    log_info "导出 ENO Embedded Binder 查询集 (${#ENO_EMBEDDED_QUERIES[@]} 条)..."
+    export_queries ENO_EMBEDDED_QUERIES
     ;;
   b)
     log_info "导出通用查询..."
-    export_queries COMMON_QUERIES ENO_EMBEDDED_QUERIES
-    log_info "导出 Gödel Embedded Binder 查询集 (${#ENO_EMBEDDED_QUERIES[@]} 条)..."
-    export_queries ENO_EMBEDDED_QUERIES
+    export_queries COMMON_QUERIES GODEL_QUERIES
+    log_info "导出 Gödel Shared Binder 查询集 (${#GODEL_QUERIES[@]} 条)..."
+    export_queries GODEL_QUERIES
     ;;
   c)
     log_info "导出通用查询..."

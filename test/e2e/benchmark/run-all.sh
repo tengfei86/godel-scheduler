@@ -246,7 +246,7 @@ for group in $TARGET_GROUPS; do
       else
         log_step "调整 Scheduler 实例数为 ${inst}"
         embedded_flag=""
-        [[ "$group" == "b" ]] && embedded_flag="--embedded-binder"
+        [[ "$group" == "a" ]] && embedded_flag="--embedded-binder"
         bash "${SCRIPT_DIR}/schedulers/scale-schedulers.sh" "$inst" $embedded_flag || {
           log_error "Scheduler 实例调整失败，跳过 inst=${inst}"
           continue

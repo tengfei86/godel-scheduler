@@ -22,8 +22,8 @@ RESULTS = ROOT / "test/e2e/benchmark/results"
 OUT_DIR = RESULTS / "final-charts"
 
 GROUPS = {
-    "a": "A (Eno)",
-    "b": "B (ENO)",
+    "a": "A (ENO)",
+    "b": "B (Gödel)",
     "c": "C (kube-scheduler)",
     "d": "D (Volcano)",
     "e": "E (Koordinator)",
