@@ -129,8 +129,8 @@ RESULTS_DIR="${_CONFIG_DIR}/results"
 
 # ── Manifests 路径 ──
 MANIFESTS_BASE="${PROJECT_ROOT}/manifests/base"
-MANIFESTS_GROUP_A="${PROJECT_ROOT}/manifests/overlays/embedded-binder"
-MANIFESTS_EMBEDDED="${PROJECT_ROOT}/manifests/overlays/godel-scheduler"
+MANIFESTS_ENO="${PROJECT_ROOT}/manifests/overlays/embedded-binder"
+MANIFESTS_GODEL="${PROJECT_ROOT}/manifests/overlays/godel-scheduler"
 MANIFESTS_MONITORING_BASE="${PROJECT_ROOT}/manifests/monitoring/base"
 
 echo "[config] loaded — project_root=${PROJECT_ROOT}, cluster=${KIND_CLUSTER_NAME}"
