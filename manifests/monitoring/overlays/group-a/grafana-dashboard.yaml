@@ -16,7 +16,7 @@ data:
         options:
           path: /etc/grafana/dashboards
 ---
-# Grafana dashboard JSON — Group B: Embedded Binder (Proposed)
+# Grafana dashboard JSON — Group A: ENO Embedded Binder (Proposed)
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -25,7 +25,7 @@ metadata:
 data:
   eno-embedded-binder.json: |
     {
-      "title": "Group B — Embedded Binder (Proposed)",
+      "title": "Group A — ENO Embedded Binder (Proposed)",
       "uid": "eno-embedded-binder",
       "timezone": "browser",
       "refresh": "15s",

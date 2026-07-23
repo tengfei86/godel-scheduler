@@ -1,5 +1,5 @@
 # ================================================================
-# Prometheus config for Group B — Embedded Binder (Proposed)
+# Prometheus config for Group A — Embedded Binder (Proposed)
 #
 # Scrape targets:
 #   • eno-scheduler  (eno-system, port 10251, includes embedded binder metrics)
@@ -24,7 +24,7 @@ data:
       - "/etc/prometheus/rules.yml"
 
     scrape_configs:
-      # ── Gödel Scheduler (includes embedded binder metrics) ──
+      # ── ENO Scheduler (includes embedded binder metrics) ──
       - job_name: "eno-scheduler"
         kubernetes_sd_configs:
           - role: endpoints
@@ -44,7 +44,7 @@ data:
           - source_labels: [__meta_kubernetes_service_name]
             target_label: service
 
-      # ── Gödel Dispatcher ──
+      # ── ENO Dispatcher ──
       - job_name: "eno-dispatcher"
         kubernetes_sd_configs:
           - role: endpoints
@@ -63,7 +63,7 @@ data:
             target_label: pod
 
   # ================================================================
-  # Recording rules for Group B — Embedded Binder
+  # Recording rules for Group A — Embedded Binder
   # ================================================================
   rules.yml: |
     groups:
