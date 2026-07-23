@@ -1,5 +1,5 @@
 # ================================================================
-# Prometheus config for Group A — Gödel Scheduler (Baseline)
+# Prometheus config for Group B — Gödel Scheduler (Baseline)
 #
 # Scrape targets:
 #   • godel-scheduler  (godel-system, port 10251)
@@ -78,7 +78,7 @@ data:
             target_label: pod
 
   # ================================================================
-  # Recording rules for Group A
+  # Recording rules for Group B
   # ================================================================
   rules.yml: |
     groups:
@@ -167,12 +167,12 @@ data:
             expr: sum(rate(binder_pod_binding_failure[1m]))
 
       # ──────────────────────────────────────────────────
-      #  E2E pipeline (Gödel pod lifecycle)
+      #  E2E pipeline (Gödel pod lifecycle — Group B)
       # ──────────────────────────────────────────────────
       - name: e2e_pipeline
         interval: 15s
         rules:
-          # Gödel pod E2E latency (dispatcher → scheduler → binder → done)
+          # Gödel pod E2E latency (dispatcher → scheduler → binder → done) — Group B
           - record: godel:pod_e2e_duration:p50
             expr: histogram_quantile(0.50, sum by (le) (rate(godel_pod_e2e_duration_seconds_bucket[1m])))
 

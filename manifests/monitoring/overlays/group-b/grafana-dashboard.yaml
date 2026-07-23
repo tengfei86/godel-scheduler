@@ -16,7 +16,7 @@ data:
         options:
           path: /etc/grafana/dashboards
 ---
-# Grafana dashboard JSON — Group A: Gödel Scheduler (Baseline)
+# Grafana dashboard JSON — Group B: Gödel Scheduler (Baseline)
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -25,7 +25,7 @@ metadata:
 data:
   godel-scheduler.json: |
     {
-      "title": "Group A — Gödel Scheduler (Baseline)",
+      "title": "Group B — Gödel Scheduler (Baseline)",
       "uid": "godel-scheduler",
       "timezone": "browser",
       "refresh": "15s",
