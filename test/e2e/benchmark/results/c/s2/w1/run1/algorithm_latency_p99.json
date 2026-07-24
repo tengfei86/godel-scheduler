@@ -1,0 +1,1 @@
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"kube:scheduler_scheduling_algorithm_duration:p99"},"values":[[1784885370,"NaN"],[1784885385,"NaN"],[1784885400,"NaN"],[1784885415,"0.0031041860465116176"],[1784885430,"0.0025724999999999928"],[1784885445,"0.002208727272727231"]]}]}}
