@@ -387,18 +387,18 @@ REPORT_FILE="${RESULTS_DIR}/report_${REPORT_TIME}.md"
 
 log_info "报告已生成: ${REPORT_FILE}"
 
-# ── Git 提交并推送到 dev-binder ──
-log_step "提交结果到 dev-binder 分支"
+# ── Git 提交并推送到 dev ──
+log_step "提交结果到 dev 分支"
 (
   cd "${PROJECT_ROOT}"
 
-  # 确保在 dev-binder 分支
+  # 确保在 dev 分支
   current_branch=$(git rev-parse --abbrev-ref HEAD)
-  if [[ "$current_branch" != "dev-binder" ]]; then
-    if git show-ref --verify --quiet refs/heads/dev-binder; then
-      git checkout dev-binder
+  if [[ "$current_branch" != "dev" ]]; then
+    if git show-ref --verify --quiet refs/heads/dev; then
+      git checkout dev
     else
-      git checkout -b dev-binder
+      git checkout -b dev
     fi
   fi
 
@@ -410,12 +410,12 @@ log_step "提交结果到 dev-binder 分支"
     log_info "无新变更需要提交"
   else
     git commit -m "$commit_msg"
-    git push origin dev-binder
-    log_info "✓ 已推送到 origin/dev-binder"
+    git push origin dev
+    log_info "✓ 已推送到 origin/dev"
   fi
 
-  # 如果之前不在 dev-binder，切回原分支
-  if [[ "$current_branch" != "dev-binder" ]]; then
+  # 如果之前不在 dev，切回原分支
+  if [[ "$current_branch" != "dev" ]]; then
     git checkout "$current_branch"
   fi
 )
