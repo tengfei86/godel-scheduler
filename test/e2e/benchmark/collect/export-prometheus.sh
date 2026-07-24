@@ -36,31 +36,50 @@ declare -A COMMON_QUERIES=(
 )
 
 # ═══════════════════════════════════════════════
-# Gödel 查询集（组 A: Shared Binder）
+# Gödel 查询集（组 B: Shared Binder）
+# 直接引用 prometheus-config.yaml recording rules 中的 godel:* 预计算指标
 # ═══════════════════════════════════════════════
 declare -A GODEL_QUERIES=(
   # 吞吐量
-  [scheduling_throughput]='sum(rate(scheduler_pod_scheduling_attempts{result="scheduled"}[1m]))'
-  [bind_throughput_pods]='sum(rate(binder_binding_pod_attempts{result="success"}[1m]))'
-  [bind_throughput_units]='sum(rate(binder_unit_e2e_duration_seconds_count[1m]))'
+  [scheduling_throughput]='godel:scheduler_pod_scheduling_attempts:rate1m'
+  [scheduling_peak_throughput]='godel:scheduler_peak_throughput:30m'
+  [bind_throughput_pods]='godel:binder_binding_pod_attempts:rate1m'
 
   # 调度延迟
-  [scheduling_latency_p50]='histogram_quantile(0.50,sum(rate(scheduler_e2e_scheduling_duration_seconds_bucket[1m]))by(le))'
-  [scheduling_latency_p90]='histogram_quantile(0.90,sum(rate(scheduler_e2e_scheduling_duration_seconds_bucket[1m]))by(le))'
-  [scheduling_latency_p99]='histogram_quantile(0.99,sum(rate(scheduler_e2e_scheduling_duration_seconds_bucket[1m]))by(le))'
+  [scheduling_latency_p50]='godel:scheduler_e2e_scheduling_duration:p50'
+  [scheduling_latency_p90]='godel:scheduler_e2e_scheduling_duration:p90'
+  [scheduling_latency_p99]='godel:scheduler_e2e_scheduling_duration:p99'
+  [scheduling_latency_avg]='godel:scheduler_e2e_scheduling_duration:avg'
 
-  # 绑定延迟
-  [bind_latency_p50]='histogram_quantile(0.50,sum(rate(binder_pod_binding_phase_duration_seconds_bucket{phase="binding"}[1m]))by(le))'
-  [bind_latency_p90]='histogram_quantile(0.90,sum(rate(binder_pod_binding_phase_duration_seconds_bucket{phase="binding"}[1m]))by(le))'
-  [bind_latency_p99]='histogram_quantile(0.99,sum(rate(binder_pod_binding_phase_duration_seconds_bucket{phase="binding"}[1m]))by(le))'
+  # 绑定延迟（Pod 级别，binding phase）
+  [bind_latency_p50]='godel:binder_pod_binding_phase_duration:p50'
+  [bind_latency_p90]='godel:binder_pod_binding_phase_duration:p90'
+  [bind_latency_p99]='godel:binder_pod_binding_phase_duration:p99'
+  [bind_latency_avg]='godel:binder_pod_binding_phase_duration:avg'
+
+  # Unit E2E 延迟（binder → done）
+  [bind_unit_latency_p90]='godel:binder_unit_e2e_duration:p90'
+  [bind_unit_latency_p99]='godel:binder_unit_e2e_duration:p99'
 
   # 核心算法延迟
-  [algorithm_latency_p90]='histogram_quantile(0.90,sum(rate(scheduler_scheduling_algorithm_duration_seconds_bucket[1m]))by(le))'
-  [algorithm_latency_p99]='histogram_quantile(0.99,sum(rate(scheduler_scheduling_algorithm_duration_seconds_bucket[1m]))by(le))'
+  [algorithm_latency_p90]='godel:scheduler_scheduling_algorithm_duration:p90'
+  [algorithm_latency_p99]='godel:scheduler_scheduling_algorithm_duration:p99'
 
-  # 成功率
-  [scheduling_success_rate]='(sum(rate(scheduler_pod_scheduling_attempts{result="scheduled"}[5m])) or on() vector(0)) / clamp_min(sum(rate(scheduler_pod_scheduling_attempts[5m])), 1e-9)'
-  [scheduling_error_rate]='(sum(rate(scheduler_pod_scheduling_attempts{result="error"}[5m])) or on() vector(0)) / clamp_min(sum(rate(scheduler_pod_scheduling_attempts[5m])), 1e-9)'
+  # 绑定成功率
+  [bind_success_rate]='godel:binder_binding_pod_attempts:success_rate1m'
+
+  # 错误计数
+  [bind_rejection_rate]='godel:binder_pod_rejection:rate1m'
+  [bind_failure_rate]='godel:binder_pod_binding_failure:rate1m'
+
+  # Pod E2E 延迟（dispatcher → scheduler → binder → done）
+  [pod_e2e_latency_p50]='godel:pod_e2e_duration:p50'
+  [pod_e2e_latency_p90]='godel:pod_e2e_duration:p90'
+  [pod_e2e_latency_p99]='godel:pod_e2e_duration:p99'
+
+  # Schedule + Bind 合并延迟估算
+  [e2e_combined_p90]='godel:e2e_schedule_and_bind_duration:p90_estimate'
+  [e2e_combined_p99]='godel:e2e_schedule_and_bind_duration:p99_estimate'
 
   # Goroutines
   [goroutines]='sum(scheduler_goroutines) by (work)'
@@ -70,37 +89,56 @@ declare -A GODEL_QUERIES=(
 )
 
 # ═══════════════════════════════════════════════
-# Gödel 查询集（组 B: Embedded Binder）
+# ENO 查询集（组 A: Embedded Binder）
+# 直接引用 prometheus-config.yaml recording rules 中的 eno:* 预计算指标
 # ═══════════════════════════════════════════════
 declare -A ENO_EMBEDDED_QUERIES=(
   # 吞吐量
-  [scheduling_throughput]='sum(rate(scheduler_pod_scheduling_attempts{result="scheduled"}[1m]))'
-  [bind_throughput_pods]='sum(rate(binder_embedded_bind_pods_total{result="success"}[1m]))'
-  [bind_throughput_units]='sum(rate(binder_embedded_bind_total{result="success"}[1m]))'
+  [scheduling_throughput]='eno:scheduler_pod_scheduling_attempts:rate1m'
+  [scheduling_peak_throughput]='eno:scheduler_peak_throughput:30m'
+  [bind_throughput_pods]='eno:binder_embedded_bind_pods:rate1m'
+  [bind_throughput_units]='eno:binder_embedded_bind_units:rate1m'
 
   # 调度延迟
-  [scheduling_latency_p50]='histogram_quantile(0.50,sum(rate(scheduler_e2e_scheduling_duration_seconds_bucket[1m]))by(le))'
-  [scheduling_latency_p90]='histogram_quantile(0.90,sum(rate(scheduler_e2e_scheduling_duration_seconds_bucket[1m]))by(le))'
-  [scheduling_latency_p99]='histogram_quantile(0.99,sum(rate(scheduler_e2e_scheduling_duration_seconds_bucket[1m]))by(le))'
+  [scheduling_latency_p50]='eno:scheduler_e2e_scheduling_duration:p50'
+  [scheduling_latency_p90]='eno:scheduler_e2e_scheduling_duration:p90'
+  [scheduling_latency_p99]='eno:scheduler_e2e_scheduling_duration:p99'
+  [scheduling_latency_avg]='eno:scheduler_e2e_scheduling_duration:avg'
 
-  # 绑定延迟
-  [bind_latency_p50]='histogram_quantile(0.50,sum(rate(binder_embedded_bind_pod_duration_seconds_bucket[1m]))by(le))'
-  [bind_latency_p90]='histogram_quantile(0.90,sum(rate(binder_embedded_bind_pod_duration_seconds_bucket[1m]))by(le))'
-  [bind_latency_p99]='histogram_quantile(0.99,sum(rate(binder_embedded_bind_pod_duration_seconds_bucket[1m]))by(le))'
+  # 绑定延迟（Pod 级别）
+  [bind_latency_p50]='eno:binder_embedded_bind_pod_duration:p50'
+  [bind_latency_p90]='eno:binder_embedded_bind_pod_duration:p90'
+  [bind_latency_p99]='eno:binder_embedded_bind_pod_duration:p99'
+  [bind_latency_avg]='eno:binder_embedded_bind_pod_duration:avg'
+
+  # 绑定延迟（Unit 级别）
+  [bind_unit_latency_p50]='eno:binder_embedded_bind_duration:p50'
+  [bind_unit_latency_p90]='eno:binder_embedded_bind_duration:p90'
+  [bind_unit_latency_p99]='eno:binder_embedded_bind_duration:p99'
+  [bind_unit_latency_avg]='eno:binder_embedded_bind_duration:avg'
 
   # 核心算法延迟
-  [algorithm_latency_p90]='histogram_quantile(0.90,sum(rate(scheduler_scheduling_algorithm_duration_seconds_bucket[1m]))by(le))'
-  [algorithm_latency_p99]='histogram_quantile(0.99,sum(rate(scheduler_scheduling_algorithm_duration_seconds_bucket[1m]))by(le))'
+  [algorithm_latency_p90]='eno:scheduler_scheduling_algorithm_duration:p90'
+  [algorithm_latency_p99]='eno:scheduler_scheduling_algorithm_duration:p99'
 
-  # 成功率
-  [scheduling_success_rate]='(sum(rate(scheduler_pod_scheduling_attempts{result="scheduled"}[5m])) or on() vector(0)) / clamp_min(sum(rate(scheduler_pod_scheduling_attempts[5m])), 1e-9)'
-  [scheduling_error_rate]='(sum(rate(scheduler_pod_scheduling_attempts{result="error"}[5m])) or on() vector(0)) / clamp_min(sum(rate(scheduler_pod_scheduling_attempts[5m])), 1e-9)'
+  # 绑定成功率
+  [bind_success_rate]='eno:binder_embedded_bind_pods:success_rate1m'
+  [bind_unit_success_rate]='eno:binder_embedded_bind_units:success_rate1m'
 
-  # Embedded Binder 特有
+  # Embedded Binder 特有指标
+  [bind_retries]='eno:binder_embedded_bind_retries:rate1m'
+  [dispatcher_fallback]='eno:binder_dispatcher_fallback:rate1m'
+  [node_validation_failures]='eno:binder_node_validation_failures:rate1m'
   [bind_inflight]='sum(binder_embedded_bind_inflight)'
-  [bind_retries]='sum(rate(binder_embedded_bind_retries_total[5m]))'
-  [dispatcher_fallback]='sum(rate(binder_dispatcher_fallback_total[5m]))'
-  [node_validation_failures]='sum(rate(binder_node_validation_failures_total[5m]))'
+
+  # Pod E2E 延迟（dispatcher → scheduler → binder → done）
+  [pod_e2e_latency_p50]='eno:pod_e2e_duration:p50'
+  [pod_e2e_latency_p90]='eno:pod_e2e_duration:p90'
+  [pod_e2e_latency_p99]='eno:pod_e2e_duration:p99'
+
+  # Schedule + Bind 合并延迟估算
+  [e2e_combined_p90]='eno:e2e_schedule_and_bind_duration:p90_estimate'
+  [e2e_combined_p99]='eno:e2e_schedule_and_bind_duration:p99_estimate'
 
   # Goroutines
   [goroutines]='sum(scheduler_goroutines) by (work)'
@@ -111,124 +149,129 @@ declare -A ENO_EMBEDDED_QUERIES=(
 
 # ═══════════════════════════════════════════════
 # kube-scheduler 查询集（组 C）
+# 直接引用 prometheus-config.yaml recording rules 中的 kube:* 预计算指标
 # ═══════════════════════════════════════════════
 declare -A KUBE_QUERIES=(
-  # 吞吐量 — scheduler_schedule_attempts_total{result} 是 counter
-  [scheduling_throughput]='sum(rate(scheduler_schedule_attempts_total{result="scheduled"}[1m]))'
-  [scheduling_attempts_by_result]='sum(rate(scheduler_schedule_attempts_total[1m])) by (result)'
+  # 吞吐量
+  [scheduling_throughput]='kube:scheduler_schedule_attempts_scheduled:rate1m'
+  [scheduling_throughput_by_result]='kube:scheduler_schedule_attempts:rate1m'
+  [scheduling_peak_throughput]='kube:scheduler_peak_throughput:30m'
 
-  # 调度延迟 — scheduler_scheduling_attempt_duration_seconds (算法耗时)
-  [scheduling_latency_p50]='histogram_quantile(0.50,sum(rate(scheduler_scheduling_attempt_duration_seconds_bucket[1m]))by(le))'
-  [scheduling_latency_p90]='histogram_quantile(0.90,sum(rate(scheduler_scheduling_attempt_duration_seconds_bucket[1m]))by(le))'
-  [scheduling_latency_p99]='histogram_quantile(0.99,sum(rate(scheduler_scheduling_attempt_duration_seconds_bucket[1m]))by(le))'
+  # 调度尝试延迟（Filter+Score+Bind 全程）
+  [scheduling_latency_p50]='kube:scheduler_scheduling_attempt_duration:p50'
+  [scheduling_latency_p90]='kube:scheduler_scheduling_attempt_duration:p90'
+  [scheduling_latency_p99]='kube:scheduler_scheduling_attempt_duration:p99'
 
-  # E2E SLI 延迟 — scheduler_pod_scheduling_sli_duration_seconds (K8s 1.28+)
-  [sli_latency_p50]='histogram_quantile(0.50,sum(rate(scheduler_pod_scheduling_sli_duration_seconds_bucket[1m]))by(le))'
-  [sli_latency_p90]='histogram_quantile(0.90,sum(rate(scheduler_pod_scheduling_sli_duration_seconds_bucket[1m]))by(le))'
-  [sli_latency_p99]='histogram_quantile(0.99,sum(rate(scheduler_pod_scheduling_sli_duration_seconds_bucket[1m]))by(le))'
+  # E2E SLI 延迟（入队 → Bound，K8s 1.28+）
+  [sli_latency_p50]='kube:scheduler_pod_scheduling_sli_duration:p50'
+  [sli_latency_p90]='kube:scheduler_pod_scheduling_sli_duration:p90'
+  [sli_latency_p99]='kube:scheduler_pod_scheduling_sli_duration:p99'
+  [sli_latency_avg]='kube:scheduler_pod_scheduling_sli_duration:avg'
 
-  # 核心算法延迟
-  [algorithm_latency_p90]='histogram_quantile(0.90,sum(rate(scheduler_scheduling_algorithm_duration_seconds_bucket[1m]))by(le))'
-  [algorithm_latency_p99]='histogram_quantile(0.99,sum(rate(scheduler_scheduling_algorithm_duration_seconds_bucket[1m]))by(le))'
+  # 核心算法延迟（Filter+Score only）
+  [algorithm_latency_p90]='kube:scheduler_scheduling_algorithm_duration:p90'
+  [algorithm_latency_p99]='kube:scheduler_scheduling_algorithm_duration:p99'
 
-  # 成功率
-  [scheduling_success_rate]='(sum(rate(scheduler_schedule_attempts_total{result="scheduled"}[5m])) or on() vector(0)) / clamp_min(sum(rate(scheduler_schedule_attempts_total[5m])), 1e-9)'
-  [scheduling_error_rate]='(sum(rate(scheduler_schedule_attempts_total{result="error"}[5m])) or on() vector(0)) / clamp_min(sum(rate(scheduler_schedule_attempts_total[5m])), 1e-9)'
+  # Per-pod 调度尝试次数分布
+  [pod_scheduling_attempts_p90]='kube:scheduler_pod_scheduling_attempts:p90'
+  [pod_scheduling_attempts_p99]='kube:scheduler_pod_scheduling_attempts:p99'
 
-  # Pending pods (gauge)
+  # 成功率 / 错误率
+  [scheduling_success_rate]='kube:scheduler_schedule_attempts:success_rate1m'
+  [scheduling_error_rate]='kube:scheduler_schedule_attempts:error_rate1m'
+
+  # Framework extension point 延迟
+  [extension_point_latency_p90]='kube:scheduler_framework_extension_point_duration:p90'
+  [extension_point_latency_p99]='kube:scheduler_framework_extension_point_duration:p99'
+
+  # Plugin 执行延迟
+  [plugin_latency_p90]='kube:scheduler_plugin_execution_duration:p90'
+
+  # Pending pods（直接查原始 gauge）
   [pending_pods]='sum(scheduler_pending_pods)'
 
-  # Goroutines — kube-scheduler 单实例，无需聚合
+  # Goroutines
   [goroutines]='scheduler_goroutines'
-
-  # 队列入队速率
-  [queue_incoming_pods]='sum(rate(scheduler_queue_incoming_pods_total[1m])) by (event)'
 )
 
 # ═══════════════════════════════════════════════
 # Volcano 查询集（组 D）
+# 直接引用 prometheus-config.yaml recording rules 中的 volcano:* 预计算指标
 # ═══════════════════════════════════════════════
 declare -A VOLCANO_QUERIES=(
-  # 吞吐量 — per-job(PodGroup) 完成调度的速率
-  # Volcano 每个 job 触发 2 次 Observe，需除以 2 修正
-  [scheduling_throughput]='sum(rate(volcano_e2e_job_scheduling_latency_milliseconds_count[1m])) / 2'
-  # 调度循环吞吐量 (sessions/s)
-  [session_throughput]='sum(rate(volcano_e2e_scheduling_latency_milliseconds_count[1m]))'
+  # 吞吐量（tasks/s，Assumed stage = 成功放置）
+  [scheduling_throughput]='volcano:scheduling_throughput:rate1m'
+  [session_throughput]='volcano:session_throughput:rate1m'
+  [scheduling_peak_throughput]='volcano:scheduling_peak_throughput:30m'
 
-  # E2E 调度延迟（原始单位毫秒，转换为秒）
-  [scheduling_latency_p50]='histogram_quantile(0.50,sum(rate(volcano_e2e_scheduling_latency_milliseconds_bucket[1m]))by(le))/1000'
-  [scheduling_latency_p90]='histogram_quantile(0.90,sum(rate(volcano_e2e_scheduling_latency_milliseconds_bucket[1m]))by(le))/1000'
-  [scheduling_latency_p99]='histogram_quantile(0.99,sum(rate(volcano_e2e_scheduling_latency_milliseconds_bucket[1m]))by(le))/1000'
+  # E2E 调度延迟（单位已转换为秒）
+  [scheduling_latency_p50]='volcano:e2e_scheduling_latency:p50_seconds'
+  [scheduling_latency_p90]='volcano:e2e_scheduling_latency:p90_seconds'
+  [scheduling_latency_p99]='volcano:e2e_scheduling_latency:p99_seconds'
+  [scheduling_latency_avg]='volcano:e2e_scheduling_latency:avg_seconds'
 
   # Action 级别调度延迟
-  [action_latency_p90]='histogram_quantile(0.90,sum(rate(volcano_action_scheduling_latency_milliseconds_bucket[1m]))by(le,action))/1000'
-  [action_latency_p99]='histogram_quantile(0.99,sum(rate(volcano_action_scheduling_latency_milliseconds_bucket[1m]))by(le,action))/1000'
+  [action_latency_p90]='volcano:action_scheduling_latency:p90_seconds'
+  [action_latency_p99]='volcano:action_scheduling_latency:p99_seconds'
 
   # Task 调度延迟
-  [task_latency_p90]='histogram_quantile(0.90,sum(rate(volcano_task_scheduling_latency_milliseconds_bucket[1m]))by(le))/1000'
-  [task_latency_p99]='histogram_quantile(0.99,sum(rate(volcano_task_scheduling_latency_milliseconds_bucket[1m]))by(le))/1000'
+  [task_latency_p90]='volcano:task_scheduling_latency:p90_seconds'
+  [task_latency_p99]='volcano:task_scheduling_latency:p99_seconds'
 
   # Plugin 延迟
-  [plugin_latency_p90]='histogram_quantile(0.90,sum(rate(volcano_plugin_scheduling_latency_milliseconds_bucket[1m]))by(le,plugin))/1000'
+  [plugin_latency_p90]='volcano:plugin_scheduling_latency:p90_seconds'
 
-  # 成功率 — Volcano 无 Pod 级 result 标签，用 Job 调度完成数 / (完成数 + 不可调度数) 近似
-  [scheduling_success_rate]='(sum(rate(volcano_e2e_job_scheduling_latency_milliseconds_count[5m])) / 2 or on() vector(0)) / clamp_min(sum(rate(volcano_e2e_job_scheduling_latency_milliseconds_count[5m])) / 2 + sum(rate(volcano_unschedule_task_count[5m])), 1e-9)'
-  # 错误率 — 用不可调度任务数变化率
-  [scheduling_error_rate]='sum(rate(volcano_unschedule_task_count[5m]))'
+  # 不可调度速率
+  [unschedule_task_rate]='volcano:unschedule_task_rate:1m'
 
-  # Pending（不可调度任务/Job 数）— 必须 sum() 聚合，否则裸指标会返回数千条 per-task 时间序列
+  # Pending（直接查原始 gauge）
   [pending_pods]='sum(volcano_unschedule_task_count)'
   [unschedule_jobs]='sum(volcano_unschedule_job_count)'
 
   # Goroutines
   [goroutines]='go_goroutines{job=~".*volcano.*"}'
-
-  # E2E Job scheduling duration (Gauge, 每个 Job 一条, 单位毫秒 → 聚合为统计值，除以 1000 转秒)
-  [job_scheduling_duration_avg]='avg(volcano_e2e_job_scheduling_duration) / 1000'
-  [job_scheduling_duration_max]='max(volcano_e2e_job_scheduling_duration) / 1000'
 )
 
 # ═══════════════════════════════════════════════
 # Koordinator 查询集（组 E）
+# 直接引用 prometheus-config.yaml recording rules 中的 koord:* 预计算指标
 # ═══════════════════════════════════════════════
 declare -A KOORDINATOR_QUERIES=(
   # 吞吐量
-  [scheduling_throughput]='sum(rate(scheduler_pod_scheduling_duration_seconds_count{job=~".*koord.*"}[1m]))'
-  [scheduling_attempts]='sum(rate(scheduler_schedule_attempts_total{job=~".*koord.*"}[1m])) by (result)'
+  [scheduling_throughput]='koord:scheduler_schedule_attempts_scheduled:rate1m'
+  [scheduling_peak_throughput]='koord:scheduler_peak_throughput:30m'
 
-  # E2E 调度延迟
-  [scheduling_latency_p50]='histogram_quantile(0.50,sum(rate(scheduler_pod_scheduling_duration_seconds_bucket{job=~".*koord.*"}[1m]))by(le))'
-  [scheduling_latency_p90]='histogram_quantile(0.90,sum(rate(scheduler_pod_scheduling_duration_seconds_bucket{job=~".*koord.*"}[1m]))by(le))'
-  [scheduling_latency_p99]='histogram_quantile(0.99,sum(rate(scheduler_pod_scheduling_duration_seconds_bucket{job=~".*koord.*"}[1m]))by(le))'
+  # 调度尝试延迟（Filter+Score+Bind 全程）
+  [scheduling_latency_p50]='koord:scheduler_scheduling_attempt_duration:p50'
+  [scheduling_latency_p90]='koord:scheduler_scheduling_attempt_duration:p90'
+  [scheduling_latency_p99]='koord:scheduler_scheduling_attempt_duration:p99'
+  [scheduling_latency_avg]='koord:scheduler_scheduling_attempt_duration:avg'
 
-  # 核心算法延迟
-  [algorithm_latency_p90]='histogram_quantile(0.90,sum(rate(scheduler_scheduling_algorithm_duration_seconds_bucket{job=~".*koord.*"}[1m]))by(le))'
-  [algorithm_latency_p99]='histogram_quantile(0.99,sum(rate(scheduler_scheduling_algorithm_duration_seconds_bucket{job=~".*koord.*"}[1m]))by(le))'
+  # Pod E2E SLI 延迟（入队 → Bound）
+  [sli_latency_p50]='koord:scheduler_pod_scheduling_sli_duration:p50'
+  [sli_latency_p90]='koord:scheduler_pod_scheduling_sli_duration:p90'
+  [sli_latency_p99]='koord:scheduler_pod_scheduling_sli_duration:p99'
+  [sli_latency_avg]='koord:scheduler_pod_scheduling_sli_duration:avg'
 
-  # 调度尝试延迟 (含 binding)
-  [attempt_latency_p90]='histogram_quantile(0.90,sum(rate(scheduler_scheduling_attempt_duration_seconds_bucket{job=~".*koord.*"}[1m]))by(le))'
-  [attempt_latency_p99]='histogram_quantile(0.99,sum(rate(scheduler_scheduling_attempt_duration_seconds_bucket{job=~".*koord.*"}[1m]))by(le))'
+  # 核心算法延迟（Filter+Score only）
+  [algorithm_latency_p90]='koord:scheduler_scheduling_algorithm_duration:p90'
+  [algorithm_latency_p99]='koord:scheduler_scheduling_algorithm_duration:p99'
 
-  # 扩展点延迟（使用 5m 窗口减少计算开销，避免大规模 Pod 时 Prometheus 超时）
-  [extension_point_latency_p99]='histogram_quantile(0.99,sum(rate(scheduler_framework_extension_point_duration_seconds_bucket{job=~".*koord.*"}[5m]))by(le,extension_point))'
+  # Framework extension point 延迟
+  [extension_point_latency_p90]='koord:scheduler_framework_extension_point_duration:p90'
 
-  # 节点评估数
-  [evaluated_nodes_avg]='sum(rate(scheduler_pod_scheduling_evaluated_nodes_sum{job=~".*koord.*"}[1m]))/sum(rate(scheduler_pod_scheduling_evaluated_nodes_count{job=~".*koord.*"}[1m]))'
-  [feasible_nodes_avg]='sum(rate(scheduler_pod_scheduling_feasible_nodes_sum{job=~".*koord.*"}[1m]))/sum(rate(scheduler_pod_scheduling_feasible_nodes_count{job=~".*koord.*"}[1m]))'
+  # Plugin 执行延迟
+  [plugin_latency_p90]='koord:scheduler_plugin_execution_duration:p90'
 
-  # 队列
-  [queue_incoming_pods]='sum(rate(scheduler_queue_incoming_pods_total{job=~".*koord.*"}[1m])) by (event)'
+  # 成功率 / 错误率
+  [scheduling_success_rate]='koord:scheduler_schedule_attempts:success_rate1m'
+  [scheduling_error_rate]='koord:scheduler_schedule_attempts:error_rate1m'
 
-  # Goroutines & Pending — Koordinator 通常单实例，label 维度少，无需额外聚合
-  [goroutines]='go_goroutines{job=~".*koord.*"}'
+  # Pending pods（直接查原始 gauge）
   [pending_pods]='scheduler_pending_pods{job=~".*koord.*"}'
 
-  # 成功率
-  [scheduling_success_rate]='(sum(rate(scheduler_schedule_attempts_total{result="scheduled",job=~".*koord.*"}[5m])) or on() vector(0)) / clamp_min(sum(rate(scheduler_schedule_attempts_total{job=~".*koord.*"}[5m])), 1e-9)'
-  [scheduling_error_rate]='(sum(rate(scheduler_schedule_attempts_total{result="error",job=~".*koord.*"}[5m])) or on() vector(0)) / clamp_min(sum(rate(scheduler_schedule_attempts_total{job=~".*koord.*"}[5m])), 1e-9)'
-
-  # 抢占
-  [preemption_attempts]='sum(rate(scheduler_preemption_attempts_total{job=~".*koord.*"}[1m]))'
+  # Goroutines
+  [goroutines]='go_goroutines{job=~".*koord.*"}'
 )
 
 # ═══════════════════════════════════════════════

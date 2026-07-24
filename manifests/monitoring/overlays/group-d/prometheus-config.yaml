@@ -145,7 +145,7 @@ data:
       - name: volcano_scheduling_status
         interval: 15s
         rules:
-          - record: volcano:unschedule_task_rate:5m
+          - record: volcano:unschedule_task_rate:1m
             expr: rate(volcano_unschedule_task_count[1m])
           # Direct gauges to query:
           #   volcano_unschedule_task_count
