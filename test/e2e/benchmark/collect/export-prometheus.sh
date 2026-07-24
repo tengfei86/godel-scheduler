@@ -5,8 +5,8 @@
 #   ./export-prometheus.sh <group> <start_ts> <end_ts> <output_dir>
 #
 # 按组选择不同的 PromQL 查询集:
-#   A:   Gödel Shared Binder 指标名
-#   B:   Gödel Embedded Binder 指标名
+#   A:   ENO Embedded Binder 指标名（proposed）
+#   B:   Gödel Shared Binder 指标名（baseline）
 #   C:   kube-scheduler 指标名
 #   D:   Volcano 指标名
 #   E:   Koordinator 指标名
@@ -85,7 +85,7 @@ declare -A GODEL_QUERIES=(
   [goroutines]='sum(scheduler_goroutines) by (work)'
 
   # 队列等待
-  [queue_wait_p90]='histogram_quantile(0.90,sum(rate(scheduler_pod_pending_in_queue_duration_seconds_bucket[5m]))by(le))'
+  [queue_wait_p90]='histogram_quantile(0.90,sum(rate(scheduler_pod_pending_in_queue_duration_seconds_bucket[1m]))by(le))'
 )
 
 # ═══════════════════════════════════════════════
@@ -144,7 +144,7 @@ declare -A ENO_EMBEDDED_QUERIES=(
   [goroutines]='sum(scheduler_goroutines) by (work)'
 
   # 队列等待
-  [queue_wait_p90]='histogram_quantile(0.90,sum(rate(scheduler_pod_pending_in_queue_duration_seconds_bucket[5m]))by(le))'
+  [queue_wait_p90]='histogram_quantile(0.90,sum(rate(scheduler_pod_pending_in_queue_duration_seconds_bucket[1m]))by(le))'
 )
 
 # ═══════════════════════════════════════════════
@@ -239,6 +239,7 @@ declare -A VOLCANO_QUERIES=(
 declare -A KOORDINATOR_QUERIES=(
   # 吞吐量
   [scheduling_throughput]='koord:scheduler_schedule_attempts_scheduled:rate1m'
+  [scheduling_throughput_by_result]='koord:scheduler_schedule_attempts:rate1m'
   [scheduling_peak_throughput]='koord:scheduler_peak_throughput:30m'
 
   # 调度尝试延迟（Filter+Score+Bind 全程）
