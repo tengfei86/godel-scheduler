@@ -32,16 +32,16 @@ plot-results.py — 将 Prometheus 导出的 JSON 数据绘制为图表
     ../results/a/s2/w1/run1 \
     ../results/a/s2/w1/run2 \
     ../results/a/s2/w1/run3 \
-    --average --std-band --output ../results/a/s2/w1/avg
+    --average --std-band --output ../results/a/s2/w1/compare
 
   # 5. 两步工作流：先对各组求均值，再跨组对比
   #    步骤一：生成各组均值目录（含 avg_*.json 和 avg_*.png）
   python3 plot-results.py \
     ../results/a/s2/w1/run1 ../results/a/s2/w1/run2 ../results/a/s2/w1/run3 \
-    --average --output ../results/a/s2/w1/avg
+    --average --output ../results/a/s2/w1/compare
   python3 plot-results.py \
     ../results/b/s2/w1/run1 ../results/b/s2/w1/run2 ../results/b/s2/w1/run3 \
-    --average --output ../results/b/s2/w1/avg
+    --average --output ../results/b/s2/w1/compare
   #    步骤二：用均值 JSON 做跨组对比
   python3 plot-results.py \
     ../results/a/s2/w1/avg \
@@ -65,6 +65,7 @@ from pathlib import Path
 
 try:
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     import matplotlib.dates as mdates
@@ -80,70 +81,129 @@ except ImportError:
 
 # ── 指标元数据: 显示名称、Y 轴标签、单位换算 ──
 METRIC_META = {
-    "scheduling_throughput":    {"title": "Scheduling Throughput",      "ylabel": "pods/s"},
-    "bind_throughput_pods":     {"title": "Bind Throughput (Pods)",     "ylabel": "pods/s"},
-    "bind_throughput_units":    {"title": "Bind Throughput (Units)",    "ylabel": "units/s"},
-    "scheduling_latency_p50":  {"title": "Scheduling Latency (P50)",   "ylabel": "seconds", "scale": 1},
-    "scheduling_latency_p90":  {"title": "Scheduling Latency (P90)",   "ylabel": "seconds", "scale": 1},
-    "scheduling_latency_p99":  {"title": "Scheduling Latency (P99)",   "ylabel": "seconds", "scale": 1},
-    "bind_latency_p50":        {"title": "Bind Latency (P50)",         "ylabel": "seconds", "scale": 1},
-    "bind_latency_p90":        {"title": "Bind Latency (P90)",         "ylabel": "seconds", "scale": 1},
-    "bind_latency_p99":        {"title": "Bind Latency (P99)",         "ylabel": "seconds", "scale": 1},
-    "algorithm_latency_p90":   {"title": "Algorithm Latency (P90)",    "ylabel": "seconds", "scale": 1},
-    "algorithm_latency_p99":   {"title": "Algorithm Latency (P99)",    "ylabel": "seconds", "scale": 1},
-    "scheduling_success_rate": {"title": "Scheduling Success Rate",    "ylabel": "ratio"},
-    "scheduling_error_rate":   {"title": "Scheduling Error Rate",      "ylabel": "ratio"},
-    "bind_inflight":           {"title": "Bind In-flight",             "ylabel": "count"},
-    "bind_retries":            {"title": "Bind Retries",               "ylabel": "retries/s"},
-    "dispatcher_fallback":     {"title": "Dispatcher Fallback",        "ylabel": "fallbacks/s"},
-    "node_validation_failures":{"title": "Node Validation Failures",   "ylabel": "failures/s"},
-    "goroutines":              {"title": "Goroutines",                 "ylabel": "count"},
-    "pending_pods":            {"title": "Pending Pods",               "ylabel": "count"},
-    "queue_wait_p90":          {"title": "Queue Wait (P90)",           "ylabel": "seconds"},
-    "scheduling_attempts_total": {"title": "Scheduling Attempts",      "ylabel": "attempts/s"},
+    "scheduling_throughput": {"title": "Scheduling Throughput", "ylabel": "pods/s"},
+    "bind_throughput_pods": {"title": "Bind Throughput (Pods)", "ylabel": "pods/s"},
+    "bind_throughput_units": {"title": "Bind Throughput (Units)", "ylabel": "units/s"},
+    "scheduling_latency_p50": {
+        "title": "Scheduling Latency (P50)",
+        "ylabel": "seconds",
+        "scale": 1,
+    },
+    "scheduling_latency_p90": {
+        "title": "Scheduling Latency (P90)",
+        "ylabel": "seconds",
+        "scale": 1,
+    },
+    "scheduling_latency_p99": {
+        "title": "Scheduling Latency (P99)",
+        "ylabel": "seconds",
+        "scale": 1,
+    },
+    "bind_latency_p50": {
+        "title": "Bind Latency (P50)",
+        "ylabel": "seconds",
+        "scale": 1,
+    },
+    "bind_latency_p90": {
+        "title": "Bind Latency (P90)",
+        "ylabel": "seconds",
+        "scale": 1,
+    },
+    "bind_latency_p99": {
+        "title": "Bind Latency (P99)",
+        "ylabel": "seconds",
+        "scale": 1,
+    },
+    "algorithm_latency_p90": {
+        "title": "Algorithm Latency (P90)",
+        "ylabel": "seconds",
+        "scale": 1,
+    },
+    "algorithm_latency_p99": {
+        "title": "Algorithm Latency (P99)",
+        "ylabel": "seconds",
+        "scale": 1,
+    },
+    "scheduling_success_rate": {"title": "Scheduling Success Rate", "ylabel": "ratio"},
+    "scheduling_error_rate": {"title": "Scheduling Error Rate", "ylabel": "ratio"},
+    "bind_inflight": {"title": "Bind In-flight", "ylabel": "count"},
+    "bind_retries": {"title": "Bind Retries", "ylabel": "retries/s"},
+    "dispatcher_fallback": {"title": "Dispatcher Fallback", "ylabel": "fallbacks/s"},
+    "node_validation_failures": {
+        "title": "Node Validation Failures",
+        "ylabel": "failures/s",
+    },
+    "goroutines": {"title": "Goroutines", "ylabel": "count"},
+    "pending_pods": {"title": "Pending Pods", "ylabel": "count"},
+    "queue_wait_p90": {"title": "Queue Wait (P90)", "ylabel": "seconds"},
+    "scheduling_attempts_total": {
+        "title": "Scheduling Attempts",
+        "ylabel": "attempts/s",
+    },
     # 延迟 avg
-    "scheduling_latency_avg":          {"title": "Scheduling Latency (Avg)",           "ylabel": "seconds"},
-    "bind_latency_avg":                {"title": "Bind Latency (Avg)",                 "ylabel": "seconds"},
-    "bind_unit_latency_p50":           {"title": "Bind Unit Latency (P50)",            "ylabel": "seconds"},
-    "bind_unit_latency_p90":           {"title": "Bind Unit Latency (P90)",            "ylabel": "seconds"},
-    "bind_unit_latency_p99":           {"title": "Bind Unit Latency (P99)",            "ylabel": "seconds"},
-    "bind_unit_latency_avg":           {"title": "Bind Unit Latency (Avg)",            "ylabel": "seconds"},
+    "scheduling_latency_avg": {
+        "title": "Scheduling Latency (Avg)",
+        "ylabel": "seconds",
+    },
+    "bind_latency_avg": {"title": "Bind Latency (Avg)", "ylabel": "seconds"},
+    "bind_unit_latency_p50": {"title": "Bind Unit Latency (P50)", "ylabel": "seconds"},
+    "bind_unit_latency_p90": {"title": "Bind Unit Latency (P90)", "ylabel": "seconds"},
+    "bind_unit_latency_p99": {"title": "Bind Unit Latency (P99)", "ylabel": "seconds"},
+    "bind_unit_latency_avg": {"title": "Bind Unit Latency (Avg)", "ylabel": "seconds"},
     # Pod E2E
-    "pod_e2e_latency_p50":             {"title": "Pod E2E Latency (P50)",              "ylabel": "seconds"},
-    "pod_e2e_latency_p90":             {"title": "Pod E2E Latency (P90)",              "ylabel": "seconds"},
-    "pod_e2e_latency_p99":             {"title": "Pod E2E Latency (P99)",              "ylabel": "seconds"},
+    "pod_e2e_latency_p50": {"title": "Pod E2E Latency (P50)", "ylabel": "seconds"},
+    "pod_e2e_latency_p90": {"title": "Pod E2E Latency (P90)", "ylabel": "seconds"},
+    "pod_e2e_latency_p99": {"title": "Pod E2E Latency (P99)", "ylabel": "seconds"},
     # E2E combined
-    "e2e_combined_p90":                {"title": "E2E Schedule+Bind Est. (P90)",       "ylabel": "seconds"},
-    "e2e_combined_p99":                {"title": "E2E Schedule+Bind Est. (P99)",       "ylabel": "seconds"},
+    "e2e_combined_p90": {"title": "E2E Schedule+Bind Est. (P90)", "ylabel": "seconds"},
+    "e2e_combined_p99": {"title": "E2E Schedule+Bind Est. (P99)", "ylabel": "seconds"},
     # SLI
-    "sli_latency_p50":                 {"title": "SLI Scheduling Latency (P50)",       "ylabel": "seconds"},
-    "sli_latency_p90":                 {"title": "SLI Scheduling Latency (P90)",       "ylabel": "seconds"},
-    "sli_latency_p99":                 {"title": "SLI Scheduling Latency (P99)",       "ylabel": "seconds"},
-    "sli_latency_avg":                 {"title": "SLI Scheduling Latency (Avg)",       "ylabel": "seconds"},
+    "sli_latency_p50": {"title": "SLI Scheduling Latency (P50)", "ylabel": "seconds"},
+    "sli_latency_p90": {"title": "SLI Scheduling Latency (P90)", "ylabel": "seconds"},
+    "sli_latency_p99": {"title": "SLI Scheduling Latency (P99)", "ylabel": "seconds"},
+    "sli_latency_avg": {"title": "SLI Scheduling Latency (Avg)", "ylabel": "seconds"},
     # Peak
-    "scheduling_peak_throughput":      {"title": "Peak Scheduling Throughput (30m)",   "ylabel": "pods/s"},
+    "scheduling_peak_throughput": {
+        "title": "Peak Scheduling Throughput (30m)",
+        "ylabel": "pods/s",
+    },
     # 成功率
-    "bind_success_rate":               {"title": "Bind Success Rate",                  "ylabel": "ratio"},
-    "bind_unit_success_rate":          {"title": "Bind Unit Success Rate",             "ylabel": "ratio"},
+    "bind_success_rate": {"title": "Bind Success Rate", "ylabel": "ratio"},
+    "bind_unit_success_rate": {"title": "Bind Unit Success Rate", "ylabel": "ratio"},
     # 错误
-    "bind_rejection_rate":             {"title": "Bind Rejection Rate",                "ylabel": "rejections/s"},
-    "bind_failure_rate":               {"title": "Bind Failure Rate",                  "ylabel": "failures/s"},
+    "bind_rejection_rate": {"title": "Bind Rejection Rate", "ylabel": "rejections/s"},
+    "bind_failure_rate": {"title": "Bind Failure Rate", "ylabel": "failures/s"},
     # 吞吐量补充
-    "scheduling_throughput_by_result": {"title": "Scheduling Attempts by Result",      "ylabel": "attempts/s"},
-    "session_throughput":              {"title": "Session Throughput",                 "ylabel": "sessions/s"},
+    "scheduling_throughput_by_result": {
+        "title": "Scheduling Attempts by Result",
+        "ylabel": "attempts/s",
+    },
+    "session_throughput": {"title": "Session Throughput", "ylabel": "sessions/s"},
     # Volcano
-    "unschedule_task_rate":            {"title": "Unschedulable Task Rate",            "ylabel": "tasks/s"},
-    "unschedule_jobs":                 {"title": "Unschedulable Jobs",                 "ylabel": "count"},
-    "action_latency_p90":              {"title": "Action Latency (P90)",               "ylabel": "seconds"},
-    "action_latency_p99":              {"title": "Action Latency (P99)",               "ylabel": "seconds"},
-    "task_latency_p90":                {"title": "Task Latency (P90)",                 "ylabel": "seconds"},
-    "task_latency_p99":                {"title": "Task Latency (P99)",                 "ylabel": "seconds"},
-    "plugin_latency_p90":              {"title": "Plugin Latency (P90)",               "ylabel": "seconds"},
+    "unschedule_task_rate": {"title": "Unschedulable Task Rate", "ylabel": "tasks/s"},
+    "unschedule_jobs": {"title": "Unschedulable Jobs", "ylabel": "count"},
+    "action_latency_p90": {"title": "Action Latency (P90)", "ylabel": "seconds"},
+    "action_latency_p99": {"title": "Action Latency (P99)", "ylabel": "seconds"},
+    "task_latency_p90": {"title": "Task Latency (P90)", "ylabel": "seconds"},
+    "task_latency_p99": {"title": "Task Latency (P99)", "ylabel": "seconds"},
+    "plugin_latency_p90": {"title": "Plugin Latency (P90)", "ylabel": "seconds"},
     # kube / koord
-    "extension_point_latency_p90":     {"title": "Extension Point Latency (P90)",      "ylabel": "seconds"},
-    "extension_point_latency_p99":     {"title": "Extension Point Latency (P99)",      "ylabel": "seconds"},
-    "pod_scheduling_attempts_p90":     {"title": "Pod Scheduling Attempts (P90)",      "ylabel": "attempts"},
-    "pod_scheduling_attempts_p99":     {"title": "Pod Scheduling Attempts (P99)",      "ylabel": "attempts"},
+    "extension_point_latency_p90": {
+        "title": "Extension Point Latency (P90)",
+        "ylabel": "seconds",
+    },
+    "extension_point_latency_p99": {
+        "title": "Extension Point Latency (P99)",
+        "ylabel": "seconds",
+    },
+    "pod_scheduling_attempts_p90": {
+        "title": "Pod Scheduling Attempts (P90)",
+        "ylabel": "attempts",
+    },
+    "pod_scheduling_attempts_p99": {
+        "title": "Pod Scheduling Attempts (P99)",
+        "ylabel": "attempts",
+    },
 }
 
 # 组标签
@@ -157,15 +217,17 @@ GROUP_LABELS = {
 
 # 图表样式
 COLORS = ["#2196F3", "#FF5722", "#4CAF50", "#9C27B0", "#FF9800", "#607D8B"]
-plt.rcParams.update({
-    "figure.figsize": (12, 5),
-    "figure.dpi": 150,
-    "axes.grid": True,
-    "grid.alpha": 0.3,
-    "font.size": 11,
-    "axes.titlesize": 14,
-    "axes.labelsize": 12,
-})
+plt.rcParams.update(
+    {
+        "figure.figsize": (12, 5),
+        "figure.dpi": 150,
+        "axes.grid": True,
+        "grid.alpha": 0.3,
+        "font.size": 11,
+        "axes.titlesize": 14,
+        "axes.labelsize": 12,
+    }
+)
 
 
 def load_prometheus_json(filepath):
@@ -187,8 +249,7 @@ def load_prometheus_json(filepath):
 
         # 构建 series 标签
         if metric:
-            label = ", ".join(f"{k}={v}" for k, v in metric.items()
-                              if k != "__name__")
+            label = ", ".join(f"{k}={v}" for k, v in metric.items() if k != "__name__")
         else:
             label = ""
 
@@ -261,8 +322,13 @@ def plot_utilization_csv(filepath, output_path, fmt="png"):
     ax.invert_yaxis()
 
     for bar, count in zip(bars, pod_counts):
-        ax.text(bar.get_width() + 0.3, bar.get_y() + bar.get_height() / 2,
-                str(count), va="center", fontsize=7)
+        ax.text(
+            bar.get_width() + 0.3,
+            bar.get_y() + bar.get_height() / 2,
+            str(count),
+            va="center",
+            fontsize=7,
+        )
 
     fig.tight_layout()
     fig.savefig(output_path, format=fmt, bbox_inches="tight")
@@ -400,8 +466,9 @@ def average_runs(dirs, output_dir, metric_names=None, fmt="png", std_band=False)
                 rel_t, vals = entry[label]
                 if len(rel_t) < 2:
                     continue
-                interpolated = np.interp(common_t, rel_t, vals,
-                                         left=np.nan, right=np.nan)
+                interpolated = np.interp(
+                    common_t, rel_t, vals, left=np.nan, right=np.nan
+                )
                 per_run.append(interpolated)
                 if is_peak:
                     peak_endpoints.append(vals[-1])
@@ -411,26 +478,36 @@ def average_runs(dirs, output_dir, metric_names=None, fmt="png", std_band=False)
 
             stacked = np.array(per_run)
             mean_vals = np.nanmean(stacked, axis=0)
-            std_vals  = np.nanstd(stacked, axis=0)
+            std_vals = np.nanstd(stacked, axis=0)
 
             color = COLORS[li % len(COLORS)]
             display = label if label else metric_name
             ax.plot(common_t, mean_vals, label=display, color=color, linewidth=1.5)
 
             if std_band and len(per_run) > 1:
-                ax.fill_between(common_t,
-                                mean_vals - std_vals,
-                                mean_vals + std_vals,
-                                alpha=0.2, color=color)
+                ax.fill_between(
+                    common_t,
+                    mean_vals - std_vals,
+                    mean_vals + std_vals,
+                    alpha=0.2,
+                    color=color,
+                )
 
             # peak 类指标：标注末尾标量均值±std
             if is_peak and peak_endpoints:
                 peak_mean = np.mean(peak_endpoints)
-                peak_std  = np.std(peak_endpoints)
-                ax.axhline(peak_mean, color=color, linestyle="--", linewidth=1, alpha=0.7)
-                ax.text(common_t[-1] * 0.02, peak_mean,
-                        f"peak={peak_mean:.1f}±{peak_std:.1f}",
-                        color=color, fontsize=8, va="bottom")
+                peak_std = np.std(peak_endpoints)
+                ax.axhline(
+                    peak_mean, color=color, linestyle="--", linewidth=1, alpha=0.7
+                )
+                ax.text(
+                    common_t[-1] * 0.02,
+                    peak_mean,
+                    f"peak={peak_mean:.1f}±{peak_std:.1f}",
+                    color=color,
+                    fontsize=8,
+                    va="bottom",
+                )
 
             label_avg_data[label] = (common_t, mean_vals)
             has_data = True
@@ -442,8 +519,10 @@ def average_runs(dirs, output_dir, metric_names=None, fmt="png", std_band=False)
         title = meta["title"]
         ax.set_title(title)
         if is_quantile:
-            ax.set_title(f"{title}\n(mean of quantile across runs, not combined-sample quantile)",
-                         fontsize=11)
+            ax.set_title(
+                f"{title}\n(mean of quantile across runs, not combined-sample quantile)",
+                fontsize=11,
+            )
         ax.set_ylabel(meta["ylabel"])
         ax.set_xlabel("Relative Time (s)")
         if len(all_labels) > 1 or (all_labels and next(iter(all_labels))):
@@ -470,13 +549,17 @@ def average_runs(dirs, output_dir, metric_names=None, fmt="png", std_band=False)
                     if "=" in part:
                         k, v = part.split("=", 1)
                         metric_dict[k] = v
-            values = [[EPOCH_BASE + int(t), str(round(float(v), 6))]
-                      for t, v in zip(common_t_l, mean_vals)
-                      if not np.isnan(v)]
+            values = [
+                [EPOCH_BASE + int(t), str(round(float(v), 6))]
+                for t, v in zip(common_t_l, mean_vals)
+                if not np.isnan(v)
+            ]
             result_series.append({"metric": metric_dict, "values": values})
 
-        avg_json = {"status": "success",
-                    "data": {"resultType": "matrix", "result": result_series}}
+        avg_json = {
+            "status": "success",
+            "data": {"resultType": "matrix", "result": result_series},
+        }
         out_json = output_dir / f"{metric_name}.json"
         with open(str(out_json), "w") as f:
             json.dump(avg_json, f)
@@ -559,22 +642,41 @@ def compare_groups(dirs, output_dir, metric_names=None, fmt="png"):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="将 Prometheus 导出的 JSON 数据绘制为图表")
-    parser.add_argument("dirs", nargs="+",
-                        help="一个或多个结果目录 (results/<group>/<scale>/<workload>/<run>)")
-    parser.add_argument("--output", "-o", default=None,
-                        help="输出目录 (默认: <results_dir>/charts)")
-    parser.add_argument("--format", "-f", default="png",
-                        choices=["png", "pdf", "svg"],
-                        help="输出格式 (默认: png)")
-    parser.add_argument("--compare", action="store_true",
-                        help="对比模式: 多个目录的同名指标画在同一张图")
-    parser.add_argument("--average", action="store_true",
-                        help="平均模式: 多个同组 run 的时间序列对齐后逐点平均，输出均值曲线")
-    parser.add_argument("--std-band", action="store_true",
-                        help="在平均曲线上绘制 ±1σ 标准差区域（需与 --average 同用）")
-    parser.add_argument("--metrics", nargs="*", default=None,
-                        help="仅绘制指定指标 (默认: 全部)")
+        description="将 Prometheus 导出的 JSON 数据绘制为图表"
+    )
+    parser.add_argument(
+        "dirs",
+        nargs="+",
+        help="一个或多个结果目录 (results/<group>/<scale>/<workload>/<run>)",
+    )
+    parser.add_argument(
+        "--output", "-o", default=None, help="输出目录 (默认: <results_dir>/charts)"
+    )
+    parser.add_argument(
+        "--format",
+        "-f",
+        default="png",
+        choices=["png", "pdf", "svg"],
+        help="输出格式 (默认: png)",
+    )
+    parser.add_argument(
+        "--compare",
+        action="store_true",
+        help="对比模式: 多个目录的同名指标画在同一张图",
+    )
+    parser.add_argument(
+        "--average",
+        action="store_true",
+        help="平均模式: 多个同组 run 的时间序列对齐后逐点平均，输出均值曲线",
+    )
+    parser.add_argument(
+        "--std-band",
+        action="store_true",
+        help="在平均曲线上绘制 ±1σ 标准差区域（需与 --average 同用）",
+    )
+    parser.add_argument(
+        "--metrics", nargs="*", default=None, help="仅绘制指定指标 (默认: 全部)"
+    )
 
     args = parser.parse_args()
 
