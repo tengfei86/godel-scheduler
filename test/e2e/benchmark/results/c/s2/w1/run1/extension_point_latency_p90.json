@@ -1,0 +1,1 @@
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"kube:scheduler_framework_extension_point_duration:p90"},"values":[[1784885385,"0.00009"],[1784885400,"0.00009"],[1784885415,"0.0004632225478213528"],[1784885430,"0.0006684590668152672"],[1784885445,"0.0016023622848106228"]]}]}}
