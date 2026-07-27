@@ -286,20 +286,20 @@ def plot_directory(results_dir, output_dir=None, fmt="png"):
     for json_file in sorted(results_dir.glob("*.json")):
         out_path = output_dir / f"{json_file.stem}.{fmt}"
         if plot_single_metric(str(json_file), str(out_path), fmt):
-            print(f"  ✓ {json_file.stem}.{fmt}")
+            print(f"  [ok] {json_file.stem}.{fmt}")
             plotted += 1
         else:
-            print(f"  ⊘ {json_file.stem} (无数据)")
+            print(f"  [--] {json_file.stem} (无数据)")
             skipped += 1
 
     # CSV 文件
     for csv_file in sorted(results_dir.glob("*.csv")):
         out_path = output_dir / f"{csv_file.stem}.{fmt}"
         if plot_utilization_csv(str(csv_file), str(out_path), fmt):
-            print(f"  ✓ {csv_file.stem}.{fmt}")
+            print(f"  [ok] {csv_file.stem}.{fmt}")
             plotted += 1
         else:
-            print(f"  ⊘ {csv_file.stem} (无数据)")
+            print(f"  [--] {csv_file.stem} (无数据)")
             skipped += 1
 
     print(f"\n完成: {plotted} 张图表已导出至 {output_dir}/, {skipped} 个跳过 (空数据)")
@@ -450,7 +450,7 @@ def average_runs(dirs, output_dir, metric_names=None, fmt="png", std_band=False)
             ax.legend(loc="best", fontsize=9)
         fig.tight_layout()
 
-        out_img = output_dir / f"avg_{metric_name}.{fmt}"
+        out_img = output_dir / f"{metric_name}.{fmt}"
         fig.savefig(str(out_img), format=fmt, bbox_inches="tight")
         plt.close(fig)
 
@@ -481,7 +481,7 @@ def average_runs(dirs, output_dir, metric_names=None, fmt="png", std_band=False)
         with open(str(out_json), "w") as f:
             json.dump(avg_json, f)
 
-        print(f"  ✓ avg_{metric_name}.{fmt}")
+        print(f"  [ok] {metric_name}.{fmt}")
         plotted += 1
 
     print(f"\n完成: {plotted} 张平均图表已导出至 {output_dir}/")
@@ -550,7 +550,7 @@ def compare_groups(dirs, output_dir, metric_names=None, fmt="png"):
         out_path = output_dir / f"compare_{metric_name}.{fmt}"
         fig.savefig(str(out_path), format=fmt, bbox_inches="tight")
         plt.close(fig)
-        print(f"  ✓ compare_{metric_name}.{fmt}")
+        print(f"  [ok] compare_{metric_name}.{fmt}")
         plotted += 1
 
     print(f"\n完成: {plotted} 张对比图表已导出至 {output_dir}/")
