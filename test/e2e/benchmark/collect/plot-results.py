@@ -1,21 +1,58 @@
 #!/usr/bin/env python3
 """
-plot-results.py — 将 Prometheus 导出的 JSON 数据绘制为 PNG 图表
+plot-results.py — 将 Prometheus 导出的 JSON 数据绘制为图表
 
 用法:
-  python3 plot-results.py <results_dir> [--output <output_dir>] [--format png|pdf|svg]
+  python3 plot-results.py <dir> [<dir> ...] [选项]
+
+选项:
+  --output  -o    输出目录 (默认: <results_dir>/charts 或 charts_compare/charts_average)
+  --format  -f    输出格式: png|pdf|svg (默认: png)
+  --compare       对比模式: 多个目录的同名指标画在同一张图，X 轴对齐到相对时间
+  --average       平均模式: 多个同组 run 逐点平均，同时输出 avg_*.json 供二次对比
+  --std-band      与 --average 同用，在均值曲线上绘制 ±1σ 标准差区域
+  --metrics       仅绘制指定指标名（空格分隔），默认全部
 
 示例:
-  # 绘制单个 run 的结果
-  python3 plot-results.py results/a/s2/w1/run1
+  # 1. 绘制单个 run 的所有指标
+  python3 plot-results.py ../results/a/s2/w1/run1
 
-  # 指定输出目录和格式
-  python3 plot-results.py results/a/s2/w1/run1 --output ./charts --format pdf
+  # 2. 指定输出目录和格式
+  python3 plot-results.py ../results/a/s2/w1/run1 --output ./charts --format pdf
 
-  # 对比多个组 (同 scale/workload 下不同调度器)
-  python3 plot-results.py results/a/s2/w1/run1 results/b/s2/w1/run1 results/c/s2/w1/run1 --compare
+  # 3. 直接对比多个调度器的同一 run（X 轴自动对齐到相对时间）
+  python3 plot-results.py \
+    ../results/a/s2/w1/run1 \
+    ../results/b/s2/w1/run1 \
+    ../results/c/s2/w1/run1 \
+    --compare --output ../results/compare/s2_w1
 
-结果目录结构: results/<group>/<scale>/<workload>/<run>/
+  # 4. 对同一组的多次 run 做平均（附标准差 band）
+  python3 plot-results.py \
+    ../results/a/s2/w1/run1 \
+    ../results/a/s2/w1/run2 \
+    ../results/a/s2/w1/run3 \
+    --average --std-band --output ../results/a/s2/w1/avg
+
+  # 5. 两步工作流：先对各组求均值，再跨组对比
+  #    步骤一：生成各组均值目录（含 avg_*.json 和 avg_*.png）
+  python3 plot-results.py \
+    ../results/a/s2/w1/run1 ../results/a/s2/w1/run2 ../results/a/s2/w1/run3 \
+    --average --output ../results/a/s2/w1/avg
+  python3 plot-results.py \
+    ../results/b/s2/w1/run1 ../results/b/s2/w1/run2 ../results/b/s2/w1/run3 \
+    --average --output ../results/b/s2/w1/avg
+  #    步骤二：用均值 JSON 做跨组对比
+  python3 plot-results.py \
+    ../results/a/s2/w1/avg \
+    ../results/b/s2/w1/avg \
+    --compare --output ../results/compare/s2_w1_a_vs_b
+
+  # 6. 只绘制指定指标
+  python3 plot-results.py ../results/a/s2/w1/run1 \
+    --metrics scheduling_throughput scheduling_latency_p90 pending_pods
+
+结果目录结构: ../results/<group>/<scale>/<workload>/run<N>/
 """
 
 import argparse
@@ -440,7 +477,7 @@ def average_runs(dirs, output_dir, metric_names=None, fmt="png", std_band=False)
 
         avg_json = {"status": "success",
                     "data": {"resultType": "matrix", "result": result_series}}
-        out_json = output_dir / f"avg_{metric_name}.json"
+        out_json = output_dir / f"{metric_name}.json"
         with open(str(out_json), "w") as f:
             json.dump(avg_json, f)
 
