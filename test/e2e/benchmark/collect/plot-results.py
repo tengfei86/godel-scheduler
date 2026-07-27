@@ -495,7 +495,9 @@ def compare_groups(dirs, output_dir, metric_names=None, fmt="png"):
                 display = f"{group_label}"
                 if label:
                     display += f" ({label})"
-                ax.plot(ts, vals, label=display, color=color, linewidth=1.5)
+                t0 = ts[0]
+                rel_t = [(t - t0).total_seconds() for t in ts]
+                ax.plot(rel_t, vals, label=display, color=color, linewidth=1.5)
                 has_data = True
 
         if not has_data:
@@ -504,10 +506,8 @@ def compare_groups(dirs, output_dir, metric_names=None, fmt="png"):
 
         ax.set_title(meta["title"])
         ax.set_ylabel(meta["ylabel"])
-        ax.set_xlabel("Time")
-        ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S"))
+        ax.set_xlabel("Relative Time (s)")
         ax.legend(loc="best", fontsize=9)
-        fig.autofmt_xdate()
         fig.tight_layout()
 
         out_path = output_dir / f"compare_{metric_name}.{fmt}"
