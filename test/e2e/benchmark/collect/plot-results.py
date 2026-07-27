@@ -32,23 +32,31 @@ plot-results.py — 将 Prometheus 导出的 JSON 数据绘制为图表
     ../results/a/s2/w1/run1 \
     ../results/a/s2/w1/run2 \
     ../results/a/s2/w1/run3 \
-    --average --std-band --output ../results/a/s2/w1/compare
+    --average --std-band --output ../results/a/s2/w1/avg
 
   # 5. 两步工作流：先对各组求均值，再跨组对比
   #    步骤一：生成各组均值目录（含 avg_*.json 和 avg_*.png）
   python3 plot-results.py \
     ../results/a/s2/w1/run1 ../results/a/s2/w1/run2 ../results/a/s2/w1/run3 \
-    --average --output ../results/a/s2/w1/compare
+    --average --output ../results/a/s2/w1/avg
   python3 plot-results.py \
     ../results/b/s2/w1/run1 ../results/b/s2/w1/run2 ../results/b/s2/w1/run3 \
-    --average --output ../results/b/s2/w1/compare
+    --average --output ../results/b/s2/w1/avg
   #    步骤二：用均值 JSON 做跨组对比
   python3 plot-results.py \
     ../results/a/s2/w1/avg \
     ../results/b/s2/w1/avg \
     --compare --output ../results/compare/s2_w1_a_vs_b
 
-  # 6. 只绘制指定指标
+  # 6. 单组：将多次 run 与其均值曲线叠加对比（验证均值是否有代表性）
+  python3 plot-results.py \
+    ../results/a/s2/w1/run1 \
+    ../results/a/s2/w1/run2 \
+    ../results/a/s2/w1/run3 \
+    ../results/a/s2/w1/avg \
+    --compare --output ../results/a/s2/w1/compare
+
+  # 7. 只绘制指定指标
   python3 plot-results.py ../results/a/s2/w1/run1 \
     --metrics scheduling_throughput scheduling_latency_p90 pending_pods
 
