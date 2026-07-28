@@ -216,8 +216,8 @@ METRIC_META = {
 
 # 组标签
 GROUP_LABELS = {
-    "a": "Embedded Binder (Proposed)",
-    "b": "Shared Binder (Baseline)",
+    "a": "ENO Scheduler",
+    "b": "Godel Scheduler",
     "c": "kube-scheduler",
     "d": "Volcano",
     "e": "Koordinator",
@@ -579,10 +579,11 @@ def average_runs(dirs, output_dir, metric_names=None, fmt="png", std_band=False)
     return plotted
 
 
-def compare_groups(dirs, output_dir, metric_names=None, fmt="png"):
+def compare_groups(dirs, output_dir, metric_names=None, fmt="png", label_mode="scheduler"):
     """
     对比模式: 将多个组的同名指标画在同一张图上。
     dirs: list of result directories (e.g., results/a/s2/w1/run1, results/b/s2/w1/run1)
+    label_mode: "scheduler" 用 GROUP_LABELS 显示调度器名（默认），"path" 用目录路径显示
     """
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -608,14 +609,18 @@ def compare_groups(dirs, output_dir, metric_names=None, fmt="png"):
             if not filepath.exists():
                 continue
 
-            # 从路径推断组名
-            parts = Path(d).parts
-            group_key = None
-            for p in parts:
-                if p in GROUP_LABELS:
-                    group_key = p
-                    break
-            group_label = GROUP_LABELS.get(group_key, str(d))
+            # 图例标签：scheduler 模式用 GROUP_LABELS，path 模式用目录路径最后两段
+            if label_mode == "path":
+                parts = Path(d).parts
+                group_label = "/".join(parts[-2:]) if len(parts) >= 2 else str(d)
+            else:
+                parts = Path(d).parts
+                group_key = None
+                for p in parts:
+                    if p in GROUP_LABELS:
+                        group_key = p
+                        break
+                group_label = GROUP_LABELS.get(group_key, str(d))
 
             series_list = load_prometheus_json(str(filepath))
             for label, ts, vals in series_list:
@@ -685,6 +690,12 @@ def main():
     parser.add_argument(
         "--metrics", nargs="*", default=None, help="仅绘制指定指标 (默认: 全部)"
     )
+    parser.add_argument(
+        "--label-mode",
+        default="scheduler",
+        choices=["scheduler", "path"],
+        help="对比图图例标签: scheduler=调度器名 (默认), path=目录路径",
+    )
 
     args = parser.parse_args()
 
@@ -693,7 +704,7 @@ def main():
             parser.error("对比模式需要至少 2 个结果目录")
         out = args.output or "charts_compare"
         print(f"对比模式: {len(args.dirs)} 个目录\n")
-        compare_groups(args.dirs, out, args.metrics, args.format)
+        compare_groups(args.dirs, out, args.metrics, args.format, args.label_mode)
     elif args.average:
         if len(args.dirs) < 2:
             parser.error("平均模式需要至少 2 个结果目录")
