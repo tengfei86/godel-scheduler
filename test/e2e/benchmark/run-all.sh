@@ -19,6 +19,7 @@
 #   ./run-all.sh --groups "a b" --scales "s2 s3" --workloads "w1 w2"
 #   ./run-all.sh --dry-run                                        # 预览执行计划
 #   ./run-all.sh --groups "a b" --scales "s3" --workloads "w3" --instances "1 2 3 5"  # 水平扩展测试
+#   ./run-all.sh --groups "a b c d e" --scales "s2 s3" --workloads "w2 w3" --setup-nodes  # 所有调度器 × s2/s3 × w2/w3，自动创建节点
 
 set -eu
 
