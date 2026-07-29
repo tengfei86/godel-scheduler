@@ -81,12 +81,17 @@ auto_tune_params() {
 # ── 编译 podgen ──
 build_podgen() {
   if [[ -x "$PODGEN_BIN" ]]; then
-    local src_mtime bin_mtime
-    src_mtime=$(stat -c %Y "${PODGEN_DIR}/main.go" 2>/dev/null || stat -f %m "${PODGEN_DIR}/main.go" 2>/dev/null || echo 0)
-    bin_mtime=$(stat -c %Y "$PODGEN_BIN" 2>/dev/null || stat -f %m "$PODGEN_BIN" 2>/dev/null || echo 0)
-    if (( bin_mtime >= src_mtime )); then
-      log_info "  podgen 已是最新，跳过编译"
-      return 0
+    # 验证 binary 能在当前系统执行（跨平台提交的 binary 可执行但格式不匹配）
+    if ! "$PODGEN_BIN" --help &>/dev/null && ! "$PODGEN_BIN" -help &>/dev/null; then
+      log_info "  podgen binary 无法在当前系统执行，重新编译..."
+    else
+      local src_mtime bin_mtime
+      src_mtime=$(stat -c %Y "${PODGEN_DIR}/main.go" 2>/dev/null || stat -f %m "${PODGEN_DIR}/main.go" 2>/dev/null || echo 0)
+      bin_mtime=$(stat -c %Y "$PODGEN_BIN" 2>/dev/null || stat -f %m "$PODGEN_BIN" 2>/dev/null || echo 0)
+      if (( bin_mtime >= src_mtime )); then
+        log_info "  podgen 已是最新，跳过编译"
+        return 0
+      fi
     fi
   fi
 
