@@ -132,33 +132,51 @@ patch_kindnet_for_kwok() {
   if kubectl get ds kindnet -n kube-system -o json 2>/dev/null | \
     jq -e '.spec.template.spec.affinity.nodeAffinity' &>/dev/null; then
     log_info "kindnet 已配置 nodeAffinity，跳过"
-    return 0
-  fi
-
-  kubectl patch ds kindnet -n kube-system --type=merge -p '{
-    "spec": {
-      "template": {
-        "spec": {
-          "affinity": {
-            "nodeAffinity": {
-              "requiredDuringSchedulingIgnoredDuringExecution": {
-                "nodeSelectorTerms": [{
-                  "matchExpressions": [{
-                    "key": "fake.byted.org/node",
-                    "operator": "DoesNotExist"
+  else
+    kubectl patch ds kindnet -n kube-system --type=merge -p '{
+      "spec": {
+        "template": {
+          "spec": {
+            "affinity": {
+              "nodeAffinity": {
+                "requiredDuringSchedulingIgnoredDuringExecution": {
+                  "nodeSelectorTerms": [{
+                    "matchExpressions": [{
+                      "key": "fake.byted.org/node",
+                      "operator": "DoesNotExist"
+                    }]
                   }]
-                }]
+                }
               }
             }
           }
         }
       }
+    }'
+  fi
+
+  # 提高 kindnet 容器内存 limits/requests，避免大规模 KWOK 节点场景下 OOM
+  # 默认 limits 只有 50Mi，几千个 Endpoint 会撑爆
+  log_info "调高 kindnet 容器内存 limits 到 2Gi..."
+  kubectl patch ds kindnet -n kube-system --type=strategic -p '{
+    "spec": {
+      "template": {
+        "spec": {
+          "containers": [{
+            "name": "kindnet-cni",
+            "resources": {
+              "requests": {"cpu": "100m", "memory": "512Mi"},
+              "limits":   {"cpu": "1000m", "memory": "2Gi"}
+            }
+          }]
+        }
+      }
     }
-  }'
+  }' 2>/dev/null || log_warn "kindnet 容器名可能不是 kindnet-cni，请手动确认"
 
   log_info "等待 kindnet 滚动更新..."
-  kubectl rollout status ds/kindnet -n kube-system --timeout=60s 2>/dev/null || true
-  log_info "✓ kindnet 已配置为忽略 KWOK 节点"
+  kubectl rollout status ds/kindnet -n kube-system --timeout=120s 2>/dev/null || true
+  log_info "✓ kindnet 已配置为忽略 KWOK 节点 + 调高内存"
 }
 
 # ── 部署 KWOK 控制器 ──
