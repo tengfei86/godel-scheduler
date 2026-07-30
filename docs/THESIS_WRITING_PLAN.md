@@ -163,7 +163,85 @@
 
 ---
 
-## 五、关键文件路径速查
+## 五、架构图与流程图清单（论文必备）
+
+论文需要大量的架构/流程图配合文字说明。目前 [docs/performance/figures/](performance/figures/) 只有 2 张（fig4-1 CAS 一致性流程、fig4-2 Dispatcher 任务划分），远不够。以下按章节列出必须新增的图，均建议用 **Mermaid（.mmd）源码 + 导出 PDF/PNG/SVG** 三份，方便修改与出版。
+
+### 第 2 章 相关工作与背景
+
+| 图号 | 类型 | 内容 | 复用价值 |
+|---|---|---|---|
+| 图 2-1 | 架构图 | K8s 原生 kube-scheduler 单进程调度环 | 建立读者基线认知 |
+| 图 2-2 | 架构图 | Volcano Session-based Gang 调度流程 | 对比讲清批处理调度器差异 |
+| 图 2-3 | 架构图 | Gödel 三层架构总览（Dispatcher / Scheduler / Binder + Etcd） | §2.4 核心图，铺垫第 3 章 |
+
+### 第 3 章 Embedded Binder 架构设计（关键章节，图密集）
+
+| 图号 | 类型 | 内容 | 备注 |
+|---|---|---|---|
+| **图 3-1** | 架构对比图 | **Shared Binder vs Embedded Binder 进程边界对比**（左右并列） | 论文最核心的一张图，读者一眼看懂改造点 |
+| 图 3-2 | 序列图 | Shared Binder：Scheduler → PatchPod → 独立 Binder 消费 Informer → Bind | 展示 gRPC/Informer 跨进程延迟来源 |
+| 图 3-3 | 序列图 | Embedded Binder：Scheduler → 进程内 BindUnit → 直接 Bind API | 与 3-2 形成对照 |
+| 图 3-4 | 组件图 | `BinderInterface` 抽象 + 两个实现类的 UML 图 | 讲清同一份源码支持两种模式的机制 |
+| 图 3-5 | 数据流图 | Cache 零拷贝共享：Scheduler Cache ↔ CacheAdapter ↔ Embedded Binder | §3.4.2 |
+| 图 3-6 | 部署拓扑图 | k8s Deployment 视角：Shared 模式（Scheduler DS + Binder Deploy）vs Embedded 模式（仅 Scheduler DS） | 直观展示资源节省 |
+
+### 第 4 章 4 层容错机制（关键章节，图密集）
+
+| 图号 | 类型 | 内容 | 备注 |
+|---|---|---|---|
+| **图 4-1** | 状态机图 | Pod 从 Pending → Assumed → Bound 的完整状态转移 + 4 层容错的介入点 | 论文核心图之一，一图看懂容错设计 |
+| 图 4-2 | 流程图 | Layer 0：Node 分区归属校验决策树 | §4.2 |
+| 图 4-3 | 时序图 | Layer 1：同步重试的指数退避时序 | §4.3 |
+| 图 4-4 | 组件图 | Layer 2：Reconciler WorkQueue 生产者-消费者模型 | §4.4 |
+| 图 4-5 | 时序图 | Layer 3：Binder 失败 → 清除注解 → Dispatcher 重新分发的跨实例回退时序 | §4.5，最复杂的一张，可能需要 3-4 个 lane |
+| 图 4-6 | **已有** | fig4-1-consistency-cas-flow.pdf（CAS 一致性流程） | 直接复用，可作 §4.6 |
+| 图 4-7 | **已有** | fig4-2-dispatcher-task-division.pdf（Dispatcher 任务划分） | 直接复用，可作 §4.2 或 §4.5 |
+
+### 第 5 章 实验与评估（数据图，不是架构图）
+
+数据图由 [plot-results.py](../test/e2e/benchmark/collect/plot-results.py) 自动生成，命名从 T-1、L-1 等按 [chart-index.md](../test/e2e/benchmark/results/final-charts/chart-index.md) 已有惯例延续。不在此列。
+
+但需要额外补 2 张**方法学示意图**：
+| 图号 | 类型 | 内容 |
+|---|---|---|
+| 图 5-1 | 拓扑图 | 实验环境架构：kind 集群 + KWOK 假节点 + Prometheus + 5 个调度器组的部署布局 |
+| 图 5-2 | 时序图 | 单次实验流程：deploy → warmup → workload → wait → collect（对应 [run-experiment.sh](../test/e2e/benchmark/run-experiment.sh) 12 个 Step） |
+
+---
+
+## 六、图表制作规范与工具链
+
+### 6.1 图源码优先原则
+- **所有架构图/流程图用 Mermaid 源码**（`.mmd`），版本化管理，避免用 draw.io 的私有格式
+- 导出脚本：可以直接用现有的 [docs/performance/figures/puppeteer-config.cjs](performance/figures/puppeteer-config.cjs) 批处理
+- 3 份产物：`.mmd`（源码）、`.pdf`（论文用，矢量）、`.png`（演示/预览用）
+
+### 6.2 图注与命名
+- 图注格式："图 3-1  Embedded Binder 与 Shared Binder 进程边界对比"（章号-序号 + 中文标题）
+- 文件命名：`fig{章号}-{序号}-{英文-短-slug}.mmd`，例如 `fig3-1-arch-comparison.mmd`
+
+### 6.3 配色规范（供 Mermaid 主题定制）
+- 进程/服务节点：蓝灰系 `#4A6FA5`
+- 数据库/持久化：绿色 `#5B8C5A`
+- 数据流箭头：黑色实线，跨进程箭头虚线
+- 高亮/新组件（Embedded Binder 相关）：橙色 `#E67E22`
+- 与已有的 fig4-1、fig4-2 保持一致（避免论文里配色跳跃）
+
+### 6.4 图数量控制
+- 总图数目标 **20-25 张**（架构图 12-15 + 数据图 8-10），过多会显得拖沓
+- 每章至少 1 张、至多 6 张的原则
+- 每张图必须在正文中被显式引用（"如图 3-1 所示…"）
+
+### 6.5 制图批次建议
+- **Batch 1（Week 1）**：图 2-3、图 3-1、图 3-2、图 3-3（架构章节主图先出）
+- **Batch 2（Week 2）**：图 4-1、图 4-5（容错章节主图）
+- **Batch 3（Week 2 末）**：其余细节图 + §5.1 方法学图
+- 每 Batch 用 `mmdc`（mermaid CLI）批量导出
+
+---
+
+## 七、关键文件路径速查
 
 | 用途 | 路径 |
 |---|---|
@@ -180,7 +258,7 @@
 
 ---
 
-## 六、验证与交付
+## 八、验证与交付
 
 **写作完成后的检查清单**：
 - [ ] 每张图都能追溯到 `results/<group>/<scale>/<workload>/run<N>/<metric>.json`
