@@ -169,34 +169,53 @@
 
 ### 第 2 章 相关工作与背景
 
-| 图号 | 类型 | 内容 | 复用价值 |
-|---|---|---|---|
-| 图 2-1 | 架构图 | K8s 原生 kube-scheduler 单进程调度环 | 建立读者基线认知 |
-| 图 2-2 | 架构图 | Volcano Session-based Gang 调度流程 | 对比讲清批处理调度器差异 |
-| 图 2-3 | 架构图 | Gödel 三层架构总览（Dispatcher / Scheduler / Binder + Etcd） | §2.4 核心图，铺垫第 3 章 |
+**不画架构图**，用文字介绍 + 一张对比表即可。
+
+- **理由**：第 2 章的作用是铺垫背景，不是详解别人的架构；kube-scheduler / Volcano / Koordinator / Gödel 都是已发表工作，读者可以直接引用原论文/官方文档
+- **Gödel 三层架构**在第 3 章图 3-1a 已经充分呈现（Dispatcher/Scheduler/Binder 三进程 + kube-apiserver），无需在第 2 章重画
+- 图数配额（20-25 张）留给第 3-5 章的核心贡献
+
+**替代方案**：§2.5 结尾放一张**方案对比表**：
+
+| 维度 | kube-scheduler | Volcano | Koordinator | Gödel | ENO（本文）|
+|---|---|---|---|---|---|
+| 分区调度支持 | ❌ | 部分 | 部分 | ✅ | ✅ |
+| 独立 Binder | N/A | ❌ | ❌ | ✅（单点瓶颈）| ❌（合并到 Scheduler）|
+| Gang 调度 | ❌ | ✅ | ✅ | ✅ | ✅ |
+| 一致性保护机制 | 单进程 | 单进程 | 单进程 | Shared Binder 串行化 | 4 层容错 |
+| 大规模验证 | 5K 节点 | 待验证 | 待验证 | 30K 节点（官方）| 本文 5K 节点 |
 
 ### 第 3 章 Embedded Binder 架构设计（关键章节，图密集）
 
 | 图号 | 类型 | 内容 | 备注 |
 |---|---|---|---|
 | **图 3-1** | 架构对比图 | **Shared Binder vs Embedded Binder 进程边界对比**（左右并列） | 论文最核心的一张图，读者一眼看懂改造点 |
-| 图 3-2 | 序列图 | Shared Binder：Scheduler → PatchPod → 独立 Binder 消费 Informer → Bind | 展示 gRPC/Informer 跨进程延迟来源 |
-| 图 3-3 | 序列图 | Embedded Binder：Scheduler → 进程内 BindUnit → 直接 Bind API | 与 3-2 形成对照 |
-| 图 3-4 | 组件图 | `BinderInterface` 抽象 + 两个实现类的 UML 图 | 讲清同一份源码支持两种模式的机制 |
-| 图 3-5 | 数据流图 | Cache 零拷贝共享：Scheduler Cache ↔ CacheAdapter ↔ Embedded Binder | §3.4.2 |
-| 图 3-6 | 部署拓扑图 | k8s Deployment 视角：Shared 模式（Scheduler DS + Binder Deploy）vs Embedded 模式（仅 Scheduler DS） | 直观展示资源节省 |
+| 图 3-2 | 组件图 | `BinderInterface` 抽象 + 两个实现类的 UML 图 | 讲清同一份源码支持两种模式的机制 |
+| 图 3-3 | 数据流图 | Cache 零拷贝共享：Scheduler Cache ↔ CacheAdapter ↔ Embedded Binder | §3.4.2 |
+| 图 3-4 | 部署拓扑图 | k8s Deployment 视角：Shared 模式（Scheduler DS + Binder Deploy）vs Embedded 模式（仅 Scheduler DS） | 直观展示资源节省 |
 
-### 第 4 章 4 层容错机制（关键章节，图密集）
+> **原图 3-2/3-3 序列图已删除**：图 3-1a/3-1b 已用步骤编号 ①→⑤/①→③ 展示了跨进程往返差异，序列图会成为同一事实的第二次陈述。取而代之在 §3.5 用一张**性能开销对比表**（Bind 涉及进程数、apiserver 往返次数、序列化开销、Cache 同步机制等维度），信息密度更高。
 
-| 图号 | 类型 | 内容 | 备注 |
+### 第 4 章 4 层容错机制
+
+第 4 章图表按小节组织，每小节 0-2 张。**核心图 3 张已全部完成**。
+
+| 图号 | 类型 | 用途（对应章节） | 状态 |
 |---|---|---|---|
-| **图 4-1** | 状态机图 | Pod 从 Pending → Assumed → Bound 的完整状态转移 + 4 层容错的介入点 | 论文核心图之一，一图看懂容错设计 |
-| 图 4-2 | 流程图 | Layer 0：Node 分区归属校验决策树 | §4.2 |
-| 图 4-3 | 时序图 | Layer 1：同步重试的指数退避时序 | §4.3 |
-| 图 4-4 | 组件图 | Layer 2：Reconciler WorkQueue 生产者-消费者模型 | §4.4 |
-| 图 4-5 | 时序图 | Layer 3：Binder 失败 → 清除注解 → Dispatcher 重新分发的跨实例回退时序 | §4.5，最复杂的一张，可能需要 3-4 个 lane |
-| 图 4-1'（复用） | **已有** | [fig4-1-consistency-cas-flow.pdf](performance/figures/fig4-1-consistency-cas-flow.pdf) — **实际为完整绑定 + 4 层容错决策流程图**（Pod 快照 → Bind → 同步重试 → 本地回退 → 全局回退），比图 4-1 状态机图更适合 §4.1 或 §4.5 主流程 | 直接复用；如需要，将 fig4-1 状态机图收窄成"Pod 状态转移"简版 |
-| 图 4-2'（复用） | **已有** | [fig4-2-dispatcher-task-division.pdf](performance/figures/fig4-2-dispatcher-task-division.pdf) — **实际为 Dispatcher 完整分发决策流程**（Leader Election → 排序 → 策略选择 → PatchPod → 冲突回退） | 双用：§3.1 讲现有 Gödel 三层架构时铺垫；§4.5 讲跨实例回退时展示接收端 |
+| **图 4-1** | 状态机图 | §4.1 章节封面：Pod 生命周期 + 4 层容错介入点 | ✅ [fig4-1-pod-state-machine.pdf](performance/figures/fig4-1-pod-state-machine.pdf) |
+| **图 4-2a** | 流程图 | §4.5 Layer 3 接收端：Dispatcher 主分发流程 | ✅ [fig4-2a-dispatcher-main-flow.pdf](performance/figures/fig4-2a-dispatcher-main-flow.pdf) |
+| **图 4-2b** | 流程图 | §4.5 Layer 3 接收端：Dispatcher 分发失败重试逻辑 | ✅ [fig4-2b-dispatcher-error-recovery.pdf](performance/figures/fig4-2b-dispatcher-error-recovery.pdf) |
+| 图 4-3（可选） | 流程图 | §4.5 补充详图：Embedded Binder 完整绑定 + 4 层容错决策流程 | ⭕ [fig4-1-consistency-cas-flow.pdf](performance/figures/fig4-1-consistency-cas-flow.pdf)（图数紧张可省） |
+
+**取消的图**（理由：文字/表格更合适）：
+- ~~图：Layer 0 分区校验决策树~~ — 一段 if-else 伪代码 + 一句话说明即可，不用画图
+- ~~图：Layer 1 同步重试指数退避时序~~ — 一张参数表（初始退避、上限、乘数、MaxRetries）足够
+- ~~图：Layer 2 Reconciler WorkQueue 生产者-消费者~~ — 图 4-1 状态机已经在 `L2_Queue` 节点展示；正文可加 5-10 行伪代码显示 worker 拉取逻辑
+- ~~图：Layer 3 跨实例回退时序（swimlane）~~ — 图 4-2a + 图 4-2b 已经充分表达，多加一张 swimlane 时序图属于重复信息
+
+**§4.6 一致性论证**：无需图，用**不变量 + 证明文字**表达（评审最重视的一节）
+- 核心不变量：`∀ Pod p: |{node: p.assumedNode == node}| ≤ 1`（Pod 最多被绑定到一个节点）
+- 每一层容错在什么故障模式下如何维护这个不变量（详细论证 1-2 页文字 + 关键路径 5-10 行伪代码）
 
 ### 第 5 章 实验与评估（数据图，不是架构图）
 
@@ -234,7 +253,7 @@
 - 每张图必须在正文中被显式引用（"如图 3-1 所示…"）
 
 ### 6.5 制图批次建议
-- **Batch 1（Week 1）**：图 2-3、图 3-1、图 3-2、图 3-3（架构章节主图先出）
+- **Batch 1（Week 1）**：图 3-1（架构章节主图先出）
 - **Batch 2（Week 2）**：图 4-1、图 4-5（容错章节主图）
 - **Batch 3（Week 2 末）**：其余细节图 + §5.1 方法学图
 - 每 Batch 用 `mmdc`（mermaid CLI）批量导出，运行 [export-figures.sh](performance/figures/export-figures.sh)
@@ -252,22 +271,15 @@
 | 图 4-2a | [fig4-2a-dispatcher-main-flow.pdf](performance/figures/fig4-2a-dispatcher-main-flow.pdf) | §3.1 或 §4.5：Dispatcher 主分发流程 |
 | 图 4-2b | [fig4-2b-dispatcher-error-recovery.pdf](performance/figures/fig4-2b-dispatcher-error-recovery.pdf) | §4.5：Dispatcher 分发失败重试逻辑 |
 
-**下一批要画（Batch 1 剩余）**：
+**Batch 1 已全部完成**（第 3 章核心架构图 3-1a/3-1b + 第 4 章核心图 4-1/4-2a/4-2b 均已落盘）。
 
-| 图号 | 内容 | 备注 |
-|---|---|---|
-| 图 3-2 | Shared Binder 序列图：Scheduler → PatchPod → 独立 Binder → Bind API | 展示 gRPC/Informer 跨进程延迟来源 |
-| 图 3-3 | Embedded Binder 序列图：Scheduler → 进程内 BindUnit → Bind API | 与 3-2 形成对照 |
-| 图 2-3 | Gödel 三层架构总览（Dispatcher / Scheduler / Binder + Etcd + kube-apiserver） | §2.4 铺垫图，为第 3 章做背景 |
-
-**后续批次（Batch 2/3，等 Batch 1 定稿后再画）**：
-- 图 2-1（kube-scheduler 单进程调度环）
-- 图 2-2（Volcano Session-based Gang）
-- 图 3-4（BinderInterface UML）
-- 图 3-5（Cache 零拷贝共享数据流）
-- 图 3-6（k8s Deployment 拓扑对比）
-- 图 4-2/4-3/4-4（Layer 0/1/2 各自细节图）
+**后续批次（Batch 2/3）**：
+- 图 3-2（BinderInterface UML）
+- 图 3-3（Cache 零拷贝共享数据流）
+- 图 3-4（k8s Deployment 拓扑对比）
 - 图 5-1/5-2（实验环境与流程）
+
+> 第 4 章图已全部完成，Layer 0/1/2 各自细节图已取消（改用伪代码/参数表表达，见 §"第 4 章 4 层容错机制"）。
 
 ---
 
