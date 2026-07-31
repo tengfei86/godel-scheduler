@@ -245,17 +245,17 @@
 
 | 图号 | 文件 | 用途 |
 |---|---|---|
+| **图 3-1a** | [fig3-1a-shared-binder-arch.pdf](performance/figures/fig3-1a-shared-binder-arch.pdf) | §3.1：Shared Binder 基线架构（论文核心图之一） |
+| **图 3-1b** | [fig3-1b-embedded-binder-arch.pdf](performance/figures/fig3-1b-embedded-binder-arch.pdf) | §3.1：Embedded Binder 提议架构（与 3-1a 并列对比） |
 | 图 4-1 | [fig4-1-pod-state-machine.pdf](performance/figures/fig4-1-pod-state-machine.pdf) | §4.1 章节封面：Pod 状态机 + 4 层容错介入点 |
-| 图 4-1'（复用旧图） | [fig4-1-consistency-cas-flow.pdf](performance/figures/fig4-1-consistency-cas-flow.pdf) | §4.5：完整绑定 + 4 层容错决策流程 |
+| 图 4-1'（可选） | [fig4-1-consistency-cas-flow.pdf](performance/figures/fig4-1-consistency-cas-flow.pdf) | §4.5 补充详图：Embedded Binder 绑定全流程（图数紧张时可省） |
 | 图 4-2a | [fig4-2a-dispatcher-main-flow.pdf](performance/figures/fig4-2a-dispatcher-main-flow.pdf) | §3.1 或 §4.5：Dispatcher 主分发流程 |
 | 图 4-2b | [fig4-2b-dispatcher-error-recovery.pdf](performance/figures/fig4-2b-dispatcher-error-recovery.pdf) | §4.5：Dispatcher 分发失败重试逻辑 |
-| 图 4-2'（复用旧图） | [fig4-2-dispatcher-task-division.pdf](performance/figures/fig4-2-dispatcher-task-division.pdf) | 备用/替代 4-2a（信息更全但排版更大） |
 
-**下一批要画（Batch 1，优先级最高）**：
+**下一批要画（Batch 1 剩余）**：
 
 | 图号 | 内容 | 备注 |
 |---|---|---|
-| **图 3-1** | Shared Binder vs Embedded Binder **进程边界对比**（左右并列） | 论文最核心的一张图，读者一眼看懂改造点 |
 | 图 3-2 | Shared Binder 序列图：Scheduler → PatchPod → 独立 Binder → Bind API | 展示 gRPC/Informer 跨进程延迟来源 |
 | 图 3-3 | Embedded Binder 序列图：Scheduler → 进程内 BindUnit → Bind API | 与 3-2 形成对照 |
 | 图 2-3 | Gödel 三层架构总览（Dispatcher / Scheduler / Binder + Etcd + kube-apiserver） | §2.4 铺垫图，为第 3 章做背景 |
