@@ -195,8 +195,8 @@
 | 图 4-3 | 时序图 | Layer 1：同步重试的指数退避时序 | §4.3 |
 | 图 4-4 | 组件图 | Layer 2：Reconciler WorkQueue 生产者-消费者模型 | §4.4 |
 | 图 4-5 | 时序图 | Layer 3：Binder 失败 → 清除注解 → Dispatcher 重新分发的跨实例回退时序 | §4.5，最复杂的一张，可能需要 3-4 个 lane |
-| 图 4-6 | **已有** | fig4-1-consistency-cas-flow.pdf（CAS 一致性流程） | 直接复用，可作 §4.6 |
-| 图 4-7 | **已有** | fig4-2-dispatcher-task-division.pdf（Dispatcher 任务划分） | 直接复用，可作 §4.2 或 §4.5 |
+| 图 4-1'（复用） | **已有** | [fig4-1-consistency-cas-flow.pdf](performance/figures/fig4-1-consistency-cas-flow.pdf) — **实际为完整绑定 + 4 层容错决策流程图**（Pod 快照 → Bind → 同步重试 → 本地回退 → 全局回退），比图 4-1 状态机图更适合 §4.1 或 §4.5 主流程 | 直接复用；如需要，将 fig4-1 状态机图收窄成"Pod 状态转移"简版 |
+| 图 4-2'（复用） | **已有** | [fig4-2-dispatcher-task-division.pdf](performance/figures/fig4-2-dispatcher-task-division.pdf) — **实际为 Dispatcher 完整分发决策流程**（Leader Election → 排序 → 策略选择 → PatchPod → 冲突回退） | 双用：§3.1 讲现有 Gödel 三层架构时铺垫；§4.5 讲跨实例回退时展示接收端 |
 
 ### 第 5 章 实验与评估（数据图，不是架构图）
 
@@ -237,7 +237,37 @@
 - **Batch 1（Week 1）**：图 2-3、图 3-1、图 3-2、图 3-3（架构章节主图先出）
 - **Batch 2（Week 2）**：图 4-1、图 4-5（容错章节主图）
 - **Batch 3（Week 2 末）**：其余细节图 + §5.1 方法学图
-- 每 Batch 用 `mmdc`（mermaid CLI）批量导出
+- 每 Batch 用 `mmdc`（mermaid CLI）批量导出，运行 [export-figures.sh](performance/figures/export-figures.sh)
+
+### 6.6 图表制作进度追踪
+
+**已完成（可直接入论文）**：
+
+| 图号 | 文件 | 用途 |
+|---|---|---|
+| 图 4-1 | [fig4-1-pod-state-machine.pdf](performance/figures/fig4-1-pod-state-machine.pdf) | §4.1 章节封面：Pod 状态机 + 4 层容错介入点 |
+| 图 4-1'（复用旧图） | [fig4-1-consistency-cas-flow.pdf](performance/figures/fig4-1-consistency-cas-flow.pdf) | §4.5：完整绑定 + 4 层容错决策流程 |
+| 图 4-2a | [fig4-2a-dispatcher-main-flow.pdf](performance/figures/fig4-2a-dispatcher-main-flow.pdf) | §3.1 或 §4.5：Dispatcher 主分发流程 |
+| 图 4-2b | [fig4-2b-dispatcher-error-recovery.pdf](performance/figures/fig4-2b-dispatcher-error-recovery.pdf) | §4.5：Dispatcher 分发失败重试逻辑 |
+| 图 4-2'（复用旧图） | [fig4-2-dispatcher-task-division.pdf](performance/figures/fig4-2-dispatcher-task-division.pdf) | 备用/替代 4-2a（信息更全但排版更大） |
+
+**下一批要画（Batch 1，优先级最高）**：
+
+| 图号 | 内容 | 备注 |
+|---|---|---|
+| **图 3-1** | Shared Binder vs Embedded Binder **进程边界对比**（左右并列） | 论文最核心的一张图，读者一眼看懂改造点 |
+| 图 3-2 | Shared Binder 序列图：Scheduler → PatchPod → 独立 Binder → Bind API | 展示 gRPC/Informer 跨进程延迟来源 |
+| 图 3-3 | Embedded Binder 序列图：Scheduler → 进程内 BindUnit → Bind API | 与 3-2 形成对照 |
+| 图 2-3 | Gödel 三层架构总览（Dispatcher / Scheduler / Binder + Etcd + kube-apiserver） | §2.4 铺垫图，为第 3 章做背景 |
+
+**后续批次（Batch 2/3，等 Batch 1 定稿后再画）**：
+- 图 2-1（kube-scheduler 单进程调度环）
+- 图 2-2（Volcano Session-based Gang）
+- 图 3-4（BinderInterface UML）
+- 图 3-5（Cache 零拷贝共享数据流）
+- 图 3-6（k8s Deployment 拓扑对比）
+- 图 4-2/4-3/4-4（Layer 0/1/2 各自细节图）
+- 图 5-1/5-2（实验环境与流程）
 
 ---
 

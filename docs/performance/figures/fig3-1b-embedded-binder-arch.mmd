@@ -1,0 +1,12 @@
+flowchart TB
+    ED([Dispatcher 进程]):::disp
+    ES["Scheduler + Binder 进程<br/>(N 实例, 合并部署)<br/>Filter / Score / Reserve<br/>→ BinderInterface.BindUnit<br/>→ Pod Bind API<br/>共享 SchedulerCache（零拷贝）"]:::merged
+    EA[(kube-apiserver<br/>/ etcd)]:::apiserver
+
+    ED -->|① PatchPod<br/>scheduler-name| EA
+    EA -->|② Informer 事件| ES
+    ES -->|③ Pod Bind API<br/>✓ 进程内直接调用<br/>无跨进程序列化| EA
+
+    classDef disp fill:#dcd6f7,color:#3a2e77,stroke:#7c6ebf,stroke-width:1.5px;
+    classDef merged fill:#ffd6a5,color:#7c2d12,stroke:#ea580c,stroke-width:2.5px;
+    classDef apiserver fill:#f4f4f4,color:#1e293b,stroke:#64748b,stroke-width:1.5px;

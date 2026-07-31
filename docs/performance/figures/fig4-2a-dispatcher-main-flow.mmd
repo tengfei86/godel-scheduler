@@ -1,0 +1,43 @@
+flowchart TB
+    Leader([Leader Dispatcher<br/>Watch Pod 事件])
+    Leader --> E[优先级排序<br/>SortedPodsQueue FIFO]
+    E --> F[Pop 队首 Pod]
+    F --> H{策略分发<br/>selectScheduler}
+
+    H -- PodGroup --> J[selectSchedulerForUnit<br/>缓存重用已选实例]
+    H -- Owner 亲和 --> L[SelectSchedulerAndSet<br/>DispatchedUnboundPod<br/>同 Owner 路由同实例]
+    H -- 默认: 负载均衡 --> M[GetMostIdleScheduler<br/>加权轮询]
+
+    M --> N{候选<br/>filter by capacity}
+    N -- 空 --> O[记录失败<br/>Pending 保留队列]
+    N -- 非空 --> P{需要资源预检?}
+    P -- 是 --> Q[前置过滤<br/>检查实例余量]
+    P -- 否 --> R[按处理能力轮询]
+    Q --> R
+    R --> S[确定目标 Scheduler]
+
+    J --> T[PatchPod<br/>写入 Scheduler 注解]
+    L --> T
+    S --> T
+
+    T --> U([完成分发<br/>Pod 进入 Scheduler])
+    T -.失败.-> V([进入错误处理<br/>见图 4-2b])
+    O -.-> E
+
+    classDef startEnd fill:#0b132b,color:#ffffff,stroke:#0b132b,stroke-width:2px;
+    classDef process fill:#ecf0f1,color:#2c3e50,stroke:#95a5a6,stroke-width:1.5px;
+    classDef decision fill:#ffe8d6,color:#7f2704,stroke:#f4a261,stroke-width:2px;
+    classDef strategy1 fill:#cde7ff,color:#0b3c5d,stroke:#3b82f6,stroke-width:1.5px;
+    classDef strategy2 fill:#d9f99d,color:#14532d,stroke:#65a30d,stroke-width:1.5px;
+    classDef filter fill:#f3e5f5,color:#4a148c,stroke:#9c27b0,stroke-width:1.5px;
+    classDef critical fill:#ffd6d6,color:#7a0019,stroke:#d62828,stroke-width:2px;
+    classDef errorRef fill:#fff3b0,color:#5f370e,stroke:#e09f3e,stroke-width:1.5px;
+
+    class Leader,U,V startEnd;
+    class E,F process;
+    class H,N,P decision;
+    class J,L strategy1;
+    class M,R,S strategy2;
+    class Q filter;
+    class T critical;
+    class O errorRef;
