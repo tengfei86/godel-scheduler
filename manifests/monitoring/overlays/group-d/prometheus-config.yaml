@@ -138,15 +138,3 @@ data:
           # Plugin latency
           - record: volcano:plugin_scheduling_latency:p90_seconds
             expr: histogram_quantile(0.90, sum(rate(volcano_plugin_scheduling_latency_milliseconds_bucket[1m])) by (le, plugin)) / 1000
-
-      # ──────────────────────────────────────────────────
-      #  Pending & Unschedulable
-      # ──────────────────────────────────────────────────
-      - name: volcano_scheduling_status
-        interval: 15s
-        rules:
-          - record: volcano:unschedule_task_rate:1m
-            expr: rate(volcano_unschedule_task_count[1m])
-          # Direct gauges to query:
-          #   volcano_unschedule_task_count
-          #   volcano_unschedule_job_count

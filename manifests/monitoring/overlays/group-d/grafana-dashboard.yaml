@@ -143,54 +143,9 @@ data:
         },
         {
           "id": 7,
-          "title": "Unschedulable Tasks",
-          "type": "timeseries",
-          "gridPos": { "x": 0, "y": 24, "w": 12, "h": 8 },
-          "targets": [
-            {
-              "expr": "volcano_unschedule_task_count",
-              "legendFormat": "unschedulable tasks"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": { "unit": "short" }
-          }
-        },
-        {
-          "id": 8,
-          "title": "Unschedulable Jobs",
-          "type": "timeseries",
-          "gridPos": { "x": 12, "y": 24, "w": 12, "h": 8 },
-          "targets": [
-            {
-              "expr": "volcano_unschedule_job_count",
-              "legendFormat": "unschedulable jobs"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": { "unit": "short" }
-          }
-        },
-        {
-          "id": 9,
-          "title": "Unschedulable Task Rate",
-          "type": "timeseries",
-          "gridPos": { "x": 0, "y": 32, "w": 12, "h": 8 },
-          "targets": [
-            {
-              "expr": "volcano:unschedule_task_rate:5m",
-              "legendFormat": "unschedule rate"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": { "unit": "reqps" }
-          }
-        },
-        {
-          "id": 10,
           "title": "Peak Scheduling Throughput (30m)",
           "type": "stat",
-          "gridPos": { "x": 12, "y": 32, "w": 12, "h": 8 },
+          "gridPos": { "x": 0, "y": 24, "w": 12, "h": 8 },
           "targets": [
             {
               "expr": "volcano:scheduling_peak_throughput:30m",
