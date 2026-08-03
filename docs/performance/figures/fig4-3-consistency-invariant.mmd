@@ -1,0 +1,33 @@
+flowchart TB
+    INV["<b>核心不变量 I</b><br/><br/>∀ Pod p ∈ System:<br/>|{ node : bound(p, node) }| ≤ 1<br/><br/>任一 Pod 在系统中最多绑定到一个节点"]:::invariant
+
+    T0["<b>威胁 T0：节点分区归属漂移</b><br/>Scheduler A 决策后节点被 Dispatcher 重新分区归属 Scheduler B"]:::threat
+    D0["<b>Layer 0：Node 归属校验</b><br/>Bind API 前查节点注解，不匹配则拒绝 Bind"]:::defense
+
+    T1["<b>威胁 T1：Bind API 暂态失败</b><br/>kube-apiserver 返回 409 / 429 / 网络 Timeout"]:::threat
+    D1["<b>Layer 1：同步重试</b><br/>指数退避重试 attempt lt MaxBindRetries"]:::defense
+
+    T2["<b>威胁 T2：进程内偶发错误</b><br/>Bind 失败但未 ForgetPod，本地缓存残留需清理"]:::threat
+    D2["<b>Layer 2：异步 Reconciler</b><br/>APICallFailedTaskQueue Worker 拉起重试或 Forget"]:::defense
+
+    T3["<b>威胁 T3：本地重试耗尽 / 节点长期不可用</b><br/>failureCount ≥ MaxLocalRetries，该 Scheduler 无法完成绑定"]:::threat
+    D3["<b>Layer 3：跨实例回退</b><br/>清除 scheduler-name 注解，Dispatcher 重新分发"]:::defense
+
+    T0 -->|前置拦截| D0
+    T1 -->|暂态可恢复| D1
+    T2 -->|后台清理| D2
+    T3 -->|全局回退| D3
+
+    D0 -->|维护 I| INV
+    D1 -->|维护 I| INV
+    D2 -->|维护 I| INV
+    D3 -->|维护 I| INV
+
+    P["<b>不变量证明要点</b><br/><br/>P1【Bind 唯一性】Bind API 是 kube-apiserver 原子操作，已 Bound 的 Pod 不能再次 Bind<br/>P2【Assumed 状态清理】Layer 2 Reconciler 保证 Bind 失败后 ForgetPod 一定被调用（幂等）<br/>P3【注解清理 → 重分发】L3 清 scheduler-name 前 PodState 已置 Pending，Dispatcher 侧幂等<br/>P4【时序保证】Layer 0 前置拦截，避免两个 Scheduler 同时对同一节点发 Bind API"]:::proof
+
+    P -.论证支撑.-> INV
+
+    classDef invariant fill:#d9f99d,color:#14532d,stroke:#65a30d,stroke-width:3px;
+    classDef threat fill:#ffd6d6,color:#7a0019,stroke:#d62828,stroke-width:1.5px;
+    classDef defense fill:#cde7ff,color:#0b3c5d,stroke:#3b82f6,stroke-width:1.5px;
+    classDef proof fill:#fff3b0,color:#5f370e,stroke:#e09f3e,stroke-width:1.5px;

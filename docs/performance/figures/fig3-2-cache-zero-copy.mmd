@@ -15,7 +15,7 @@ flowchart TB
             A_extra["Binder 专属方法<br/>FinishBinding<br/>MarkPodToDelete"]:::adapter
         end
 
-        subgraph binder["Embedded Binder 模块"]
+        subgraph binder["ENO Binder 模块"]
             direction TB
             B_bind[BinderInterface.BindUnit<br/>Pod Bind API]:::binder
             B_reserve[FinishReserving<br/>确认绑定]:::binder
@@ -33,7 +33,7 @@ flowchart TB
         B_reserve -->|通过 CacheAdapter| A_extra
     end
 
-    Note1["⚡ 关键：SchedulerCache 是单一内存实例<br/>Scheduler 与 Embedded Binder 通过<br/>CacheAdapter 引用同一份数据，<br/>无拷贝、无序列化、无 Informer 同步延迟"]:::note
+    Note1["⚡ 关键：SchedulerCache 是单一内存实例<br/>Scheduler 与 ENO Binder 通过<br/>CacheAdapter 引用同一份数据，<br/>无拷贝、无序列化、无 Informer 同步延迟"]:::note
 
     process ~~~ Note1
 

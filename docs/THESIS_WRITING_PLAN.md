@@ -1,11 +1,11 @@
-# 硕士论文写作规划：ENO Embedded Binder 大规模集群调度性能研究
+# 硕士论文写作规划：ENO 大规模集群调度性能研究
 
 ## Context
 
-**背景**：基于开源 Gödel Scheduler 完成了 Embedded Binder 架构改造与全面 benchmark（vs Gödel/kube-scheduler/Volcano/Koordinator），代码已实现完毕（[pkg/binder/embedded_binder.go](../pkg/binder/embedded_binder.go) 等 8 个新文件 + 4 层容错），部分数据已跑完（当前 `test/e2e/benchmark/results/` 只有 a/b/c × s2 × w1/w2 × 3 run = 18 次）。
+**背景**：基于开源 Gödel Scheduler 完成了 ENO 架构改造与全面 benchmark（vs Gödel/kube-scheduler/Volcano/Koordinator），代码已实现完毕（[pkg/binder/embedded_binder.go](../pkg/binder/embedded_binder.go) 等 8 个新文件 + 4 层容错），部分数据已跑完（当前 `test/e2e/benchmark/results/` 只有 a/b/c × s2 × w1/w2 × 3 run = 18 次）。
 
 **任务**：写一份 60-80 页中文硕士学位论文，正文中文 + 摘要/关键词双语。三大创新点：
-1. Embedded Binder 架构（进程内合并 vs 独立 binder，Cache 零拷贝共享）
+1. ENO 架构（进程内合并 vs 独立 binder，Cache 零拷贝共享）
 2. 4 层容错机制（Node 校验 / 同步重试 / 异步 Reconciler / 跨实例回退）
 3. 大规模集群性能与横向扩展性对比（含 Volcano/Koordinator）
 
@@ -37,7 +37,7 @@
 
 ### 摘要（中/英） + 关键词
 - 500 字中文 + 300 词英文
-- 关键词：Kubernetes 调度器、大规模集群、Embedded Binder、分区调度、性能优化
+- 关键词：Kubernetes 调度器、大规模集群、ENO、分区调度、性能优化
 
 ### 第 1 章 绪论（8-10 页）
 - 1.1 研究背景：云原生调度器演进（K8s → Volcano → Koordinator → Gödel）
@@ -54,10 +54,10 @@
 
 **素材来源**：[docs/features/](features/)、[docs/performance/best-practice.md](performance/best-practice.md)（原 Gödel 官方性能评估，可作 2.4 节直接改写素材）；外部引用（Gödel 论文/字节跳动博客）需另行检索补齐
 
-### 第 3 章 Embedded Binder 架构设计（12-15 页，创新点 1 核心章节）
+### 第 3 章 ENO 架构设计（12-15 页，创新点 1 核心章节）
 - 3.1 现有 Shared Binder 架构分析（Deployment 拓扑图 + gRPC 通信序列图）
 - 3.2 设计目标与约束（保持分区语义、向后兼容、可切换）
-- 3.3 Embedded Binder 架构总览（关键图：进程边界对比图）
+- 3.3 ENO 架构总览（关键图：进程边界对比图）
   - 引用已有的 [docs/performance/figures/fig4-1-consistency-cas-flow](performance/figures/)（CAS 一致性流程）
   - 引用 [docs/performance/figures/fig4-2-dispatcher-task-division](performance/figures/)（Dispatcher 任务划分）
 - 3.4 关键设计决策：
@@ -72,7 +72,74 @@
 - 4.3 Layer 1 — 同步重试（[pkg/binder/embedded_binder.go](../pkg/binder/embedded_binder.go) 中 `bindPodToNode`）
 - 4.4 Layer 2 — 异步 Reconciler + WorkQueue（[pkg/binder/binder_reconciler.go](../pkg/binder/binder_reconciler.go)）
 - 4.5 Layer 3 — 跨实例回退（Dispatcher 侧 [pkg/dispatcher/reconciler/podstatesyncer.go](../pkg/dispatcher/reconciler/podstatesyncer.go) + [pkg/binder/utils/retry.go](../pkg/binder/utils/retry.go)）
-- 4.6 一致性证明或分析（可用状态机图 + 不变量论证）
+- 4.6 一致性论证（评审最重视的一节，详细模板见下）
+
+#### §4.6 详细写作模板（重要）
+
+**4.6.1 系统模型与核心不变量**（半页）
+- 形式化定义系统：`System = {Pod, Node, Scheduler_1..N, Dispatcher, Binder_1..N}`
+- **核心不变量 I**：
+  ```
+  ∀ Pod p ∈ System:  |{ node : bound(p, node) }| ≤ 1
+  （任意 Pod 在系统中最多绑定到一个节点）
+  ```
+- 说明为什么这是正确性的最低标准（K8s 集群灾难性数据不一致的边界）
+- 引用图 4-3 作为整节的可视化概览
+
+**4.6.2 威胁模型**（1-1.5 页）
+按图 4-3 顺序展开 4 个威胁：
+- **T0：节点分区归属漂移**
+  - 场景：Scheduler A 决策 Pod → Node X 后，Dispatcher 因负载均衡把 Node X 划给 Scheduler B（`node-shuffler` 触发）
+  - 若不拦截：两个 Scheduler 都可能对 Node X 发 Bind API
+- **T1：Bind API 暂态失败**
+  - 场景：kube-apiserver 返回 409 Conflict（etcd 冲突）/ 429 Throttle / 网络 Timeout
+  - 若不重试：Pod 长期 Pending，可用性下降
+- **T2：进程内偶发错误**
+  - 场景：Bind 失败后进程崩溃/panic，Pod 在 SchedulerCache 里残留 Assumed 状态
+  - 若不清理：资源永久占用，死锁
+- **T3：本地重试耗尽 / 节点长期不可用**
+  - 场景：节点 Bind 持续失败（例如节点被删除、apiserver 长期不可达）
+  - 若不回退：这个 Scheduler 卡在这个 Pod 上，其他分区的 Pod 也受影响
+
+**4.6.3 证明要点**（2-3 页，本节核心）
+
+**P1【Bind 唯一性】**（引用 K8s 官方语义）
+- Bind API 是 `POST /api/v1/namespaces/.../pods/.../binding`，apiserver 通过 etcd 事务保证：
+  - 若 `pod.spec.nodeName == ""`，允许设置，操作原子成功
+  - 若已设置，返回 `409 Conflict`
+- 这是 Kubernetes 自身的性质，我们的系统只需**引用**它，不需要重新证明
+
+**P2【Assumed 状态清理】**（引用 [binder_reconciler.go](../pkg/binder/binder_reconciler.go) 5-10 行代码）
+- Bind 失败时把 Pod 加入 `APICallFailedTaskQueue`
+- Reconciler Worker 周期性拉取，调用 `ForgetPod(p)` 清理 SchedulerCache 中的 Assumed 状态
+- **幂等性**：`ForgetPod(p)` 对不存在的 Pod 是 no-op，可安全重试
+- **进程崩溃恢复**：Reconciler 重启后从 WorkQueue 拉起（WorkQueue 由 client-go 保证持久化）
+
+**P3【注解清理 → 重分发时序】**（引用 [podstatesyncer.go](../pkg/dispatcher/reconciler/podstatesyncer.go) 关键片段）
+- Layer 3 全局回退的操作序列必须是：
+  1. `PodState = Pending`（先改状态）
+  2. `PatchPod` 清除 `scheduler-name` 注解（再清注解）
+- **反例**：若顺序反过来，Dispatcher 可能观察到"无 scheduler-name 但 PodState=Dispatched"的中间状态，跳过这个 Pod
+- **Dispatcher `selectScheduler` 幂等**：多次调用最终写入同一个 `scheduler-name` 注解（apiserver 的 Patch 语义保证）
+
+**P4【时序保证：Layer 0 前置拦截】**（最关键，引用 [node_validator.go](../pkg/binder/node_validator.go) Validate 函数）
+- **关键场景**：Dispatcher 中途重分区导致节点归属漂移
+- Bind API 前查节点 `godel.bytedance.com/scheduler-name` 注解：
+  - `annotation == ""` → 节点未分区（单调度器场景），允许 Bind
+  - `annotation == self.schedulerName` → 归属正确，允许 Bind
+  - `annotation == other` → 归属漂移，返回 `NodeOwnershipError`，进入 Layer 3
+- **效果**：即使两个 Scheduler 都认为自己拥有节点，Layer 0 的注解查询确保**只有一个能通过前置校验**——避免并发 Bind API
+
+**4.6.4 组合论证**（半页）
+用文字论证 P1 ∧ P2 ∧ P3 ∧ P4 ⇒ 不变量 I 永远成立：
+- 情况 1（无故障）：只有 Layer 0 通过校验的那个 Scheduler 发 Bind，P1 保证唯一性 → I 成立
+- 情况 2（T1 触发）：Bind 失败后 Layer 1 同步重试，仍是同一个 Scheduler 试图 Bind → 不会破坏 I
+- 情况 3（T2 触发）：Bind 半失败进程崩溃 → Layer 2 Reconciler 清理 Assumed 状态 → 下次调度不受影响
+- 情况 4（T0/T3 触发）：Layer 3 清 scheduler-name → Dispatcher 重新分发 → 新 Scheduler 走完整流程 → Layer 0 再次前置拦截 → 仍归约到情况 1
+
+**注**：论文不需要写成 TLA+ 那种形式化证明，但要**用严谨自然语言 + 关键代码片段**把上述四点写清楚。评审关注的是"作者理解了并发和一致性问题的本质"，而不是形式化证明本身。
+
+---
 
 ### 第 5 章 实验与评估（15-20 页，创新点 3 核心章节）
 - 5.1 实验环境（硬件配置、KWOK 仿真、Prometheus + Grafana 观测栈）
@@ -136,12 +203,12 @@
 - 明确声明：ENO 版本不占用独立 Binder Deployment 的资源（这是它的优势之一），因此单纯比"总吞吐"对 Gödel 略不利，需要额外补一个"归一化到调度器总资源"的对比
 
 ### 3. 术语一致性
-- 全篇统一：Embedded Binder = 嵌入式绑定器（提议方案），Shared Binder = 共享绑定器（基线）
+- 全篇统一：ENO = 嵌入式绑定器（提议方案），Shared Binder = 共享绑定器（基线）
 - Dispatcher = 分发器，Scheduler = 调度器，Binder = 绑定器
 - 首次出现时中英对照，后续用中文
 
 ### 4. 图表规范
-- 所有图表标题、坐标轴、图例统一用中文；legend 里的调度器名保留英文原名（Embedded Binder / Gödel / kube-scheduler / Volcano / Koordinator）
+- 所有图表标题、坐标轴、图例统一用中文；legend 里的调度器名保留英文原名（ENO / Gödel / kube-scheduler / Volcano / Koordinator）
 - 输出格式统一 PDF（矢量），字体嵌入
 - 图注放在图下方，格式："图 5-3 s3 规模下 w3 负载的 P99 延迟对比（均值 ± 1σ，n=3）"
 
@@ -185,13 +252,13 @@
 | 一致性保护机制 | 单进程 | 单进程 | 单进程 | Shared Binder 串行化 | 4 层容错 |
 | 大规模验证 | 5K 节点 | 待验证 | 待验证 | 30K 节点（官方）| 本文 5K 节点 |
 
-### 第 3 章 Embedded Binder 架构设计（关键章节，图密集）
+### 第 3 章 ENO 架构设计（关键章节，图密集）
 
 | 图号 | 类型 | 内容 | 备注 |
 |---|---|---|---|
-| **图 3-1** | 架构对比图 | **Shared Binder vs Embedded Binder 进程边界对比**（左右并列） | 论文最核心的一张图，读者一眼看懂改造点 |
-| 图 3-2 | 数据流图 | Cache 零拷贝共享：Scheduler Cache ↔ CacheAdapter ↔ Embedded Binder | §3.4.2 详解共享机制 |
-| 图 3-3 | 部署拓扑图 | ENO Embedded 模式的 k8s Deployment 视角：Scheduler Deployment（N 副本，进程内含 Binder）+ Dispatcher Deployment + kube-apiserver | 展示实际部署形态 |
+| **图 3-1** | 架构对比图 | **Shared Binder vs ENO 进程边界对比**（左右并列） | 论文最核心的一张图，读者一眼看懂改造点 |
+| 图 3-2 | 数据流图 | Cache 零拷贝共享：Scheduler Cache ↔ CacheAdapter ↔ ENO | §3.4.2 详解共享机制 |
+| 图 3-3 | 部署拓扑图 | ENO 模式的 k8s Deployment 视角：Scheduler Deployment（N 副本，进程内含 Binder）+ Dispatcher Deployment + kube-apiserver | 展示实际部署形态 |
 
 **取消的图**（改用文字/代码/表格表达）：
 - ~~原图 3-2/3-3 序列图~~ — 图 3-1a/3-1b 用步骤编号已展示跨进程往返差异；用 §3.5 一张**性能开销对比表**（Bind 涉及进程数、apiserver 往返次数、序列化开销、Cache 同步机制）代替
@@ -206,7 +273,8 @@
 | **图 4-1** | 状态机图 | §4.1 章节封面：Pod 生命周期 + 4 层容错介入点 | ✅ [fig4-1-pod-state-machine.pdf](performance/figures/fig4-1-pod-state-machine.pdf) |
 | **图 4-2a** | 流程图 | §4.5 Layer 3 接收端：Dispatcher 主分发流程 | ✅ [fig4-2a-dispatcher-main-flow.pdf](performance/figures/fig4-2a-dispatcher-main-flow.pdf) |
 | **图 4-2b** | 流程图 | §4.5 Layer 3 接收端：Dispatcher 分发失败重试逻辑 | ✅ [fig4-2b-dispatcher-error-recovery.pdf](performance/figures/fig4-2b-dispatcher-error-recovery.pdf) |
-| 图 4-3（可选） | 流程图 | §4.5 补充详图：Embedded Binder 完整绑定 + 4 层容错决策流程 | ⭕ [fig4-1-consistency-cas-flow.pdf](performance/figures/fig4-1-consistency-cas-flow.pdf)（图数紧张可省） |
+| **图 4-3** | 论证图 | §4.6 一致性论证：核心不变量 I + 威胁-防御-证明要点 | ✅ [fig4-3-consistency-invariant.pdf](performance/figures/fig4-3-consistency-invariant.pdf) |
+| 图 4-4（可选） | 流程图 | §4.5 补充详图：ENO 完整绑定 + 4 层容错决策流程 | ⭕ [fig4-1-consistency-cas-flow.pdf](performance/figures/fig4-1-consistency-cas-flow.pdf)（图数紧张可省） |
 
 **取消的图**（理由：文字/表格更合适）：
 - ~~图：Layer 0 分区校验决策树~~ — 一段 if-else 伪代码 + 一句话说明即可，不用画图
@@ -238,14 +306,14 @@
 - 3 份产物：`.mmd`（源码）、`.pdf`（论文用，矢量）、`.png`（演示/预览用）
 
 ### 6.2 图注与命名
-- 图注格式："图 3-1  Embedded Binder 与 Shared Binder 进程边界对比"（章号-序号 + 中文标题）
+- 图注格式："图 3-1  ENO 与 Shared Binder 进程边界对比"（章号-序号 + 中文标题）
 - 文件命名：`fig{章号}-{序号}-{英文-短-slug}.mmd`，例如 `fig3-1-arch-comparison.mmd`
 
 ### 6.3 配色规范（供 Mermaid 主题定制）
 - 进程/服务节点：蓝灰系 `#4A6FA5`
 - 数据库/持久化：绿色 `#5B8C5A`
 - 数据流箭头：黑色实线，跨进程箭头虚线
-- 高亮/新组件（Embedded Binder 相关）：橙色 `#E67E22`
+- 高亮/新组件（ENO 相关）：橙色 `#E67E22`
 - 与已有的 fig4-1、fig4-2 保持一致（避免论文里配色跳跃）
 
 ### 6.4 图数量控制
@@ -266,11 +334,11 @@
 | 图号 | 文件 | 用途 |
 |---|---|---|
 | **图 3-1a** | [fig3-1a-shared-binder-arch.pdf](performance/figures/fig3-1a-shared-binder-arch.pdf) | §3.1：Shared Binder 基线架构（论文核心图之一） |
-| **图 3-1b** | [fig3-1b-embedded-binder-arch.pdf](performance/figures/fig3-1b-embedded-binder-arch.pdf) | §3.1：Embedded Binder 提议架构（与 3-1a 并列对比） |
+| **图 3-1b** | [fig3-1b-embedded-binder-arch.pdf](performance/figures/fig3-1b-embedded-binder-arch.pdf) | §3.1：ENO 提议架构（与 3-1a 并列对比） |
 | **图 3-2** | [fig3-2-cache-zero-copy.pdf](performance/figures/fig3-2-cache-zero-copy.pdf) | §3.4.2：Cache 零拷贝共享数据流（Scheduler/CacheAdapter/Binder 三模块 + SchedulerCache 单实例） |
 | **图 3-3** | [fig3-3-eno-deployment-topology.pdf](performance/figures/fig3-3-eno-deployment-topology.pdf) | §3.5：ENO Embedded 部署拓扑（k8s Deployment 视角） |
 | 图 4-1 | [fig4-1-pod-state-machine.pdf](performance/figures/fig4-1-pod-state-machine.pdf) | §4.1 章节封面：Pod 状态机 + 4 层容错介入点 |
-| 图 4-1'（可选） | [fig4-1-consistency-cas-flow.pdf](performance/figures/fig4-1-consistency-cas-flow.pdf) | §4.5 补充详图：Embedded Binder 绑定全流程（图数紧张时可省） |
+| 图 4-1'（可选） | [fig4-1-consistency-cas-flow.pdf](performance/figures/fig4-1-consistency-cas-flow.pdf) | §4.5 补充详图：ENO 绑定全流程（图数紧张时可省） |
 | 图 4-2a | [fig4-2a-dispatcher-main-flow.pdf](performance/figures/fig4-2a-dispatcher-main-flow.pdf) | §3.1 或 §4.5：Dispatcher 主分发流程 |
 | 图 4-2b | [fig4-2b-dispatcher-error-recovery.pdf](performance/figures/fig4-2b-dispatcher-error-recovery.pdf) | §4.5：Dispatcher 分发失败重试逻辑 |
 
