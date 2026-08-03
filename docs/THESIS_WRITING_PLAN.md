@@ -190,11 +190,12 @@
 | 图号 | 类型 | 内容 | 备注 |
 |---|---|---|---|
 | **图 3-1** | 架构对比图 | **Shared Binder vs Embedded Binder 进程边界对比**（左右并列） | 论文最核心的一张图，读者一眼看懂改造点 |
-| 图 3-2 | 组件图 | `BinderInterface` 抽象 + 两个实现类的 UML 图 | 讲清同一份源码支持两种模式的机制 |
-| 图 3-3 | 数据流图 | Cache 零拷贝共享：Scheduler Cache ↔ CacheAdapter ↔ Embedded Binder | §3.4.2 |
-| 图 3-4 | 部署拓扑图 | k8s Deployment 视角：Shared 模式（Scheduler DS + Binder Deploy）vs Embedded 模式（仅 Scheduler DS） | 直观展示资源节省 |
+| 图 3-2 | 数据流图 | Cache 零拷贝共享：Scheduler Cache ↔ CacheAdapter ↔ Embedded Binder | §3.4.2 详解共享机制 |
+| 图 3-3 | 部署拓扑图 | ENO Embedded 模式的 k8s Deployment 视角：Scheduler Deployment（N 副本，进程内含 Binder）+ Dispatcher Deployment + kube-apiserver | 展示实际部署形态 |
 
-> **原图 3-2/3-3 序列图已删除**：图 3-1a/3-1b 已用步骤编号 ①→⑤/①→③ 展示了跨进程往返差异，序列图会成为同一事实的第二次陈述。取而代之在 §3.5 用一张**性能开销对比表**（Bind 涉及进程数、apiserver 往返次数、序列化开销、Cache 同步机制等维度），信息密度更高。
+**取消的图**（改用文字/代码/表格表达）：
+- ~~原图 3-2/3-3 序列图~~ — 图 3-1a/3-1b 用步骤编号已展示跨进程往返差异；用 §3.5 一张**性能开销对比表**（Bind 涉及进程数、apiserver 往返次数、序列化开销、Cache 同步机制）代替
+- ~~BinderInterface UML 图~~ — 用 5-10 行 Go 接口定义代码片段代替，信息密度更高
 
 ### 第 4 章 4 层容错机制
 
@@ -266,6 +267,8 @@
 |---|---|---|
 | **图 3-1a** | [fig3-1a-shared-binder-arch.pdf](performance/figures/fig3-1a-shared-binder-arch.pdf) | §3.1：Shared Binder 基线架构（论文核心图之一） |
 | **图 3-1b** | [fig3-1b-embedded-binder-arch.pdf](performance/figures/fig3-1b-embedded-binder-arch.pdf) | §3.1：Embedded Binder 提议架构（与 3-1a 并列对比） |
+| **图 3-2** | [fig3-2-cache-zero-copy.pdf](performance/figures/fig3-2-cache-zero-copy.pdf) | §3.4.2：Cache 零拷贝共享数据流（Scheduler/CacheAdapter/Binder 三模块 + SchedulerCache 单实例） |
+| **图 3-3** | [fig3-3-eno-deployment-topology.pdf](performance/figures/fig3-3-eno-deployment-topology.pdf) | §3.5：ENO Embedded 部署拓扑（k8s Deployment 视角） |
 | 图 4-1 | [fig4-1-pod-state-machine.pdf](performance/figures/fig4-1-pod-state-machine.pdf) | §4.1 章节封面：Pod 状态机 + 4 层容错介入点 |
 | 图 4-1'（可选） | [fig4-1-consistency-cas-flow.pdf](performance/figures/fig4-1-consistency-cas-flow.pdf) | §4.5 补充详图：Embedded Binder 绑定全流程（图数紧张时可省） |
 | 图 4-2a | [fig4-2a-dispatcher-main-flow.pdf](performance/figures/fig4-2a-dispatcher-main-flow.pdf) | §3.1 或 §4.5：Dispatcher 主分发流程 |
@@ -274,10 +277,7 @@
 **Batch 1 已全部完成**（第 3 章核心架构图 3-1a/3-1b + 第 4 章核心图 4-1/4-2a/4-2b 均已落盘）。
 
 **后续批次（Batch 2/3）**：
-- 图 3-2（BinderInterface UML）
-- 图 3-3（Cache 零拷贝共享数据流）
-- 图 3-4（k8s Deployment 拓扑对比）
-- 图 5-1/5-2（实验环境与流程）
+- 图 5-1/5-2（实验环境与流程，等 §5.1 写作时同步画）
 
 > 第 4 章图已全部完成，Layer 0/1/2 各自细节图已取消（改用伪代码/参数表表达，见 §"第 4 章 4 层容错机制"）。
 

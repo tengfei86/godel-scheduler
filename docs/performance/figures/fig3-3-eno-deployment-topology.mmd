@@ -1,0 +1,42 @@
+flowchart TB
+    subgraph cluster["Kubernetes 集群（eno-system 命名空间）"]
+        direction TB
+
+        subgraph disp_deploy["Dispatcher Deployment（副本数 = 1，Leader Election）"]
+            direction LR
+            D1[dispatcher-pod-1<br/>Leader]:::disp
+            D2[dispatcher-pod-2<br/>Standby]:::disp_standby
+        end
+
+        subgraph sched_deploy["Scheduler Deployment（副本数 = N，水平扩展）"]
+            direction LR
+            S1["scheduler-pod-1<br/>Scheduler + Binder 合并"]:::sched
+            S2["scheduler-pod-2<br/>Scheduler + Binder 合并"]:::sched
+            SN["scheduler-pod-N<br/>Scheduler + Binder 合并"]:::sched
+        end
+
+        APIS[("kube-apiserver / etcd")]:::apiserver
+
+        note1["资源规格（每 Pod）：<br/>requests: cpu 1 / mem 2Gi<br/>limits: cpu 2 / mem 4Gi"]:::note
+
+        D1 -->|PatchPod<br/>scheduler-name 注解| APIS
+        D2 -.->|Leader 失效时接管| APIS
+
+        APIS -->|Informer 事件| S1
+        APIS -->|Informer 事件| S2
+        APIS -->|Informer 事件| SN
+
+        S1 -->|Pod Bind API| APIS
+        S2 -->|Pod Bind API| APIS
+        SN -->|Pod Bind API| APIS
+    end
+
+    classDef disp fill:#dcd6f7,color:#3a2e77,stroke:#7c6ebf,stroke-width:2px;
+    classDef disp_standby fill:#f3f0ff,color:#3a2e77,stroke:#7c6ebf,stroke-width:1.5px,stroke-dasharray:3 3;
+    classDef sched fill:#ffd6a5,color:#7c2d12,stroke:#ea580c,stroke-width:2px;
+    classDef apiserver fill:#f4f4f4,color:#1e293b,stroke:#64748b,stroke-width:1.5px;
+    classDef note fill:#fff3b0,color:#5f370e,stroke:#e09f3e,stroke-width:1.5px;
+
+    style cluster fill:#fff7ed,stroke:#ea580c,stroke-width:2px
+    style disp_deploy fill:#f5f3ff,stroke:#7c6ebf,stroke-dasharray:3 3
+    style sched_deploy fill:#fef3c7,stroke:#ea580c,stroke-width:1.5px

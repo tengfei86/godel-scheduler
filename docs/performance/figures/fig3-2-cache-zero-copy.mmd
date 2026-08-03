@@ -1,0 +1,49 @@
+flowchart TB
+    subgraph process["Scheduler + Binder 进程（合并部署，同一进程地址空间）"]
+        direction TB
+
+        subgraph scheduler["Scheduler 模块"]
+            direction TB
+            S_algo[Filter / Score / Reserve<br/>调度决策]:::sched
+            S_snap[Snapshot 读取<br/>Node/Pod 信息]:::sched
+        end
+
+        subgraph adapter["CacheAdapter 桥接层"]
+            direction TB
+            A_local["本地状态<br/>assumedPods map<br/>podMarkers map"]:::adapter
+            A_delegate["委托方法<br/>GetPod / IsAssumedPod<br/>AssumePod / ForgetPod<br/>Add/Update/DeletePod"]:::adapter
+            A_extra["Binder 专属方法<br/>FinishBinding<br/>MarkPodToDelete"]:::adapter
+        end
+
+        subgraph binder["Embedded Binder 模块"]
+            direction TB
+            B_bind[BinderInterface.BindUnit<br/>Pod Bind API]:::binder
+            B_reserve[FinishReserving<br/>确认绑定]:::binder
+        end
+
+        SC[("SchedulerCache<br/>（单一内存实例）<br/>NodeInfo / PodInfo<br/>Assumed / Reserved 状态<br/>Snapshot")]:::cache
+
+        S_algo -->|读写| SC
+        S_snap -.->|快照读| SC
+        A_delegate -->|delegate| SC
+        A_extra -->|delegate<br/>FinishReserving| SC
+
+        B_bind -->|通过 CacheAdapter| A_local
+        B_bind -->|通过 CacheAdapter| A_delegate
+        B_reserve -->|通过 CacheAdapter| A_extra
+    end
+
+    Note1["⚡ 关键：SchedulerCache 是单一内存实例<br/>Scheduler 与 Embedded Binder 通过<br/>CacheAdapter 引用同一份数据，<br/>无拷贝、无序列化、无 Informer 同步延迟"]:::note
+
+    process ~~~ Note1
+
+    classDef sched fill:#cde7ff,color:#0b3c5d,stroke:#3b82f6,stroke-width:1.5px;
+    classDef binder fill:#ffd6a5,color:#7c2d12,stroke:#ea580c,stroke-width:1.5px;
+    classDef adapter fill:#e9d5ff,color:#4a044e,stroke:#9333ea,stroke-width:1.5px;
+    classDef cache fill:#d9f99d,color:#14532d,stroke:#65a30d,stroke-width:2.5px;
+    classDef note fill:#fff3b0,color:#5f370e,stroke:#e09f3e,stroke-width:1.5px;
+
+    style process fill:#fff7ed,stroke:#ea580c,stroke-width:2px
+    style scheduler fill:#eff6ff,stroke:#3b82f6,stroke-dasharray:3 3
+    style binder fill:#fff7ed,stroke:#ea580c,stroke-dasharray:3 3
+    style adapter fill:#faf5ff,stroke:#9333ea,stroke-dasharray:3 3
