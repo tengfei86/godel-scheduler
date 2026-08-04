@@ -1,0 +1,1 @@
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"kube:scheduler_schedule_attempts:success_rate1m"},"values":[[1785784783,"1"],[1785784798,"1"],[1785784813,"1"],[1785784828,"1"],[1785784843,"1"],[1785784858,"1"],[1785784873,"NaN"]]}]}}
