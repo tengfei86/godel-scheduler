@@ -1,0 +1,16 @@
+flowchart TB
+    SD([Dispatcher 进程]):::disp
+    SS["Scheduler 进程<br/>(N 实例)<br/>Filter / Score / Reserve"]:::sched
+    SB["Binder 进程<br/>(独立 Deployment)<br/>Informer + Pod Bind API"]:::binder
+    SA[(kube-apiserver<br/>/ etcd)]:::apiserver
+
+    SD -->|① PatchPod<br/>scheduler-name| SA
+    SA -->|② Informer 事件| SS
+    SS -->|③ PatchPod<br/>assumed-node| SA
+    SA -.->|④ Informer 事件<br/>⚠ 跨进程序列化开销| SB
+    SB -->|⑤ Pod Bind API| SA
+
+    classDef disp fill:#dcd6f7,color:#3a2e77,stroke:#7c6ebf,stroke-width:1.5px;
+    classDef sched fill:#cde7ff,color:#0b3c5d,stroke:#3b82f6,stroke-width:1.5px;
+    classDef binder fill:#d9f99d,color:#14532d,stroke:#65a30d,stroke-width:1.5px;
+    classDef apiserver fill:#f4f4f4,color:#1e293b,stroke:#64748b,stroke-width:1.5px;

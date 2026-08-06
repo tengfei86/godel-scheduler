@@ -1,0 +1,37 @@
+stateDiagram-v2
+    direction TB
+
+    [*] --> Pending: Pod 创建
+
+    Pending --> Dispatched: Dispatcher 分发 PatchPod(scheduler-name)
+    Dispatched --> Assumed: Scheduler 决策 Filter/Score/Reserve
+
+    Assumed --> Bound: Bind API 成功
+    Bound --> [*]: 生命周期结束
+
+    %% Layer 0 — Node 分区归属校验（Bind 前置）
+    Assumed --> L0_Fail: L0 校验失败 (节点分区不匹配)
+
+    %% Layer 1 — 同步重试
+    Assumed --> L1_Retry: L1 可重试错误 (409/Timeout/429)
+    L1_Retry --> Assumed: 退避后重试 (attempt < MaxBindRetries)
+
+    %% Layer 2 — 异步 Reconciler
+    L1_Retry --> L2_Queue: 超同步重试上限 入 APICallFailedTaskQueue
+    L2_Queue --> Assumed: 异步 Worker 重试
+
+    %% Layer 3 — 跨实例回退（三个失败态共同的归宿）
+    L0_Fail --> Pending: 清理 Scheduler 注解 L3 全局回退
+    L2_Queue --> Pending: 超本地重试上限 L3 全局回退
+
+    classDef normal fill:#e0fbfc,color:#102a43,stroke:#3a506b,stroke-width:1.5px;
+    classDef terminal fill:#d9f99d,color:#14532d,stroke:#65a30d,stroke-width:1.5px;
+    classDef failure fill:#ffd6d6,color:#7a0019,stroke:#d62828,stroke-width:1.5px;
+    classDef retry fill:#fff3b0,color:#5f370e,stroke:#e09f3e,stroke-width:1.5px;
+    classDef queue fill:#ffe8d6,color:#7f2704,stroke:#f4a261,stroke-width:1.5px;
+
+    class Pending,Dispatched,Assumed normal;
+    class Bound terminal;
+    class L0_Fail failure;
+    class L1_Retry retry;
+    class L2_Queue queue;

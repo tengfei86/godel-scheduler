@@ -1,0 +1,27 @@
+flowchart TD
+    A([来自图 4-2a\nPatchPod 失败]) --> B{错误类型}
+
+    B -- 409/Conflict --> C[记录冲突指标]
+    B -- 网络/超时 --> C
+    B -- NotFound --> D([Pod 已删除\n忽略])
+
+    C --> E{重试次数 <\nMaxDispatchRetries?}
+    E -- 是 --> F[退避后重新入队\nSortedPodsQueue]
+    E -- 否 --> G[清理 Scheduler 注解\nPodState=Pending]
+
+    F --> H([回到主排序队列\n下轮重新分发])
+    G --> H
+
+    D --> I([流程结束])
+    H --> I
+
+    classDef startEnd fill:#0b132b,color:#ffffff,stroke:#0b132b,stroke-width:2px;
+    classDef decision fill:#ffe8d6,color:#7f2704,stroke:#f4a261,stroke-width:2px;
+    classDef retry fill:#fff3b0,color:#5f370e,stroke:#e09f3e,stroke-width:1.5px;
+    classDef fallback fill:#e9d5ff,color:#4a044e,stroke:#9333ea,stroke-width:1.5px;
+    classDef ignore fill:#cbd5e1,color:#334155,stroke:#64748b,stroke-width:1.5px;
+
+    class A,H,I,D startEnd;
+    class B,E decision;
+    class C,F retry;
+    class G fallback;
