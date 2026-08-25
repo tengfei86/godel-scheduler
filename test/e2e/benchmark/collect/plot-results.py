@@ -625,9 +625,9 @@ def compare_groups(dirs, output_dir, metric_names=None, fmt="png", label_mode="s
             series_list = load_prometheus_json(str(filepath))
             for label, ts, vals in series_list:
                 color = COLORS[i % len(COLORS)]
+                # 图例只显示调度器名（如 kube-scheduler、Koordinator），
+                # 不追加 Prometheus 内部 label（如 job=xxx、result=success）
                 display = f"{group_label}"
-                if label:
-                    display += f" ({label})"
                 t0 = ts[0]
                 rel_t = [(t - t0).total_seconds() for t in ts]
                 ax.plot(rel_t, vals, label=display, color=color, linewidth=1.5)
@@ -640,7 +640,8 @@ def compare_groups(dirs, output_dir, metric_names=None, fmt="png", label_mode="s
         ax.set_title(meta["title"])
         ax.set_ylabel(meta["ylabel"])
         ax.set_xlabel("Relative Time (s)")
-        ax.legend(loc="best", fontsize=9)
+        # 图例放到图外右侧，避免遮挡数据；bbox_inches="tight" 会自动扩展画布容纳
+        ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), fontsize=9, borderaxespad=0)
         fig.tight_layout()
 
         out_path = output_dir / f"compare_{metric_name}.{fmt}"
