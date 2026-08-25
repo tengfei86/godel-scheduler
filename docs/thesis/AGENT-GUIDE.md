@@ -32,8 +32,7 @@
 |---|---|---|
 | [docs/thesis/README.md](docs/thesis/README.md) | 工作区索引 + 章节完成度 + 北航格式速查表 | 每次入场先读 |
 | [docs/thesis/figure-mapping.md](docs/thesis/figure-mapping.md) | 21 张图的规划表、来源、编号约定 | 涉及任何图表工作时读 |
-| [test/e2e/benchmark/results/compare/](test/e2e/benchmark/results/compare/) | **主要数据源**：5 个 (scale, workload) 目录 × 各 ~46 张跨组对比图（`compare_*.png`），基于 60 次完整实验的均值生成 | 写第 6 章数据图 / 引用数值时**优先读**这里 |
-| [test/e2e/benchmark/results/final-charts/](test/e2e/benchmark/results/final-charts/) | 历史参考：9 张手工挑选的老对比图（基于早期不完整数据） | 仅在 `compare/` 里找不到对应视角时回退查阅 |
+| [test/e2e/benchmark/results/compare/](test/e2e/benchmark/results/compare/) | **主要数据源**：5 个 (scale, workload) 目录 × 各 ~46 张跨组对比图（`compare_*.png`），基于 60 次完整实验的均值生成 | 写第 6 章数据图 / 引用数值时读这里 |
 
 **目录概览**
 
@@ -55,13 +54,11 @@ test/e2e/benchmark/
 │   │   ├─ s2_w1/                    a/b/c 三组对比（Volcano/Koordinator 未跑 w1）
 │   │   ├─ s2_w2/  s2_w3/            a/b/c/d/e 五组对比
 │   │   ├─ s3_w2/  s3_w3/            同上，5000 节点场景
-│   │   └─ 每个目录内 ~46 张 compare_<metric>.png
-│   └─ final-charts/                 历史参考：9 张手工挑选的旧图（谨慎引用）
+│       └─ 每个目录内 ~46 张 compare_<metric>.png
 └─ collect/
     ├─ plot-results.py               单实验/对比/平均绘图核心
     ├─ gen-averages.sh               批量生成 avg/ 均值目录
-    ├─ gen-comparisons.sh            批量生成 compare/ 跨组对比目录
-    └─ generate-final-thesis-charts.py  历史脚本（对应 final-charts/）
+    └─ gen-comparisons.sh            批量生成 compare/ 跨组对比目录
 ```
 
 ---
@@ -239,7 +236,7 @@ mmdc -i $NAME.mmd -o $NAME.png -w 1600 -H 900
 agent-task: T2
 scope: 第 6 章数值填充 + 图 6-3..6-10 归档
 did:
-  - final-charts/*.pdf 复制到 figures/ 并按 fig6-N-*.pdf 命名（列 8 个文件名）
+  - compare/{s3_w3,s3_w2,s2_w3}/*.png 挑选 8 张复制到 figures/ 并按 fig6-N-*.png 命名（列 8 个文件名）
   - 6.4.1 ~ 6.6.3 内 TODO 已替换为具体百分比（列被改动的行号）
 did-not:
   - 未触碰 results/**（只读）
@@ -305,7 +302,7 @@ cd docs/thesis && pandoc chapters/*.md \
 - [ ] 参考文献 GB/T 7714-2015 格式；正文引用为 `[N]` 上标
 - [ ] pandoc 导出 `thesis.docx`；打开无警告，图/表编号连续
 - [ ] 页边距 2.5 cm、A4；字体符合§6 表
-- [ ] `git status` 显示只有 `docs/thesis/**` 与 `test/e2e/benchmark/results/final-charts/**` 内变更
+- [ ] `git status` 显示只有 `docs/thesis/**` 内变更（`results/` 只读）
 
 ---
 

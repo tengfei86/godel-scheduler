@@ -162,12 +162,6 @@ All Prometheus recording rule names with `godel:` prefix → `eno:` prefix. Exam
 - `godel:binder_embedded_bind_pods:rate1m` → `eno:binder_embedded_bind_pods:rate1m`
 - (All other `godel:` prefixed rules follow same pattern)
 
-#### Python visualization
-
-| File | What to Rename |
-|---|---|
-| `collect/generate-final-thesis-charts.py` | Legend label `"A (Godel)"` → `"A (Eno)"`; all comparison summary text mentioning `Godel` → `Eno` |
-
 #### Library functions
 
 | File | What to Rename |
@@ -179,7 +173,6 @@ All Prometheus recording rule names with `godel:` prefix → `eno:` prefix. Exam
 | File | What to Rename |
 |---|---|
 | `results/report_*.md` | Cluster name `godel-bench` → `eno-bench` in headers |
-| `results/final-charts/chart-index.md` | Comparison text `Godel` → `Eno` |
 
 **NOTE**: Prometheus result JSON files under `results/` are historical data — do NOT modify them.
 
@@ -200,7 +193,7 @@ Perform the rename in this order to minimize breakage:
 9. **Benchmark scripts** — `test/e2e/benchmark/config.sh` (variables), deploy scripts, workload templates
 10. **Benchmark Go code** — `podgen/main.go`, `podgen/main_test.go` (flag defaults, case labels, annotations, test names)
 11. **Data collection & visualization** — `collect/*.sh`, `collect/*.py` (variable names, jq annotation keys, chart labels)
-12. **Result reports** (optional) — `results/report_*.md`, `results/final-charts/chart-index.md`
+12. **Result reports** (optional) — `results/report_*.md`
 
 ---
 
