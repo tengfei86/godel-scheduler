@@ -216,10 +216,6 @@
 - 论文中不贴大段代码，只贴接口定义（`BinderInterface`）和关键循环（10-20 行）
 - 完整代码放附录 B 或用脚注指向 GitHub commit hash（保证 reproducibility）
 
-### 6. 缺失数据的诚实处理
-- [results/data-quality-notes.md](../test/e2e/benchmark/results/data-quality-notes.md) 已经记录了 run2/run3 缺失、Volcano 部分场景数据缺失的情况
-- 论文里明确列出哪些场景数据不完整，不要偷偷跳过——评审会翻附录
-
 ### 7. 与原 Gödel 论文的关系
 - README、[docs/performance/best-practice.md](performance/best-practice.md) 里已有 Gödel 官方数据（kube-scheduler 300 pps vs Gödel 1000+ pps），可作为背景引用
 - 但**必须自己重跑对比**，不能直接用官方数据（论文评审要求可复现，你的硬件环境与官方不同）

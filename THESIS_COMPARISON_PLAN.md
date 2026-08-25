@@ -8,13 +8,13 @@
 
 ### 1.2 对比组设计
 
-| 标识                                | 配置                                                                    | 说明                                                      |
-| ----------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------- |
+| 标识                                | 配置                                                                    | 说明                                                 |
+| ----------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------- |
 | **A — 共享 Binder（Baseline）**     | `--enable-embedded-binder=false` + 独立 Binder Deployment（replicas=1） | 共享 Binder 基线实现，所有 Scheduler 共用一个 Binder |
-| **B — 独立 Binder（Proposed）**     | `--enable-embedded-binder=true` + Binder Deployment replicas=0          | 论文提出的架构，每个 Scheduler 内嵌独立 Binder            |
-| **C — kube-scheduler（Reference）** | 原生 Kubernetes 调度器（单实例）                                        | 行业基准参考，用于凸显分布式架构的整体优势                |
-| **D — Volcano**                     | Volcano Scheduler（v1.9.x，单实例）                                     | CNCF 批量调度参考，擅长 Gang / Queue 场景                 |
-| **E — Koordinator**                 | Koordinator Scheduler（v1.5.x，单实例）                                 | 阿里巴巴混合调度参考，QoS 感知 + 精细化资源管理           |
+| **B — 独立 Binder（Proposed）**     | `--enable-embedded-binder=true` + Binder Deployment replicas=0          | 论文提出的架构，每个 Scheduler 内嵌独立 Binder       |
+| **C — kube-scheduler（Reference）** | 原生 Kubernetes 调度器（单实例）                                        | 行业基准参考，用于凸显分布式架构的整体优势           |
+| **D — Volcano**                     | Volcano Scheduler（v1.9.x，单实例）                                     | CNCF 批量调度参考，擅长 Gang / Queue 场景            |
+| **E — Koordinator**                 | Koordinator Scheduler（v1.5.x，单实例）                                 | 阿里巴巴混合调度参考，QoS 感知 + 精细化资源管理      |
 
 > **所有实验**至少执行 **3 次**，取**中位数 + 标准差**，确保统计显著性。
 
@@ -133,16 +133,16 @@ spec:
 
 #### 3.3.1 负载场景覆盖矩阵（Group × Workload）
 
-| 场景              | A (Shared Binder) | B (Embedded Binder) | C (kube-scheduler) | D (Volcano) | E (Koordinator) | 排除原因                                                                                      |
-| ----------------- | :---------------: | :-----------------: | :----------------: | :---------: | :-------------: | --------------------------------------------------------------------------------------------- |
-| **W1** 低负载稳态 |        ✅         |         ✅          |         ✅         |     ✅      |       ✅        | —                                                                                             |
-| **W2** 中负载稳态 |        ✅         |         ✅          |         ✅         |     ✅      |       ✅        | —                                                                                             |
-| **W3** 高负载稳态 |        ✅         |         ✅          |         ✅         |     ✅      |       ✅        | —                                                                                             |
-| **W4** 极限负载   |        ✅         |         ✅          |         ✅         |     ✅      |       ✅        | —                                                                                             |
-| **W5** 突发洪峰   |        ✅         |         ✅          |         ✅         |     ❌      |       ❌        | A/B/C 对比突发恢复能力，D/E 架构不同无对应机制                                                |
-| **W6** Gang 调度  |        ✅         |         ✅          |         ❌         |     ✅      |       ✅        | C 不支持 PodGroup/Gang 调度语义；D 原生支持，E 通过 PodGroup CRD 支持                         |
-| **W7** 异构资源   |        ✅         |         ✅          |         ❌         |     ❌      |       ❌        | 架构特定测试：验证 Binder 在资源碎片化场景下的绑定效率，C/D/E 不参与此对比                     |
-| **W8** 大规模集群 |        ✅         |         ✅          |         ❌         |     ❌      |       ❌        | 800K Pod 极限压力仅用于 A/B 对比（参照分布式调度 best-practice），D/E 在此规模下为单实例瓶颈   |
+| 场景              | A (Shared Binder) | B (Embedded Binder) | C (kube-scheduler) | D (Volcano) | E (Koordinator) | 排除原因                                                                                     |
+| ----------------- | :---------------: | :-----------------: | :----------------: | :---------: | :-------------: | -------------------------------------------------------------------------------------------- |
+| **W1** 低负载稳态 |        ✅         |         ✅          |         ✅         |     ✅      |       ✅        | —                                                                                            |
+| **W2** 中负载稳态 |        ✅         |         ✅          |         ✅         |     ✅      |       ✅        | —                                                                                            |
+| **W3** 高负载稳态 |        ✅         |         ✅          |         ✅         |     ✅      |       ✅        | —                                                                                            |
+| **W4** 极限负载   |        ✅         |         ✅          |         ✅         |     ✅      |       ✅        | —                                                                                            |
+| **W5** 突发洪峰   |        ✅         |         ✅          |         ✅         |     ❌      |       ❌        | A/B/C 对比突发恢复能力，D/E 架构不同无对应机制                                               |
+| **W6** Gang 调度  |        ✅         |         ✅          |         ❌         |     ✅      |       ✅        | C 不支持 PodGroup/Gang 调度语义；D 原生支持，E 通过 PodGroup CRD 支持                        |
+| **W7** 异构资源   |        ✅         |         ✅          |         ❌         |     ❌      |       ❌        | 架构特定测试：验证 Binder 在资源碎片化场景下的绑定效率，C/D/E 不参与此对比                   |
+| **W8** 大规模集群 |        ✅         |         ✅          |         ❌         |     ❌      |       ❌        | 800K Pod 极限压力仅用于 A/B 对比（参照分布式调度 best-practice），D/E 在此规模下为单实例瓶颈 |
 
 > **脚本对应**: `run-all.sh` 中 `get_workloads_for_group()` 的映射：A/B → W1–W8，C → W1–W5，D/E → W1–W4 + W6。
 
@@ -284,35 +284,35 @@ wait
 
 #### 4.4.1 故障注入场景
 
-| 故障编号 | 故障类型              | 注入方式                              | 预期差异                                                       |
-| -------- | --------------------- | ------------------------------------- | -------------------------------------------------------------- |
-| F1       | Binder 进程崩溃       | `kubectl delete pod <binder-pod>`     | A：全局调度停止；B：仅影响一个 Scheduler                       |
-| F2       | 单个 Scheduler 崩溃   | `kubectl delete pod <scheduler-pod>`  | A：Binder 仍工作；B：该 Scheduler 的 Binder 同时停止但其他正常 |
-| F3       | 节点重新分区          | 触发 Node Shuffler 重新平衡           | B：NodeValidator 拦截过期绑定                                  |
-| F4       | API Server 短暂不可用 | `kubectl cordon` + 短暂网络隔离（3s） | B：指数退避重试 + 不丢失请求                                   |
-| F5       | API Server 高延迟     | 注入 100ms 网络延迟                   | B：重试计数增加但不崩溃                                        |
+| 故障编号 | 故障类型               | 注入方式                                         | 预期差异                                                            |
+| -------- | ---------------------- | ------------------------------------------------ | ------------------------------------------------------------------- |
+| F1       | Binder 进程崩溃        | `kubectl delete pod <binder-pod>`                | A：全局调度停止；B：仅影响一个 Scheduler                            |
+| F2       | 单个 Scheduler 崩溃    | `kubectl delete pod <scheduler-pod>`             | A：Binder 仍工作；B：该 Scheduler 的 Binder 同时停止但其他正常      |
+| F3       | 节点重新分区           | 触发 Node Shuffler 重新平衡                      | B：NodeValidator 拦截过期绑定                                       |
+| F4       | API Server 短暂不可用  | `kubectl cordon` + 短暂网络隔离（3s）            | B：指数退避重试 + 不丢失请求                                        |
+| F5       | API Server 高延迟      | 注入 100ms 网络延迟                              | B：重试计数增加但不崩溃                                             |
 | F6       | 单调度实例离线与重分发 | `kubectl delete pod <scheduler-pod>`（指定实例） | A：离线实例名下 Pod 重分发恢复较慢；B：重分发恢复更快且影响范围更小 |
 
 #### 4.4.2 容错指标
 
-| 指标                   | 采集方式                                                             | 单位   | 目标                  |
-| ---------------------- | -------------------------------------------------------------------- | ------ | --------------------- |
-| 故障恢复时间 (MTTR)    | `timestamp(binder_embedded_bind_inflight > 0) - timestamp(故障发生)` | s      | B < A                 |
-| 故障期间调度中断时长   | 观测 `rate(scheduler_pod_scheduling_attempts[1m]) == 0` 的持续时间   | s      | B < A                 |
-| 故障期间丢失绑定请求数 | `binder_embedded_bind_total{result="failure"}` 在故障窗口内的增量    | 个     | B < A                 |
-| Dispatcher 回退次数    | `godel:binder_dispatcher_fallback:rate5m`                            | pods/s | B 有此机制，A 无      |
-| 节点验证拦截次数       | `godel:binder_node_validation_failures:rate5m`                       | 次/s   | 仅 B 有               |
-| 并发 inflight 绑定     | `binder_embedded_bind_inflight`                                      | 个     | 故障时 B 仅影响单实例 |
-| Pod 重分发恢复时间     | 从调度实例离线时刻到该实例名下 Pod 完成重新分发（`selected-scheduler` 变更）并再次进入可调度状态的时长 | s      | B < A                 |
-| 离线实例遗留 Pod 清空时长 | 从离线时刻到离线实例对应待恢复 Pod 数量降为 0 的时长（基于 Pod 注解/状态采样） | s      | B < A                 |
+| 指标                      | 采集方式                                                                                               | 单位   | 目标                  |
+| ------------------------- | ------------------------------------------------------------------------------------------------------ | ------ | --------------------- |
+| 故障恢复时间 (MTTR)       | `timestamp(binder_embedded_bind_inflight > 0) - timestamp(故障发生)`                                   | s      | B < A                 |
+| 故障期间调度中断时长      | 观测 `rate(scheduler_pod_scheduling_attempts[1m]) == 0` 的持续时间                                     | s      | B < A                 |
+| 故障期间丢失绑定请求数    | `binder_embedded_bind_total{result="failure"}` 在故障窗口内的增量                                      | 个     | B < A                 |
+| Dispatcher 回退次数       | `godel:binder_dispatcher_fallback:rate5m`                                                              | pods/s | B 有此机制，A 无      |
+| 节点验证拦截次数          | `godel:binder_node_validation_failures:rate5m`                                                         | 次/s   | 仅 B 有               |
+| 并发 inflight 绑定        | `binder_embedded_bind_inflight`                                                                        | 个     | 故障时 B 仅影响单实例 |
+| Pod 重分发恢复时间        | 从调度实例离线时刻到该实例名下 Pod 完成重新分发（`selected-scheduler` 变更）并再次进入可调度状态的时长 | s      | B < A                 |
+| 离线实例遗留 Pod 清空时长 | 从离线时刻到离线实例对应待恢复 Pod 数量降为 0 的时长（基于 Pod 注解/状态采样）                         | s      | B < A                 |
 
 **图表设计**：
 
-| 图表编号 | 图表类型 | X 轴                           | Y 轴                  | 系列  |
-| -------- | -------- | ------------------------------ | --------------------- | ----- |
-| F-1      | 折线图   | 时间 (s)（故障注入点标记竖线） | 吞吐量 (pods/s)       | A / B |
-| F-2      | 柱状图   | 故障场景 (F1–F6)               | 恢复时间 (s)          | A / B |
-| F-3      | 热力图   | 时间 × Scheduler 实例          | 绑定状态（正常/故障） | A / B |
+| 图表编号 | 图表类型 | X 轴                           | Y 轴                         | 系列  |
+| -------- | -------- | ------------------------------ | ---------------------------- | ----- |
+| F-1      | 折线图   | 时间 (s)（故障注入点标记竖线） | 吞吐量 (pods/s)              | A / B |
+| F-2      | 柱状图   | 故障场景 (F1–F6)               | 恢复时间 (s)                 | A / B |
+| F-3      | 热力图   | 时间 × Scheduler 实例          | 绑定状态（正常/故障）        | A / B |
 | F-4      | 柱状图   | 配置组 (A/B)                   | 单实例离线重分发恢复时间 (s) | A / B |
 
 ---
@@ -1171,37 +1171,37 @@ EOF
 
 ### 12.1 数据完整性总览（S3, Run1）
 
-| 组                  | 负载 | 实验时长 | JSON 文件数 | 无数据指标数 | 完整性    | 备注                                    |
-| ------------------- | ---- | -------- | ----------- | ------------ | --------- | --------------------------------------- |
-| A (Shared Binder)   | W1   | 1m44s    | 16          | 0            | ✅ 完整   |                                         |
-| A                   | W2   | 3m3s     | 16          | 0            | ✅ 完整   |                                         |
-| A                   | W3   | 6m5s     | 16          | 0            | ✅ 完整   |                                         |
-| A                   | W4   | 10m48s   | 16          | 0            | ✅ 完整   |                                         |
-| A                   | W5   | 3m10s    | 16          | 0            | ✅ 完整   |                                         |
-| A                   | W6   | 33s      | 16          | 0            | ✅ 完整   |                                         |
-| A                   | W7   | 2m51s    | 16          | 0            | ✅ 完整   |                                         |
-| B (Embedded Binder) | W1   | 1m43s    | 20          | 4            | ⚠️ 部分   | 4 个指标未触发（见 §12.4）              |
-| B                   | W2   | 2m8s     | 20          | 4            | ⚠️ 部分   | 同上                                    |
-| B                   | W3   | 4m8s     | 20          | 4            | ⚠️ 部分   | 同上                                    |
-| B                   | W4   | 12m5s    | 20          | 4            | ⚠️ 部分   | 同上                                    |
-| B                   | W5   | 2m14s    | 20          | 4            | ⚠️ 部分   | 同上                                    |
-| B                   | W6   | 25s      | 20          | 4            | ⚠️ 部分   | 同上                                    |
-| B                   | W7   | 2m7s     | 20          | 4            | ⚠️ 部分   | 同上                                    |
-| C (kube-scheduler)  | W1   | 1m43s    | 15          | 0            | ✅ 完整   |                                         |
-| C                   | W2   | 2m2s     | 15          | 0            | ✅ 完整   |                                         |
-| C                   | W3   | 3m23s    | 15          | 0            | ✅ 完整   |                                         |
-| C                   | W4   | 8m41s    | 15          | 0            | ✅ 完整   |                                         |
-| C                   | W5   | 2m13s    | 15          | 0            | ✅ 完整   |                                         |
-| D (Volcano)         | W1   | 3m25s    | 18          | 0            | ✅ 完整   | 当前目录校验为 18/18 可用                |
-| D                   | W2   | 17m41s   | 18          | 11           | ❌ 大量缺失 | 当前目录校验为 7/18 可用（见下方明细）   |
-| D                   | W3   | 35m8s    | 18          | 12           | ❌ 大量缺失 | 高负载下过载，关键指标大面积缺失        |
-| D                   | W4   | 1h10m7s  | 16          | 1            | ❌ 大量缺失   | 高负载下过载，关键指标大面积缺失`scheduling_success_rate` 无数据         |
-| D                   | W6   | 3m25s    | 18          | 1            | ⚠️ 部分   | 当前目录校验为 17/18 可用（仅 1 项缺失） |
-| E (Koordinator)     | W1   | 3m24s    | 18          | 0            | ✅ 完整   |                                         |
-| E                   | W2   | 17m13s   | 18          | 0            | ✅ 完整   |                                         |
-| E                   | W3   | 35m27s   | 18          | 0            | ✅ 完整   |                                         |
-| E                   | W4   | 1h12m24s | 18          | 0            | ✅ 完整   |                                         |
-| E                   | W6   | 7m29s    | 18          | 0            | ✅ 完整   | Gang 数据已补齐                          |
+| 组                  | 负载 | 实验时长 | JSON 文件数 | 无数据指标数 | 完整性      | 备注                                                             |
+| ------------------- | ---- | -------- | ----------- | ------------ | ----------- | ---------------------------------------------------------------- |
+| A (Shared Binder)   | W1   | 1m44s    | 16          | 0            | ✅ 完整     |                                                                  |
+| A                   | W2   | 3m3s     | 16          | 0            | ✅ 完整     |                                                                  |
+| A                   | W3   | 6m5s     | 16          | 0            | ✅ 完整     |                                                                  |
+| A                   | W4   | 10m48s   | 16          | 0            | ✅ 完整     |                                                                  |
+| A                   | W5   | 3m10s    | 16          | 0            | ✅ 完整     |                                                                  |
+| A                   | W6   | 33s      | 16          | 0            | ✅ 完整     |                                                                  |
+| A                   | W7   | 2m51s    | 16          | 0            | ✅ 完整     |                                                                  |
+| B (Embedded Binder) | W1   | 1m43s    | 20          | 4            | ⚠️ 部分     | 4 个指标未触发（见 §12.4）                                       |
+| B                   | W2   | 2m8s     | 20          | 4            | ⚠️ 部分     | 同上                                                             |
+| B                   | W3   | 4m8s     | 20          | 4            | ⚠️ 部分     | 同上                                                             |
+| B                   | W4   | 12m5s    | 20          | 4            | ⚠️ 部分     | 同上                                                             |
+| B                   | W5   | 2m14s    | 20          | 4            | ⚠️ 部分     | 同上                                                             |
+| B                   | W6   | 25s      | 20          | 4            | ⚠️ 部分     | 同上                                                             |
+| B                   | W7   | 2m7s     | 20          | 4            | ⚠️ 部分     | 同上                                                             |
+| C (kube-scheduler)  | W1   | 1m43s    | 15          | 0            | ✅ 完整     |                                                                  |
+| C                   | W2   | 2m2s     | 15          | 0            | ✅ 完整     |                                                                  |
+| C                   | W3   | 3m23s    | 15          | 0            | ✅ 完整     |                                                                  |
+| C                   | W4   | 8m41s    | 15          | 0            | ✅ 完整     |                                                                  |
+| C                   | W5   | 2m13s    | 15          | 0            | ✅ 完整     |                                                                  |
+| D (Volcano)         | W1   | 3m25s    | 18          | 0            | ✅ 完整     | 当前目录校验为 18/18 可用                                        |
+| D                   | W2   | 17m41s   | 18          | 11           | ❌ 大量缺失 | 当前目录校验为 7/18 可用（见下方明细）                           |
+| D                   | W3   | 35m8s    | 18          | 12           | ❌ 大量缺失 | 高负载下过载，关键指标大面积缺失                                 |
+| D                   | W4   | 1h10m7s  | 16          | 1            | ❌ 大量缺失 | 高负载下过载，关键指标大面积缺失`scheduling_success_rate` 无数据 |
+| D                   | W6   | 3m25s    | 18          | 1            | ⚠️ 部分     | 当前目录校验为 17/18 可用（仅 1 项缺失）                         |
+| E (Koordinator)     | W1   | 3m24s    | 18          | 0            | ✅ 完整     |                                                                  |
+| E                   | W2   | 17m13s   | 18          | 0            | ✅ 完整     |                                                                  |
+| E                   | W3   | 35m27s   | 18          | 0            | ✅ 完整     |                                                                  |
+| E                   | W4   | 1h12m24s | 18          | 0            | ✅ 完整     |                                                                  |
+| E                   | W6   | 7m29s    | 18          | 0            | ✅ 完整     | Gang 数据已补齐                                                  |
 
 Volcano 目录复核（`test/e2e/benchmark/results/d/s3/*/run1`）：
 
@@ -1223,29 +1223,26 @@ Volcano 目录复核（`test/e2e/benchmark/results/d/s3/*/run1`）：
 
 ### 12.3 导出脚本修复后的实际效果
 
-| 修复项                                                               | 当前状态 | 说明                                                                                   |
-| -------------------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------- |
-| Volcano 裸指标聚合（`sum(...)` / `avg(...)` / `max(...)`）            | ✅ 部分生效 | W2/W4 已可产出多数指标；W3/W6 仍有大量无数据，说明除脚本外还存在调度器过载或场景适配问题 |
-| Prometheus `query_range` 重试（4 次 + step 退避）                     | ✅ 生效   | A/B/C/E 组 JSON 基本完整，未再出现系统性导出失败                                       |
-| Koordinator `extension_point_latency_p99` 改为 `[5m]` 查询窗口         | ✅ 生效   | E 组 W1/W2/W3/W4/W6 全部 18/18 指标可用                                                |
+| 修复项                                                         | 当前状态    | 说明                                                                                     |
+| -------------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------- |
+| Volcano 裸指标聚合（`sum(...)` / `avg(...)` / `max(...)`）     | ✅ 部分生效 | W2/W4 已可产出多数指标；W3/W6 仍有大量无数据，说明除脚本外还存在调度器过载或场景适配问题 |
+| Prometheus `query_range` 重试（4 次 + step 退避）              | ✅ 生效     | A/B/C/E 组 JSON 基本完整，未再出现系统性导出失败                                         |
+| Koordinator `extension_point_latency_p99` 改为 `[5m]` 查询窗口 | ✅ 生效     | E 组 W1/W2/W3/W4/W6 全部 18/18 指标可用                                                  |
 
 ### 12.4 Group B 固定无数据指标说明
 
 Group B (Embedded Binder) 在 W1-W7 均固定出现 4 个“无数据指标”，属正常“未触发”场景，不视为实验失败：
 
-| 指标文件                          | 说明                                               |
-| --------------------------------- | -------------------------------------------------- |
-| `bind_retries.json`               | 未发生绑定重试                                     |
-| `dispatcher_fallback.json`        | 未触发 Dispatcher 回退                             |
-| `node_validation_failures.json`   | 未出现节点分区校验失败                             |
-| `goroutines.json`                 | Embedded 模式下 `scheduler_goroutines` 指标未采集 |
+| 指标文件                        | 说明                                              |
+| ------------------------------- | ------------------------------------------------- |
+| `bind_retries.json`             | 未发生绑定重试                                    |
+| `dispatcher_fallback.json`      | 未触发 Dispatcher 回退                            |
+| `node_validation_failures.json` | 未出现节点分区校验失败                            |
+| `goroutines.json`               | Embedded 模式下 `scheduler_goroutines` 指标未采集 |
 
 ### 12.5 待完成项（按当前 results 目录）
 
 - [x] **D/W2、D/W3、D/W4、 (S3/run1)**: 不再重跑；论文中按 “overloaded / data unavailable” 标注并解释口径
-
-
-
 
 ---
 
@@ -1253,10 +1250,10 @@ Group B (Embedded Binder) 在 W1-W7 均固定出现 4 个“无数据指标”�
 
 ### 13.1 两个创新点概览
 
-| # | 创新点 | 类型 | 核心贡献 | 已实现 |
-|---|--------|------|----------|--------|
-| 1 | **单 Dispatcher、多独立 Scheduler 分布式调度架构 (Single-Dispatcher Multi-Scheduler Architecture)** | 架构创新 | 构建单 Dispatcher 统一分发、Scheduler 实例独立并行执行的扩展架构，降低中心化链路竞争并提升整体吞吐 | ✅ Phase 1-7 |
-| 2 | **分层容错绑定策略 (Hierarchical Fault-Tolerant Binding Strategy)** | 机制创新 | 四层容错链路：预防→同步重试→异步恢复→跨实例逃逸，构建分布式调度中首个结构化绑定容错模型 | ✅ Phase 2-4 |
+| #   | 创新点                                                                                              | 类型     | 核心贡献                                                                                           | 已实现       |
+| --- | --------------------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------- | ------------ |
+| 1   | **单 Dispatcher、多独立 Scheduler 分布式调度架构 (Single-Dispatcher Multi-Scheduler Architecture)** | 架构创新 | 构建单 Dispatcher 统一分发、Scheduler 实例独立并行执行的扩展架构，降低中心化链路竞争并提升整体吞吐 | ✅ Phase 1-7 |
+| 2   | **分层容错绑定策略 (Hierarchical Fault-Tolerant Binding Strategy)**                                 | 机制创新 | 四层容错链路：预防→同步重试→异步恢复→跨实例逃逸，构建分布式调度中首个结构化绑定容错模型            | ✅ Phase 2-4 |
 
 ### 13.2 创新点 1：单 Dispatcher、多独立 Scheduler 分布式调度架构
 
@@ -1279,23 +1276,23 @@ Sched-C ──┘    (单点瓶颈)             Sched-C + Binder-C ──→ API
 
 **技术要点**：
 
-| 组件 | 文件 | 作用 |
-|------|------|------|
-| `BinderInterface` | `binder_interface.go` | 统一接口抽象，支持嵌入/独立两种模式 |
-| `EmbeddedBinder` | `embedded_binder.go` | 核心实现：BindUnit → 验证 → 绑定 → 缓存完成 |
-| `CacheAdapter` | `cache_adapter.go` | 包装 SchedulerCache 为 BinderCache，共享内存零拷贝 |
-| `PodGroupController` 迁移 | `podgroup.go` | 分区感知的 PodGroup 状态管理 |
-| Feature Gate | `options.go` | `--enable-embedded-binder` 一键切换，向后兼容 |
-| Kustomize Overlay | `manifests/overlays/embedded-binder/` | 声明式部署模式切换 |
+| 组件                      | 文件                                  | 作用                                               |
+| ------------------------- | ------------------------------------- | -------------------------------------------------- |
+| `BinderInterface`         | `binder_interface.go`                 | 统一接口抽象，支持嵌入/独立两种模式                |
+| `EmbeddedBinder`          | `embedded_binder.go`                  | 核心实现：BindUnit → 验证 → 绑定 → 缓存完成        |
+| `CacheAdapter`            | `cache_adapter.go`                    | 包装 SchedulerCache 为 BinderCache，共享内存零拷贝 |
+| `PodGroupController` 迁移 | `podgroup.go`                         | 分区感知的 PodGroup 状态管理                       |
+| Feature Gate              | `options.go`                          | `--enable-embedded-binder` 一键切换，向后兼容      |
+| Kustomize Overlay         | `manifests/overlays/embedded-binder/` | 声明式部署模式切换                                 |
 
 **实验验证指标**：
 
-| 指标 | 含义 | 对比维度 |
-|------|------|----------|
-| `binder_embedded_bind_pod_duration_seconds` P99 | 单 Pod 绑定延迟 | A vs B |
-| `binder_embedded_bind_pods_total` rate | 绑定吞吐量 (pods/s) | A vs B |
-| `scheduler_e2e_scheduling_duration_seconds` P99 | 端到端调度延迟 | A vs B vs C vs D vs E |
-| `scheduler_pod_scheduling_attempts` rate | 调度吞吐量 | 五组横向对比 |
+| 指标                                            | 含义                | 对比维度              |
+| ----------------------------------------------- | ------------------- | --------------------- |
+| `binder_embedded_bind_pod_duration_seconds` P99 | 单 Pod 绑定延迟     | A vs B                |
+| `binder_embedded_bind_pods_total` rate          | 绑定吞吐量 (pods/s) | A vs B                |
+| `scheduler_e2e_scheduling_duration_seconds` P99 | 端到端调度延迟      | A vs B vs C vs D vs E |
+| `scheduler_pod_scheduling_attempts` rate        | 调度吞吐量          | 五组横向对比          |
 
 ### 13.3 创新点 2：分层容错绑定策略
 
@@ -1344,32 +1341,32 @@ Sched-C ──┘    (单点瓶颈)             Sched-C + Binder-C ──→ API
 
 **与其他调度器的容错对比**：
 
-| 调度器 | 绑定失败处理 | 层级 |
-|--------|-------------|------|
-| kube-scheduler | 绑定失败 → Pod 回队列重调度 | 单层（无重试） |
-| Volcano | 绑定失败 → Task 状态置为 Error → 重入队 | 单层（无重试） |
-| Koordinator | 同 kube-scheduler | 单层（无重试） |
-| Shared Binder Baseline | Binder 内部有限重试 → 无跨实例恢复 | 两层（无逃逸） |
+| 调度器                     | 绑定失败处理                                | 层级             |
+| -------------------------- | ------------------------------------------- | ---------------- |
+| kube-scheduler             | 绑定失败 → Pod 回队列重调度                 | 单层（无重试）   |
+| Volcano                    | 绑定失败 → Task 状态置为 Error → 重入队     | 单层（无重试）   |
+| Koordinator                | 同 kube-scheduler                           | 单层（无重试）   |
+| Shared Binder Baseline     | Binder 内部有限重试 → 无跨实例恢复          | 两层（无逃逸）   |
 | **Embedded Binder Design** | **预防 → 同步重试 → 异步恢复 → 跨实例逃逸** | **四层（完整）** |
 
 **技术要点**：
 
-| 组件 | 文件 | 作用 |
-|------|------|------|
-| `NodeValidator` | `node_validator.go` | Layer 0：分区归属验证 + 类型化错误 |
-| `bindPodToNode` 重试 | `embedded_binder.go` | Layer 1：瞬态错误指数退避 |
-| `BinderTasksReconciler` | `binder_reconciler.go` | Layer 2：异步 RateLimiting 重试队列 |
-| `retry.go` | `utils/retry.go` | Layer 3：失败计数 + `ShouldDispatchToAnotherScheduler` |
-| `CleanupPodAnnotationsWithRetryCount` | `utils/util.go` | Layer 3：注解清除 + Dispatcher 回退触发 |
+| 组件                                  | 文件                   | 作用                                                   |
+| ------------------------------------- | ---------------------- | ------------------------------------------------------ |
+| `NodeValidator`                       | `node_validator.go`    | Layer 0：分区归属验证 + 类型化错误                     |
+| `bindPodToNode` 重试                  | `embedded_binder.go`   | Layer 1：瞬态错误指数退避                              |
+| `BinderTasksReconciler`               | `binder_reconciler.go` | Layer 2：异步 RateLimiting 重试队列                    |
+| `retry.go`                            | `utils/retry.go`       | Layer 3：失败计数 + `ShouldDispatchToAnotherScheduler` |
+| `CleanupPodAnnotationsWithRetryCount` | `utils/util.go`        | Layer 3：注解清除 + Dispatcher 回退触发                |
 
 **实验验证**：
 
-| 实验场景 | 做法 | 验证的层 | 工作量 |
-|---------|------|---------|--------|
-| 正常运行 | 现有 W1-W6 实验 | 基线：四个指标均为 0 或极低 | ✅ 已有 |
-| API Server 高延迟 | `tc netem delay 200ms` | L1：bind_retries 上升 | 小 |
-| 节点 reshuffle | 实验中途修改 Node 分区注解 | L0：node_validation_failures 上升 | 小 |
-| 持续绑定失败 | ResourceQuota 限制 namespace | L2→L3：reconciler → fallback | 小 |
+| 实验场景          | 做法                         | 验证的层                          | 工作量  |
+| ----------------- | ---------------------------- | --------------------------------- | ------- |
+| 正常运行          | 现有 W1-W6 实验              | 基线：四个指标均为 0 或极低       | ✅ 已有 |
+| API Server 高延迟 | `tc netem delay 200ms`       | L1：bind_retries 上升             | 小      |
+| 节点 reshuffle    | 实验中途修改 Node 分区注解   | L0：node_validation_failures 上升 | 小      |
+| 持续绑定失败      | ResourceQuota 限制 namespace | L2→L3：reconciler → fallback      | 小      |
 
 ### 13.4 建议论文章节结构
 
@@ -1443,17 +1440,16 @@ Sched-C ──┘    (单点瓶颈)             Sched-C + Binder-C ──→ API
 >
 > 在 5000 节点 KWOK 模拟集群上，与共享 Binder 基线实现、kube-scheduler、Volcano、Koordinator 四个基线进行了六种工作负载下的系统性对比实验。实验结果表明：该分布式调度架构在绑定延迟 P99 方面较共享 Binder 降低 XX%，端到端调度吞吐量提升 XX%；分层容错机制在故障注入场景下实现 XX% 的绑定恢复成功率，显著优于其他调度器的单层容错策略。
 
-
 ---
 
 ## 13. 论文创新点定义与章节结构
 
 ### 13.1 两个创新点概览
 
-| # | 创新点 | 类型 | 核心贡献 | 已实现 |
-|---|--------|------|----------|--------|
-| 1 | **单 Dispatcher、多独立 Scheduler 分布式调度架构 (Single-Dispatcher Multi-Scheduler Architecture)** | 架构创新 | 构建单 Dispatcher 统一分发、Scheduler 实例独立并行执行的扩展架构，降低中心化链路竞争并提升整体吞吐 | ✅ Phase 1-7 |
-| 2 | **分层容错绑定策略 (Hierarchical Fault-Tolerant Binding Strategy)** | 机制创新 | 四层容错链路：预防→同步重试→异步恢复→跨实例逃逸，构建分布式调度中首个结构化绑定容错模型 | ✅ Phase 2-4 |
+| #   | 创新点                                                                                              | 类型     | 核心贡献                                                                                           | 已实现       |
+| --- | --------------------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------- | ------------ |
+| 1   | **单 Dispatcher、多独立 Scheduler 分布式调度架构 (Single-Dispatcher Multi-Scheduler Architecture)** | 架构创新 | 构建单 Dispatcher 统一分发、Scheduler 实例独立并行执行的扩展架构，降低中心化链路竞争并提升整体吞吐 | ✅ Phase 1-7 |
+| 2   | **分层容错绑定策略 (Hierarchical Fault-Tolerant Binding Strategy)**                                 | 机制创新 | 四层容错链路：预防→同步重试→异步恢复→跨实例逃逸，构建分布式调度中首个结构化绑定容错模型            | ✅ Phase 2-4 |
 
 ### 13.2 创新点 1：单 Dispatcher、多独立 Scheduler 分布式调度架构
 
@@ -1476,23 +1472,23 @@ Sched-C ──┘    (单点瓶颈)             Sched-C + Binder-C ──→ API
 
 **技术要点**：
 
-| 组件 | 文件 | 作用 |
-|------|------|------|
-| `BinderInterface` | `binder_interface.go` | 统一接口抽象，支持嵌入/独立两种模式 |
-| `EmbeddedBinder` | `embedded_binder.go` | 核心实现：BindUnit → 验证 → 绑定 → 缓存完成 |
-| `CacheAdapter` | `cache_adapter.go` | 包装 SchedulerCache 为 BinderCache，共享内存零拷贝 |
-| `PodGroupController` 迁移 | `podgroup.go` | 分区感知的 PodGroup 状态管理 |
-| Feature Gate | `options.go` | `--enable-embedded-binder` 一键切换，向后兼容 |
-| Kustomize Overlay | `manifests/overlays/embedded-binder/` | 声明式部署模式切换 |
+| 组件                      | 文件                                  | 作用                                               |
+| ------------------------- | ------------------------------------- | -------------------------------------------------- |
+| `BinderInterface`         | `binder_interface.go`                 | 统一接口抽象，支持嵌入/独立两种模式                |
+| `EmbeddedBinder`          | `embedded_binder.go`                  | 核心实现：BindUnit → 验证 → 绑定 → 缓存完成        |
+| `CacheAdapter`            | `cache_adapter.go`                    | 包装 SchedulerCache 为 BinderCache，共享内存零拷贝 |
+| `PodGroupController` 迁移 | `podgroup.go`                         | 分区感知的 PodGroup 状态管理                       |
+| Feature Gate              | `options.go`                          | `--enable-embedded-binder` 一键切换，向后兼容      |
+| Kustomize Overlay         | `manifests/overlays/embedded-binder/` | 声明式部署模式切换                                 |
 
 **实验验证指标**：
 
-| 指标 | 含义 | 对比维度 |
-|------|------|----------|
-| `binder_embedded_bind_pod_duration_seconds` P99 | 单 Pod 绑定延迟 | A vs B |
-| `binder_embedded_bind_pods_total` rate | 绑定吞吐量 (pods/s) | A vs B |
-| `scheduler_e2e_scheduling_duration_seconds` P99 | 端到端调度延迟 | A vs B vs C vs D vs E |
-| `scheduler_pod_scheduling_attempts` rate | 调度吞吐量 | 五组横向对比 |
+| 指标                                            | 含义                | 对比维度              |
+| ----------------------------------------------- | ------------------- | --------------------- |
+| `binder_embedded_bind_pod_duration_seconds` P99 | 单 Pod 绑定延迟     | A vs B                |
+| `binder_embedded_bind_pods_total` rate          | 绑定吞吐量 (pods/s) | A vs B                |
+| `scheduler_e2e_scheduling_duration_seconds` P99 | 端到端调度延迟      | A vs B vs C vs D vs E |
+| `scheduler_pod_scheduling_attempts` rate        | 调度吞吐量          | 五组横向对比          |
 
 ### 13.3 创新点 2：分层容错绑定策略
 
@@ -1541,32 +1537,32 @@ Sched-C ──┘    (单点瓶颈)             Sched-C + Binder-C ──→ API
 
 **与其他调度器的容错对比**：
 
-| 调度器 | 绑定失败处理 | 层级 |
-|--------|-------------|------|
-| kube-scheduler | 绑定失败 → Pod 回队列重调度 | 单层（无重试） |
-| Volcano | 绑定失败 → Task 状态置为 Error → 重入队 | 单层（无重试） |
-| Koordinator | 同 kube-scheduler | 单层（无重试） |
-| Shared Binder Baseline | Binder 内部有限重试 → 无跨实例恢复 | 两层（无逃逸） |
+| 调度器                     | 绑定失败处理                                | 层级             |
+| -------------------------- | ------------------------------------------- | ---------------- |
+| kube-scheduler             | 绑定失败 → Pod 回队列重调度                 | 单层（无重试）   |
+| Volcano                    | 绑定失败 → Task 状态置为 Error → 重入队     | 单层（无重试）   |
+| Koordinator                | 同 kube-scheduler                           | 单层（无重试）   |
+| Shared Binder Baseline     | Binder 内部有限重试 → 无跨实例恢复          | 两层（无逃逸）   |
 | **Embedded Binder Design** | **预防 → 同步重试 → 异步恢复 → 跨实例逃逸** | **四层（完整）** |
 
 **技术要点**：
 
-| 组件 | 文件 | 作用 |
-|------|------|------|
-| `NodeValidator` | `node_validator.go` | Layer 0：分区归属验证 + 类型化错误 |
-| `bindPodToNode` 重试 | `embedded_binder.go` | Layer 1：瞬态错误指数退避 |
-| `BinderTasksReconciler` | `binder_reconciler.go` | Layer 2：异步 RateLimiting 重试队列 |
-| `retry.go` | `utils/retry.go` | Layer 3：失败计数 + `ShouldDispatchToAnotherScheduler` |
-| `CleanupPodAnnotationsWithRetryCount` | `utils/util.go` | Layer 3：注解清除 + Dispatcher 回退触发 |
+| 组件                                  | 文件                   | 作用                                                   |
+| ------------------------------------- | ---------------------- | ------------------------------------------------------ |
+| `NodeValidator`                       | `node_validator.go`    | Layer 0：分区归属验证 + 类型化错误                     |
+| `bindPodToNode` 重试                  | `embedded_binder.go`   | Layer 1：瞬态错误指数退避                              |
+| `BinderTasksReconciler`               | `binder_reconciler.go` | Layer 2：异步 RateLimiting 重试队列                    |
+| `retry.go`                            | `utils/retry.go`       | Layer 3：失败计数 + `ShouldDispatchToAnotherScheduler` |
+| `CleanupPodAnnotationsWithRetryCount` | `utils/util.go`        | Layer 3：注解清除 + Dispatcher 回退触发                |
 
 **实验验证**：
 
-| 实验场景 | 做法 | 验证的层 | 工作量 |
-|---------|------|---------|--------|
-| 正常运行 | 现有 W1-W6 实验 | 基线：四个指标均为 0 或极低 | ✅ 已有 |
-| API Server 高延迟 | `tc netem delay 200ms` | L1：bind_retries 上升 | 小 |
-| 节点 reshuffle | 实验中途修改 Node 分区注解 | L0：node_validation_failures 上升 | 小 |
-| 持续绑定失败 | ResourceQuota 限制 namespace | L2→L3：reconciler → fallback | 小 |
+| 实验场景          | 做法                         | 验证的层                          | 工作量  |
+| ----------------- | ---------------------------- | --------------------------------- | ------- |
+| 正常运行          | 现有 W1-W6 实验              | 基线：四个指标均为 0 或极低       | ✅ 已有 |
+| API Server 高延迟 | `tc netem delay 200ms`       | L1：bind_retries 上升             | 小      |
+| 节点 reshuffle    | 实验中途修改 Node 分区注解   | L0：node_validation_failures 上升 | 小      |
+| 持续绑定失败      | ResourceQuota 限制 namespace | L2→L3：reconciler → fallback      | 小      |
 
 ### 13.4 建议论文章节结构
 
@@ -1636,6 +1632,6 @@ Sched-C ──┘    (单点瓶颈)             Sched-C + Binder-C ──→ API
 >
 > （1）**单 Dispatcher、多独立 Scheduler 分布式调度架构**：构建“单 Dispatcher 统一分发 + 多 Scheduler 独立并行执行”的协同模型，将绑定执行链路与调度实例同域化，减少跨组件通信与状态同步开销，实现系统吞吐能力随调度实例数近线性扩展。通过共享缓存适配层实现低拷贝状态复用，并引入特性开关保障新旧架构平滑切换与向后兼容。
 >
-> （2）**分层容错绑定策略**：构建四层容错链路——节点分区验证（预防层）、同步指数退避重试（即时恢复层）、异步 Reconciler 队列（后台恢复层）、Dispatcher 跨实例回退（全局恢复层），形成分布式调度系统中首个结构化的绑定容错模型。配套设计 8 个 Prometheus 指标实现分层可观测性。
+> （2）**分层容错绑定策略**：构建四层容错链路——节点分区验证（预防层）、同步指数退避重试（即时恢复层）、异步 Reconciler 队列（后台恢复层）、Dispatcher 跨实例回退（全局恢复层），形成分布式调度系统中首个结构化的绑定容错模型。
 >
 > 在 5000 节点 KWOK 模拟集群上，与共享 Binder 基线实现、kube-scheduler、Volcano、Koordinator 四个基线进行了六种工作负载下的系统性对比实验。实验结果表明：该分布式调度架构在绑定延迟 P99 方面较共享 Binder 降低 XX%，端到端调度吞吐量提升 XX%；分层容错机制在故障注入场景下实现 XX% 的绑定恢复成功率，显著优于其他调度器的单层容错策略。
