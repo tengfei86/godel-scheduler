@@ -1,0 +1,46 @@
+flowchart TB
+    subgraph LC[负载注入器]
+        L1[按 w2/w3 速率创建 Pod<br>500 / 1000 pods/s]
+    end
+
+    subgraph KIND[Kind 集群（Docker 内）]
+        subgraph CP[控制平面]
+            A[kube-apiserver]
+            E[(etcd)]
+        end
+        subgraph KWOK[KWOK 仿真节点]
+            N1[1000 / 5000 个假节点]
+            N2[模拟 Pod 生命周期]
+        end
+        subgraph S1[调度器组 a：ENO（本文）]
+            S1A[Scheduler + 进程内 Binder]
+        end
+        subgraph S2[调度器组 b：Gödel]
+            S2A[Scheduler + 独立 Binder]
+        end
+        subgraph S3[调度器组 c：kube-scheduler]
+            S3A[单实例调度器]
+        end
+        subgraph S4[调度器组 d：Volcano]
+            S4A[单实例调度器]
+        end
+        subgraph S5[调度器组 e：Koordinator]
+            S5A[单实例调度器]
+        end
+    end
+
+    subgraph OBS[观测栈]
+        P[Prometheus<br>15s 抓取 + recording rules]
+        G[Grafana Dashboard]
+    end
+
+    LC --> A
+    A <--> E
+    A <--> KWOK
+    A <--> S1
+    A <--> S2
+    A <--> S3
+    A <--> S4
+    A <--> S5
+    A --> P
+    P --> G

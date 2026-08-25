@@ -1,0 +1,71 @@
+% ============================================================================
+% 参考文献库：《基于etcd的分布式Kubernetes调度器研究与实现》
+% 格式：GB/T 7714-2015 顺序编码制（正文以 [N] 上标引用）
+% 编号顺序与正文首次出现顺序一致（T1 任务完成，2026-08-25）
+% 数据/实验相关引用见正文脚注与 test/e2e/benchmark/results/ 目录
+% ============================================================================
+
+% [1] 第1章 §1.2：Omega（架构演进方向）
+@inproceedings{schwarzkopf2013omega,
+  author    = {Schwarzkopf, Malte and Konwinski, Andy and Abd-El-Malek, Michael and Wilkes, John},
+  title     = {Omega: Flexible, Scalable Schedulers for Large Compute Clusters},
+  booktitle = {Proceedings of the 8th ACM European Conference on Computer Systems (EuroSys 2013)},
+  year      = {2013},
+  pages     = {351--364},
+  address   = {Prague, Czech Republic},
+  publisher = {ACM}
+}
+
+% [2] 第1章 §1.2 / 第2章 §2.1：Scheduling Framework
+@misc{k8s-scheduling-framework,
+  author       = {Kubernetes},
+  title        = {Scheduling Framework},
+  howpublished = {\url{https://kubernetes.io/docs/concepts/scheduling-eviction/scheduling-framework/}},
+  year         = {2026},
+  note         = {Accessed: 2026-08-25}
+}
+
+% [3] 第1章 §1.2 / 第2章 §2.4：Gödel Scheduler 开源实现
+@misc{godel-scheduler,
+  author       = {kubewharf},
+  title        = {godel-scheduler: a unified scheduler for online and offline tasks},
+  howpublished = {\url{https://github.com/kubewharf/godel-scheduler}},
+  year         = {2023},
+  note         = {Accessed: 2026-08-25}
+}
+
+% [4] 第1章 §1.2 / 第2章 §2.4：Gödel 大规模生产实践（3 万节点）
+@inproceedings{godel-socc2024,
+  title     = {G{\"o}del: Unified Large-Scale Resource Management and Scheduling at ByteDance},
+  booktitle = {Proceedings of the ACM Symposium on Cloud Computing (SoCC 2024)},
+  year      = {2024},
+  % TODO: 待作者核实第一作者姓名后补充 author 字段
+  note      = {ByteDance 内部 3 万节点级别生产集群的调度实践}
+}
+
+% [5] 第1章 §1.2：Volcano
+@misc{volcano,
+  author       = {CNCF / volcano-sh},
+  title        = {Volcano: A Kubernetes Native Batch System},
+  howpublished = {\url{https://github.com/volcano-sh/volcano}},
+  year         = {2026},
+  note         = {Accessed: 2026-08-25}
+}
+
+% [6] 第1章 §1.2：Koordinator
+@misc{koordinator,
+  author       = {koordinator-sh},
+  title        = {Koordinator: Improve Container Performance and Reduce Costs},
+  howpublished = {\url{https://github.com/koordinator-sh/koordinator}},
+  year         = {2026},
+  note         = {Accessed: 2026-08-25}
+}
+
+% [7] 第2章 §2.1：kube-scheduler（单实例串行架构）
+@misc{k8s-scheduler-doc,
+  author       = {Kubernetes},
+  title        = {Kubernetes Scheduler},
+  howpublished = {\url{https://kubernetes.io/docs/concepts/scheduling-eviction/kube-scheduler/}},
+  year         = {2026},
+  note         = {Accessed: 2026-08-25}
+}

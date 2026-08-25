@@ -65,9 +65,9 @@
 
 | 论文编号 | 用途 | 现状 | 建议来源 |
 |---|---|---|---|
-| 图 3-2（可选） | §3.2 基于 etcd 的三步事务时序图 | 未画 | mermaid 生成 |
-| 图 6-1 | §6.1 实验环境拓扑（kind + KWOK + Prometheus + 5 组调度器）| 未画 | mermaid 生成 |
-| 图 6-2 | §6.1 单次实验流程时序图 | 未画 | mermaid 生成 |
+| 图 3-2 | §3.2 基于 etcd 的三步事务时序图 | ✅ 已完成（2026-08-25） | [figures/fig3-2-etcd-three-step-txn.{mmd,png}](figures/fig3-2-etcd-three-step-txn.png) |
+| 图 6-1 | §6.1 实验环境拓扑（kind + KWOK + Prometheus + 5 组调度器）| ✅ 已完成（2026-08-25） | [figures/fig6-1-experiment-env.{mmd,png}](figures/fig6-1-experiment-env.png) |
+| 图 6-2 | §6.1 单次实验流程时序图 | ✅ 已完成（2026-08-25） | [figures/fig6-2-experiment-flow.{mmd,png}](figures/fig6-2-experiment-flow.png) |
 
 ### D. 数据图（第 6 章，从实验结果自动生成）
 
@@ -178,10 +178,10 @@ docs/thesis/
 | 图 5-3 | docs/performance/figures/fig3-3-eno-deployment-topology.* | fig5-3-eno-deployment.* |
 
 **待补**：
-- 图 3-2 基于 etcd 三步事务时序图（**暂缓** — 写到 §3.2 时再决定是否画；如不画则正文用文字 + 代码片段说明）
-- 图 6-1 实验环境拓扑（待第 6 章写作时画）
-- 图 6-2 单次实验流程时序（待第 6 章写作时画）
-- 图 6-3 ~ 6-10 数据图（等 §6 写作时用 plot-results.py 生成）
+- 图 3-2 基于 etcd 三步事务时序图（**✅ 已完成 2026-08-25**，fig3-2-etcd-three-step-txn）
+- 图 6-1 实验环境拓扑（**✅ 已完成 2026-08-25**，fig6-1-experiment-env）
+- 图 6-2 单次实验流程时序（**✅ 已完成 2026-08-25**，fig6-2-experiment-flow）
+- 图 6-3 ~ 6-10 数据图（**✅ 已完成 2026-08-25**，从 `results/compare/` 归档）
 
 ---
 

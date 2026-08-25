@@ -39,6 +39,10 @@ API Server 是所有组件唯一的通信中介。Dispatcher 与 Scheduler 之�
 
 图 3-1 中标注的三条写路径 ① dispatching、② assuming、③ binding 构成了本文所研究的分布式调度器的核心事务模型。每一步都是对 etcd 的一次原子写入，且都通过 Kubernetes API Server 中转，得益于 etcd 的强一致性保证，这三步写入满足如下性质：
 
+![图 3-2 基于 etcd 的三步事务写入时序（dispatching / assuming / binding）](../figures/fig3-2-etcd-three-step-txn.png)
+
+**图 3-2  基于 etcd 的三步事务写入时序（dispatching → assuming → binding）**
+
 **（1）① dispatching 步骤**。Dispatcher 通过 `PatchPod` 操作，在 Pod 的注解字段中写入 `godel.bytedance.com/scheduler-name={selectedScheduler}`。这一步操作携带 Pod 的 `resourceVersion`，若并发情况下已有其他修改，则会由 etcd 返回 `409 Conflict`，Dispatcher 收到冲突后重新读取 Pod 并重试。这保证了同一 Pod 的分发决策**不会出现竞争条件**。
 
 **（2）② assuming 步骤**。被分发到的 Scheduler 通过 Informer 观察到 Pod 的 `scheduler-name` 注解匹配自己，将其纳入调度循环。Filter/Score/Reserve 完成后，Scheduler 通过 `PatchPod` 写入 `godel.bytedance.com/assumed-node={selectedNode}`，同样受 `resourceVersion` 乐观并发保护。
@@ -53,7 +57,7 @@ API Server 是所有组件唯一的通信中介。Dispatcher 与 Scheduler 之�
 
 ## 3.3 Dispatcher 内部：Pod 的数据结构流转
 
-图 3-2（本节暂缓；文字说明配合图 3-3）展示了 Dispatcher 内部 Pod 从进入到分发完成的完整流转过程。
+图 3-3 展示了 Dispatcher 内部 Pod 从进入到分发完成的完整流转过程。
 
 ![图 3-3 Dispatcher 内部数据结构流转：Pod 从新建到分发](../figures/fig3-3-dispatcher-flow.png)
 

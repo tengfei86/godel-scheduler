@@ -1,0 +1,36 @@
+sequenceDiagram
+    autonumber
+    participant D as Dispatcher
+    participant S as Scheduler
+    participant B as Binder（进程内）
+    participant K as kube-apiserver
+    participant E as etcd（Raft 强一致）
+
+    Note over D,E: 步骤① dispatching —— 写入 scheduler-name 注解
+    D->>K: PatchPod（携带 resourceVersion）
+    K->>E: 原子事务：版本匹配则写入注解
+    alt 并发版本冲突
+        E-->>K: 返回 409 Conflict
+        K-->>D: 冲突响应
+        D->>K: 重新读取 Pod 后重试
+    else 写入成功
+        E-->>K: 提交成功
+        K-->>D: 更新成功
+    end
+
+    Note over S,E: 步骤② assuming —— Reserve 完成后写入 assumed-node 注解
+    S->>K: PatchPod（携带 resourceVersion）
+    K->>E: 原子事务：写入 assumed-node
+    E-->>K: 提交成功
+    K-->>S: 更新成功
+
+    Note over B,E: 步骤③ binding —— Bind 子资源原子绑定
+    B->>K: 调用 Bind 子资源 API（POST binding）
+    K->>E: 原子事务：nodeName 为空则设置，否则拒绝
+    alt nodeName 已非空（重复绑定）
+        E-->>K: 返回 409 Conflict
+        K-->>B: 绑定失败，拒绝重复绑定
+    else nodeName 为空
+        E-->>K: 原子设置成功
+        K-->>B: 绑定成功（nodeName = 目标节点）
+    end

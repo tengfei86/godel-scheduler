@@ -1,0 +1,28 @@
+sequenceDiagram
+    autonumber
+    participant R as run-experiment.sh
+    participant A as kube-apiserver
+    participant K as KWOK 仿真节点
+    participant G as 调度器组 a-e
+    participant P as Prometheus
+
+    Note over R,P: 阶段一 环境准备（deploy）
+    R->>A: Step 0-1 连通性预检，校验节点数（1000 / 5000）
+    R->>A: Step 2 清理上一轮测试环境
+    R->>A: Step 3 重启 API Server（清理连接积压）
+    R->>K: Step 4 等待系统冷却
+    R->>G: Step 5 验证各调度器就绪
+
+    Note over R,P: 阶段二 负载执行（warmup → workload → wait）
+    R->>A: Step 6 记录实验开始时间
+    R->>A: Step 7 执行负载（w2=500 pods/s 或 w3=1000 pods/s）
+    Note over R,A: 负载前 30s 为 warmup，统计时剔除
+    R->>A: Step 8 轮询等待所有 Pod 调度完成
+    R->>A: Step 9 记录实验结束时间
+
+    Note over R,P: 阶段三 数据收集（collect）
+    R->>P: Step 10 导出 Prometheus 指标（JSON）
+    R->>A: Step 11 采集节点资源分布快照
+    R->>A: Step 12 采集 Pod 分布快照并写入元数据
+
+    Note over R,P: 离线后处理：plot-results.py 生成均值与跨组对比图

@@ -20,7 +20,7 @@
 
 其中 **步骤 ④** 是本文特别关注的开销来源：Scheduler 与 Binder 之间没有直接连接，它们通过 API Server + etcd 中转事件，每次事件都涉及序列化（Pod 对象转 protobuf）、网络传输、反序列化、Informer 索引更新等一系列开销。在超高并发场景下，这一步的开销会在如下几个维度累积：
 
-**（1）序列化 / 反序列化 CPU 开销**：每个 Pod 对象大小约 3~10 KB，包含 metadata、spec、status 等字段。100 pods/s 的稳态吞吐意味着 API Server + Informer 每秒完成 100 次完整的 Pod 对象序列化/反序列化循环，累计消耗数百毫秒 CPU；
+**（1）序列化 / 反序列化 CPU 开销**：每个 Pod 对象大小约 3~10 KB，包含 metadata、spec、status 等字段。以本文实验的 w3 负载（1000 pods/s）为例，稳态吞吐意味着 API Server + Informer 每秒完成 1000 次完整的 Pod 对象序列化/反序列化循环，累计消耗可观的 CPU 时间；
 
 **（2）Informer 事件延迟**：从 API Server 的 Watch 推送到 Binder 的 Informer 处理完成，通常有数十到数百毫秒的端到端延迟（受批处理、限流、handler 排队影响）。这一延迟直接叠加到 Pod E2E 调度延迟上；
 

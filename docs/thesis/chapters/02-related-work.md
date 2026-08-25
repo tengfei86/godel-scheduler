@@ -10,9 +10,9 @@ kube-scheduler 是 Kubernetes 集群中的默认调度器，也是本文其他�
 - **调度决策**：从 activeQ 弹出 Pod 后，依次执行 PreFilter → Filter → PostFilter → PreScore → Score → Reserve → Permit 一系列插件，最终产出目标节点；
 - **绑定**：将调度决策通过 Bind API 写入 kube-apiserver，Bind API 是 Pod 资源的一个子资源，Kubernetes 提供了对该操作的原子性保证。
 
-kube-scheduler 采用**单实例串行处理**架构，虽然内部通过 goroutine 池并发执行 Filter/Score，但同一时刻仅有一个 Pod 处于绑定阶段，Bind 操作串行地写入 apiserver。这一设计的主要优势是**天然避免了多实例并发绑定同一节点的冲突**——不需要额外的一致性协议——但其吞吐上限也就此固定：官方测试<sup>[?]</sup>与本文实验均表明其稳态吞吐约在数百 pods/s 量级。
+kube-scheduler 采用**单实例串行处理**架构，虽然内部通过 goroutine 池并发执行 Filter/Score，但同一时刻仅有一个 Pod 处于绑定阶段，Bind 操作串行地写入 apiserver。这一设计的主要优势是**天然避免了多实例并发绑定同一节点的冲突**——不需要额外的一致性协议——但其吞吐上限也就此固定：官方测试<sup>[7]</sup>与本文实验均表明其稳态吞吐约在数百 pods/s 量级。
 
-kube-scheduler 2019 年引入的 **Scheduling Framework**<sup>[?]</sup> 通过插件化机制将调度流程解耦为若干扩展点，使得第三方项目（Volcano、Koordinator 等）可以在不 fork 主线代码的前提下扩展调度能力，这也构成了本章后续调度器的技术起点。
+kube-scheduler 2019 年引入的 **Scheduling Framework**<sup>[2]</sup> 通过插件化机制将调度流程解耦为若干扩展点，使得第三方项目（Volcano、Koordinator 等）可以在不 fork 主线代码的前提下扩展调度能力，这也构成了本章后续调度器的技术起点。
 
 ## 2.2 批处理调度器 Volcano
 
@@ -42,7 +42,7 @@ Koordinator 的架构上同样是**基于 kube-scheduler 的插件扩展**，属
 - **Scheduler**：多实例（水平扩展），每个 Scheduler 实例只负责自己分区内的节点，独立执行 Filter/Score/Reserve 完成调度决策，然后将决策通过 Kubernetes API 传递给 Binder；
 - **Binder**：独立部署（Deployment 形态），从 Kubernetes API Server 通过 Informer 接收调度决策事件，负责最终的 Bind API 调用与冲突处理。
 
-Gödel 的核心创新点在于**节点分区机制**：通过将全集群节点划分为互不相交的分区，多个 Scheduler 实例天然避免了对同一节点资源的竞争，从而实现真正意义上的并发调度。字节跳动内部报告称该架构在 3 万节点级别的生产集群中稳定运行<sup>[?]</sup>。
+Gödel 的核心创新点在于**节点分区机制**：通过将全集群节点划分为互不相交的分区，多个 Scheduler 实例天然避免了对同一节点资源的竞争，从而实现真正意义上的并发调度。字节跳动内部报告称该架构在 3 万节点级别的生产集群中稳定运行<sup>[4]</sup>。
 
 然而，Gödel 中 Binder 的独立部署形态在超高并发场景下会再次成为串行化瓶颈，这也是本文第 5 章 ENO 架构改造要解决的问题。此外，Gödel 公开发表的分析中缺乏对**节点分区归属动态漂移**（Dispatcher 在运行时重新分配节点归属）场景下一致性保证的完整论证，本文第 4 章将补充这一部分。
 
