@@ -110,6 +110,18 @@ s2 与 s3 覆盖了从中等到较大规模的集群场景，能够充分展现�
 
 所有指标每 15 秒采样一次；每次实验取工作负载稳态期间（去除头尾 30 秒 warmup / cooldown）的均值与 P90/P99 分位；每组 3 次重复实验取均值 ± 1σ。
 
+### 6.3.1 关于跨调度器延迟对比的方法学说明
+
+不同调度器的 latency histogram 具有**不同的采样偏差**，直接比较绝对数值可能产生误导，本节明确本文的方法学立场：
+
+- **过载单实例调度器（c/d/e）**：当 Pod 到达速率超过调度器处理能力（例如 w3 负载下 kube-scheduler 无法承接 1000 pods/s），大量 Pod 长时间堵塞在 activeQ 队列中，永远不会被 pop 出来进入 `scheduling_attempt_duration_seconds` 的 histogram 采样窗口。histogram 因此仅记录**能被成功处理的少数样本**，其 P99 分位严重低估真实用户感知延迟。这一现象在性能测量领域被称为 **Coordinated Omission（协同遗漏）** 或 **Survivor Bias（幸存者偏差）**。
+- **多实例分布式调度器（a/b）**：处理能力接近或超过输入速率，绝大多数 Pod 都能被成功绑定并记入 histogram，P99 反映的是**真实的尾延迟**。
+
+基于此，本文的定量对比策略如下：
+
+1. **主对比（a vs b）**：ENO 与 Gödel 使用完全相同的 `scheduler_e2e_scheduling_duration_seconds` 指标，数据采样条件一致，可直接比较 latency 的绝对数值与相对改善百分比。
+2. **辅助对比（vs c/d/e）**：以吞吐、pending_pods 队列堆积、绑定成功率等**不受采样偏差影响的指标**进行整体扩展性对比，**不做 latency 数值的直接对齐**。相关讨论见 §6.5 与 §6.8。
+
 ## 6.4 单调度器性能对比
 
 ### 6.4.1 稳态吞吐
@@ -159,6 +171,8 @@ s2 与 s3 覆盖了从中等到较大规模的集群场景，能够充分展现�
 | s2/w3 | 33.3 | 47.9 | 30.6% | 38.9 | 54.3 | 28.2% |
 | s3/w2 | 0.85 | 2.18 | 61.3% | 1.36 | 3.55 | 61.7% |
 | s3/w3 | 42.8 | 54.8 | 21.9% | 49.1 | 61.8 | 20.5% |
+
+> **附注**：本表仅列出 ENO 与 Gödel 的调度延迟对比，未包含 kube-scheduler（c）、Volcano（d）、Koordinator（e）。原因见 §6.3.1：单实例调度器在 1000 pods/s 过载压力下的 latency histogram 存在幸存者偏差，其表面上的低 P99 值不与分布式方案 a/b 的真实尾延迟直接可比。c/d/e 与 a/b 的整体对比通过吞吐、队列堆积（pending_pods）与绑定成功率进行，详见 §6.5。
 
 **结论**：在所有规模与负载组合下，ENO 的 P90/P99 调度延迟均低于 Gödel，改善幅度 6.9%~61.7%。高负载（w3）场景下 ENO 的 P99 延迟较 Gödel 降低 20.5%~28.2%，s3/w2 场景改善最显著（P90/P99 均降低约 61%）。延迟改善是 ENO 架构改造最直接、最一致的收益。
 
@@ -261,6 +275,8 @@ s2 与 s3 之间是 5x 的规模差距（1000 → 5000 节点），可以初步�
 **（4）ENO 与 Gödel 的资源公平性**：ENO 因合并 Binder，单个 Scheduler Pod 的负载可能高于原 Gödel 的 Scheduler Pod；但同时 ENO 集群整体少了 Binder Deployment。为公平对比，本文采用**每 Deployment 的资源规格保持一致**这一策略，即两者的 Scheduler Pod 均按 2 CPU / 4 GB 分配。这一策略对 ENO 略不利（ENO 单个 Pod 要同时跑 Scheduler + Binder），但确保了单 Pod 层面的对比公平；ENO 由于不需要额外的 Binder Deployment，在**集群总资源开销**层面的优势本文未展开量化。
 
 **（5）Volcano 指标口径的差异**：Volcano 的 `volcano_task_scheduling_latency_milliseconds` 与其他调度器的 `scheduler_scheduling_attempt_duration_seconds` 在语义上并不完全等价，本文在 §6.1.2 中通过 recording rules 尽力对齐了口径，但仍难以做到 100% 严格等价的对比。这在结论中会予以说明。
+
+**（6）延迟指标的跨调度器可比性**：kube-scheduler（c）、Volcano（d）、Koordinator（e）在过载场景下的 P99 延迟数值因 **Coordinated Omission（协同遗漏）** 而系统性低估——单实例调度器无法处理的 Pod 长期堵塞在队列中，从未进入 latency histogram 的采样窗口，histogram 只统计"能被受理"的少数样本。本文在 §6.3.1 已明确该方法学立场，并在数值对比中回避了对 c/d/e 的 latency 数值直接引用。将来的研究若希望做严格的跨调度器 latency 数值对比，需要在负载生成端记录**每个 Pod 的入队时间戳**，从外部计算真实用户感知的 P99（bypass 各调度器 histogram 的采样偏差）。
 
 ## 6.9 本章小结
 
