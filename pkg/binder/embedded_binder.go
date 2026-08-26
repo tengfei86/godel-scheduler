@@ -212,6 +212,12 @@ func (eb *EmbeddedBinder) BindUnit(ctx context.Context, req *BindRequest) (*Bind
 			result.SuccessfulPods = append(result.SuccessfulPods, pod.UID)
 			bindermetrics.ObserveEmbeddedBindPod(eb.schedulerName, bindermetrics.SuccessResult, podDuration)
 
+			// Record E2E latency metrics (parity with standalone Binder path in godel_binder.go).
+			// This populates eno_pod_e2e_duration_seconds and binder_e2e_duration_seconds
+			// so that ENO deployments emit the same set of metrics as the standalone Binder.
+			bindermetrics.ObservePodBinderE2ELatency(qpi)
+			bindermetrics.ObservePodEnoE2E(qpi)
+
 			// Mark reservation as complete in shared cache.
 			if finishErr := eb.schedulerCache.FinishReserving(pod); finishErr != nil {
 				klog.V(3).InfoS("Failed to finish reserving after successful bind",
