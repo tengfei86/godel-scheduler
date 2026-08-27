@@ -1,11 +1,13 @@
 % ============================================================================
 % 参考文献库：《基于etcd的分布式Kubernetes调度器研究与实现》
 % 格式：GB/T 7714-2015 顺序编码制（正文以 [N] 上标引用）
-% 编号顺序与正文首次出现顺序一致（T1 任务完成，2026-08-25）
-% 数据/实验相关引用见正文脚注与 test/e2e/benchmark/results/ 目录
+% 编号严格按正文首次出现顺序（2026-08-27 扩充至 40 条）
+% 文献来源：合并 Word 中期文档已有 24 条 + 论文既有 7 条 + 补充经典文献
 % ============================================================================
 
-% [1] 第1章 §1.2：Omega（架构演进方向）
+% ---- 第 1 章（绪论）----
+
+% [1] §1.2 Omega
 @inproceedings{schwarzkopf2013omega,
   author    = {Schwarzkopf, Malte and Konwinski, Andy and Abd-El-Malek, Michael and Wilkes, John},
   title     = {Omega: Flexible, Scalable Schedulers for Large Compute Clusters},
@@ -16,7 +18,7 @@
   publisher = {ACM}
 }
 
-% [2] 第1章 §1.2 / 第2章 §2.1：Scheduling Framework
+% [2] §1.2 / §2.1 Scheduling Framework 官方文档
 @misc{k8s-scheduling-framework,
   author       = {Kubernetes},
   title        = {Scheduling Framework},
@@ -25,7 +27,7 @@
   note         = {Accessed: 2026-08-25}
 }
 
-% [3] 第1章 §1.2 / 第2章 §2.4：Gödel Scheduler 开源实现
+% [3] §1.2 / §2.4 Gödel Scheduler 开源实现
 @misc{godel-scheduler,
   author       = {kubewharf},
   title        = {godel-scheduler: a unified scheduler for online and offline tasks},
@@ -34,7 +36,7 @@
   note         = {Accessed: 2026-08-25}
 }
 
-% [4] 第1章 §1.2 / 第2章 §2.4：Gödel 大规模生产实践（3 万节点）
+% [4] §1.2 / §2.4 Gödel 大规模生产实践（SoCC 2024）
 @inproceedings{godel-socc2024,
   title     = {G{\"o}del: Unified Large-Scale Resource Management and Scheduling at ByteDance},
   booktitle = {Proceedings of the ACM Symposium on Cloud Computing (SoCC 2024)},
@@ -43,7 +45,7 @@
   note      = {ByteDance 内部 3 万节点级别生产集群的调度实践}
 }
 
-% [5] 第1章 §1.2：Volcano
+% [5] §1.2 / §2.2 Volcano GitHub
 @misc{volcano,
   author       = {CNCF / volcano-sh},
   title        = {Volcano: A Kubernetes Native Batch System},
@@ -52,7 +54,7 @@
   note         = {Accessed: 2026-08-25}
 }
 
-% [6] 第1章 §1.2：Koordinator
+% [6] §1.2 / §2.3 Koordinator GitHub
 @misc{koordinator,
   author       = {koordinator-sh},
   title        = {Koordinator: Improve Container Performance and Reduce Costs},
@@ -61,11 +63,323 @@
   note         = {Accessed: 2026-08-25}
 }
 
-% [7] 第2章 §2.1：kube-scheduler（单实例串行架构）
+% ---- 第 2 章（相关工作与背景）----
+
+% [7] §2.1 kube-scheduler 官方文档
 @misc{k8s-scheduler-doc,
   author       = {Kubernetes},
   title        = {Kubernetes Scheduler},
   howpublished = {\url{https://kubernetes.io/docs/concepts/scheduling-eviction/kube-scheduler/}},
+  year         = {2026},
+  note         = {Accessed: 2026-08-25}
+}
+
+% [8] §2.1 Kubernetes: Up and Running
+@book{burns2019upandrunning,
+  author    = {Burns, Brendan and Beda, Joe and Hightower, Kelsey},
+  title     = {Kubernetes: Up and Running},
+  edition   = {2nd},
+  address   = {Sebastopol},
+  publisher = {O'Reilly Media},
+  year      = {2019}
+}
+
+% [9] §2.1 深入剖析 Kubernetes
+@book{zhanglei2021kubernetes,
+  author    = {张磊},
+  title     = {深入剖析 Kubernetes},
+  address   = {北京},
+  publisher = {人民邮电出版社},
+  year      = {2021}
+}
+
+% [10] §2.1 污点与容忍
+@misc{k8s-taints-tolerations,
+  author       = {Kubernetes},
+  title        = {Taints and Tolerations},
+  howpublished = {\url{https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/}},
+  year         = {2026},
+  note         = {Accessed: 2026-08-25}
+}
+
+% [11] §2.1 节点亲和/反亲和
+@misc{k8s-affinity,
+  author       = {Kubernetes},
+  title        = {Assigning Pods to Nodes},
+  howpublished = {\url{https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/}},
+  year         = {2026},
+  note         = {Accessed: 2026-08-25}
+}
+
+% [12] §2.1 Pod 优先级与抢占
+@misc{k8s-priority-preemption,
+  author       = {Kubernetes},
+  title        = {Pod Priority and Preemption},
+  howpublished = {\url{https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/}},
+  year         = {2026},
+  note         = {Accessed: 2026-08-25}
+}
+
+% [13] §2.1 Scheduling Framework KEP
+@misc{kep-scheduling-framework,
+  author       = {Kubernetes},
+  title        = {KEP-2926: Scheduling Framework},
+  howpublished = {\url{https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/2926-scheduling-framework}},
+  year         = {2026},
+  note         = {Accessed: 2026-08-25}
+}
+
+% [14] §2.2 Gang 调度（Volcano 官方文档）
+@misc{volcano-docs,
+  author       = {volcano-sh},
+  title        = {Volcano Documentation},
+  howpublished = {\url{https://volcano.sh/}},
+  year         = {2026},
+  note         = {Accessed: 2026-08-25}
+}
+
+% [15] §2.2 DRF
+@inproceedings{ghodsi2011drf,
+  author    = {Ghodsi, Ali and Zaharia, Matei and Hindman, Benjamin and Konwinski, Andy and Shenker, Scott and Stoica, Ion},
+  title     = {Dominant Resource Fairness: Fair Allocation of Multiple Resource Types},
+  booktitle = {Proceedings of the 8th USENIX Symposium on Networked Systems Design and Implementation (NSDI 2011)},
+  year      = {2011},
+  pages     = {323--336}
+}
+
+% [16] §2.3 Koordinator 官方文档
+@misc{koordinator-docs,
+  author       = {koordinator-sh},
+  title        = {Koordinator Documentation},
+  howpublished = {\url{https://koordinator.sh/}},
+  year         = {2026},
+  note         = {Accessed: 2026-08-25}
+}
+
+% [17] §2.4 Borg
+@inproceedings{verma2015borg,
+  author    = {Verma, Abhishek and Pedrosa, Luis and Korupolu, Madhukar and Oppenheimer, David and Tune, Eric and Wilkes, John},
+  title     = {Large-Scale Cluster Management at Google with {Borg}},
+  booktitle = {Proceedings of the Tenth European Conference on Computer Systems (EuroSys 2015)},
+  year      = {2015},
+  pages     = {1--17}
+}
+
+% [18] §2.4 Mesos
+@inproceedings{hindman2011mesos,
+  author    = {Hindman, Benjamin and Konwinski, Andy and Zaharia, Matei and Ghodsi, Ali and Joseph, Anthony D and Katz, Randy and Shenker, Scott and Stoica, Ion},
+  title     = {Mesos: A Platform for Fine-Grained Resource Sharing in the Data Center},
+  booktitle = {Proceedings of the 8th USENIX Symposium on Networked Systems Design and Implementation (NSDI 2011)},
+  year      = {2011},
+  pages     = {295--308}
+}
+
+% [19] §2.4 一致性哈希
+@inproceedings{karger1997hashing,
+  author    = {Karger, David and Lehman, Eric and Leighton, Tom and Levine, Matthew and Lewin, Daniel and Panigrahy, Rina},
+  title     = {Consistent Hashing and Random Trees: Distributed Caching Protocols for Relieving Hot Spots on the World Wide Web},
+  booktitle = {Proceedings of the 29th Annual ACM Symposium on Theory of Computing (STOC 1997)},
+  year      = {1997},
+  pages     = {654--663}
+}
+
+% [20] §2.4 Sparrow
+@inproceedings{ousterhout2013sparrow,
+  author    = {Ousterhout, Kay and Wendell, Patrick and Zaharia, Matei and Stoica, Ion},
+  title     = {Sparrow: Distributed, Low Latency Scheduling},
+  booktitle = {Proceedings of the 24th ACM Symposium on Operating Systems Principles (SOSP 2013)},
+  year      = {2013},
+  pages     = {69--84}
+}
+
+% [21] §2.4 YARN
+@inproceedings{vavilapalli2013yarn,
+  author    = {Vavilapalli, Vinod Kumar and Murthy, Arun C and Douglas, Chris and others},
+  title     = {Apache Hadoop {YARN}: Yet Another Resource Negotiator},
+  booktitle = {Proceedings of the 4th Annual Symposium on Cloud Computing (SoCC 2013)},
+  year      = {2013},
+  pages     = {1--16}
+}
+
+% [22] §2.4 BeeHive
+@inproceedings{lu2022beehive,
+  author    = {Lu, Chengzhi and Ye, Kejiang and Xu, Guoyao and others},
+  title     = {BeeHive: Sub-Second Elasticity for Web Services with Semi-FaaS Execution},
+  booktitle = {Proceedings of the 13th ACM SIGOPS Asia-Pacific Workshop on Systems (APSys 2022)},
+  year      = {2022},
+  % TODO: 与 Word 草稿引用核对卷期/页码
+}
+
+% [23] §2.4 YuniKorn
+@misc{yunikorn,
+  author       = {Apache Software Foundation},
+  title        = {Apache YuniKorn: Universal Resource Scheduler},
+  howpublished = {\url{https://yunikorn.apache.org/}},
+  year         = {2026},
+  note         = {Accessed: 2026-08-25}
+}
+
+% [24] §2.4 Borg, Omega, and Kubernetes
+@article{burns2016queue,
+  author    = {Burns, Brendan and Grant, Brian and Oppenheimer, David and Brewer, Eric and Wilkes, John},
+  title     = {Borg, Omega, and Kubernetes},
+  journal   = {ACM Queue},
+  year      = {2016},
+  volume    = {14},
+  number    = {1},
+  pages     = {70--93}
+}
+
+% [25] §2.4 Borg: the next generation
+@inproceedings{tirmazi2019borgng,
+  author    = {Tirmazi, Muhammad and Barker, Adam and Deng, Nan and others},
+  title     = {Borg: The Next Generation},
+  booktitle = {Proceedings of the Fourteenth EuroSys Conference (EuroSys 2019)},
+  year      = {2019},
+  pages     = {1--14}
+}
+
+% [26] §2.4 Tetris
+@inproceedings{grandl2014tetris,
+  author    = {Grandl, Robert and Ananthanarayanan, Ganesh and Kandula, Srikanth and Rao, Sriram and Akella, Aditya},
+  title     = {Multi-Resource Packing for Cluster Schedulers},
+  booktitle = {Proceedings of the ACM SIGCOMM Conference (SIGCOMM 2014)},
+  year      = {2014},
+  pages     = {455--466}
+}
+
+% [27] §2.5 Raft
+@inproceedings{ongaro2014raft,
+  author    = {Ongaro, Diego and Ousterhout, John},
+  title     = {In Search of an Understandable Consensus Algorithm},
+  booktitle = {Proceedings of the 2014 USENIX Annual Technical Conference (ATC 2014)},
+  year      = {2014},
+  pages     = {305--319}
+}
+
+% [28] §2.5 etcd 官方文档
+@misc{etcd-doc,
+  author       = {etcd Authors},
+  title        = {etcd Documentation},
+  howpublished = {\url{https://etcd.io/docs/}},
+  year         = {2026},
+  note         = {Accessed: 2026-08-25}
+}
+
+% [29] §2.5 Gossip 协议
+@article{birman2007gossip,
+  author  = {Birman, Kenneth P},
+  title   = {The Promise, and Limitations, of Gossip Protocols},
+  journal = {ACM SIGOPS Operating Systems Review},
+  year    = {2007},
+  volume  = {41},
+  number  = {5},
+  pages   = {8--13}
+}
+
+% [30] §2.5 Paxos
+@article{lamport1998paxos,
+  author  = {Lamport, Leslie},
+  title   = {The Part-Time Parliament},
+  journal = {ACM Transactions on Computer Systems},
+  year    = {1998},
+  volume  = {16},
+  number  = {2},
+  pages   = {133--169}
+}
+
+% [31] §2.5 etcd 代码仓库
+@misc{etcd-github,
+  author       = {etcd-io},
+  title        = {etcd: A Distributed, Reliable Key-Value Store},
+  howpublished = {\url{https://github.com/etcd-io/etcd}},
+  year         = {2026},
+  note         = {Accessed: 2026-08-25}
+}
+
+% [32] §2.6 straggler 缓解
+@inproceedings{zaharia2008straggler,
+  author    = {Zaharia, Matei and Konwinski, Andy and Joseph, Anthony D and Katz, Randy and Stoica, Ion},
+  title     = {Improving MapReduce Performance in Heterogeneous Environments},
+  booktitle = {Proceedings of the 8th USENIX Symposium on Operating Systems Design and Implementation (OSDI 2008)},
+  year      = {2008},
+  pages     = {29--42}
+}
+
+% [33] §2.6 Tarcil
+@inproceedings{delgado2018tarcil,
+  author    = {Delgado, Pamela and Dinu, Florin and Kermarrec, Anne-Marie and Zwaenepoel, Willy},
+  title     = {Tarcil: Reconciling Scheduling Speed and Quality in Large Shared Clusters},
+  booktitle = {Proceedings of the 13th USENIX Symposium on Operating Systems Design and Implementation (OSDI 2018)},
+  year      = {2018},
+  pages     = {97--112}
+}
+
+% [34] §2.6 HAWK
+@inproceedings{delgado2015hawk,
+  author    = {Delgado, Pamela and Dinu, Florin and Kermarrec, Anne-Marie and Zwaenepoel, Willy},
+  title     = {{HAWK}: Hybrid Datacenter Scheduling},
+  booktitle = {Proceedings of the 2015 USENIX Annual Technical Conference (ATC 2015)},
+  year      = {2015},
+  pages     = {499--504}
+}
+
+% ---- 第 3 章（架构）----
+
+% [35] §3.2 Kubernetes API 概念（Bind 子资源）
+@misc{k8s-api-concepts,
+  author       = {The Linux Foundation},
+  title        = {Kubernetes API Concepts},
+  howpublished = {\url{https://kubernetes.io/docs/reference/using-api/api-concepts/}},
+  year         = {2026},
+  note         = {Accessed: 2026-08-25}
+}
+
+% ---- 第 4 章（一致性容错）----
+
+% [36] §4.4 client-go workqueue
+@misc{clientgo-workqueue,
+  author       = {Kubernetes},
+  title        = {client-go workqueue},
+  howpublished = {\url{https://github.com/kubernetes/client-go/tree/master/util/workqueue}},
+  year         = {2026},
+  note         = {Accessed: 2026-08-25}
+}
+
+% [37] §4.6 一致性属性分析
+@inproceedings{golab2011consistency,
+  author    = {Golab, Wojciech and Li, Xiaozhou and Shah, Mehul A},
+  title     = {Analyzing Consistency Properties for Fun and Profit},
+  booktitle = {Proceedings of the 30th Annual ACM SIGACT-SIGOPS Symposium on Principles of Distributed Computing (PODC 2011)},
+  year      = {2011},
+  pages     = {197--206}
+}
+
+% ---- 第 6 章（实验）----
+
+% [38] §6.1 KWOK
+@misc{kwok,
+  author       = {Kubernetes SIG},
+  title        = {KWOK: Kubernetes WithOut Kubelet},
+  howpublished = {\url{https://kwok.sigs.k8s.io/}},
+  year         = {2026},
+  note         = {Accessed: 2026-08-25}
+}
+
+% [39] §6.1 Prometheus
+@misc{prometheus,
+  author       = {Prometheus Authors},
+  title        = {Prometheus Documentation},
+  howpublished = {\url{https://prometheus.io/docs/}},
+  year         = {2026},
+  note         = {Accessed: 2026-08-25}
+}
+
+% [40] §6.1 Grafana
+@misc{grafana,
+  author       = {Grafana Labs},
+  title        = {Grafana Documentation},
+  howpublished = {\url{https://grafana.com/docs/}},
   year         = {2026},
   note         = {Accessed: 2026-08-25}
 }

@@ -47,7 +47,7 @@ API Server 是所有组件唯一的通信中介。Dispatcher 与 Scheduler 之�
 
 **（2）② assuming 步骤**。被分发到的 Scheduler 通过 Informer 观察到 Pod 的 `scheduler-name` 注解匹配自己，将其纳入调度循环。Filter/Score/Reserve 完成后，Scheduler 通过 `PatchPod` 写入 `godel.bytedance.com/assumed-node={selectedNode}`，同样受 `resourceVersion` 乐观并发保护。
 
-**（3）③ binding 步骤**。Scheduler 内部的 Binder 模块（或独立 Binder，取决于部署形态）通过 Bind 子资源 API `POST /api/v1/namespaces/{ns}/pods/{name}/binding` 完成最终的绑定操作。这是与前两步性质截然不同的一步：Bind API 是 Kubernetes 定义的**特殊子资源**，其内部实现由 kube-apiserver 通过 etcd 事务保证如下语义：
+**（3）③ binding 步骤**。Scheduler 内部的 Binder 模块（或独立 Binder，取决于部署形态）通过 Bind 子资源 API `POST /api/v1/namespaces/{ns}/pods/{name}/binding` 完成最终的绑定操作。这是与前两步性质截然不同的一步：Bind API 是 Kubernetes 定义的**特殊子资源**<sup>[35]</sup>，其内部实现由 kube-apiserver 通过 etcd 事务保证如下语义：
 
 > 当且仅当 Pod 的 `spec.nodeName` 为空时，允许原子设置为目标节点名；若已经设置，返回 `409 Conflict`。
 

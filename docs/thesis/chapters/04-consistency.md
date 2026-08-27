@@ -132,7 +132,7 @@ Layer 1 在 `embedded_binder.go` 的 `bindPodToNode` 函数中实现，核心逻
 
 ### 4.4.2 Layer 2 的设计
 
-Layer 2 在 `binder_reconciler.go` 中实现，其核心数据结构是 `APICallFailedTaskQueue`——一个持久化的失败任务队列（基于 client-go 的 workqueue，具备去重、限流、自动重试能力）。
+Layer 2 在 `binder_reconciler.go` 中实现，其核心数据结构是 `APICallFailedTaskQueue`——一个持久化的失败任务队列（基于 client-go 的 workqueue<sup>[36]</sup>，具备去重、限流、自动重试能力）。
 
 流转过程如下：
 
@@ -233,7 +233,7 @@ Layer 3 与 Layer 0 构成了一个自洽的闭环：
 
 ### 4.6.3 论证的形式化程度
 
-本文的一致性论证采用**严谨自然语言 + 关键代码引用 + 状态机图**的组合方式，而非 TLA+ 等形式化验证工具。这一选择的理由是：
+本文的一致性论证采用**严谨自然语言 + 关键代码引用 + 状态机图**的组合方式，而非 TLA+ 等形式化验证工具（一致性属性的系统化分析框架可参见 Golab 等的工作<sup>[37]</sup>）。这一选择的理由是：
 
 - 本文的容错机制**建立在 Kubernetes 已有的原子性保证之上**，而 Kubernetes 本身的正确性（etcd Raft、apiserver 事务）不在本文论证范围内；
 - 核心不变量 I 只有一条，且直接对应 K8s 集群的可观测性质（`spec.nodeName` 单调设置）；
