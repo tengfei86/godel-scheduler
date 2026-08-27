@@ -4,7 +4,7 @@
 
 针对上述两类问题，本文提出两项架构与机制层面的创新：
 
-**（1）单 Dispatcher、多独立 Scheduler 分布式调度架构（ENO）**。构建"单 Dispatcher 统一分发 + 多 Scheduler 独立并行执行"的协同模型，将 Binder 绑定执行链路与 Scheduler 决策实例同域化，消除了跨组件的 gRPC/Informer 事件传递与序列化开销，使系统整体吞吐能力可随 Scheduler 实例数近线性扩展。设计并实现了 CacheAdapter 共享缓存适配层，使 Scheduler 与进程内 Binder 通过对象引用共享同一份 SchedulerCache 内存实例，实现零拷贝、零同步延迟的状态复用。
+**（1）单 Dispatcher、多独立 Scheduler 分布式调度架构（ENO）**。构建"单 Dispatcher 统一分发 + 多 Scheduler 独立并行执行"的**分发-执行解耦**协同模型，将 Binder 绑定执行链路与 Scheduler 决策实例同域化，消除了跨组件的 gRPC/Informer 事件传递与序列化开销，使系统整体吞吐能力可随 Scheduler 实例数近线性扩展。设计并实现了 CacheAdapter 共享缓存适配层，使 Scheduler 与进程内 Binder 通过对象引用共享同一份 SchedulerCache 内存实例，实现零拷贝、零同步延迟的状态复用。
 
 **（2）基于 etcd 语义的分层绑定容错策略**。针对分布式调度中最易被忽视的绑定阶段异常，构建四层结构化容错链路：**节点分区验证（Layer 0，预防层）**通过 Bind 前置校验拦截节点归属漂移场景；**同步指数退避重试（Layer 1，即时恢复层）**在同一 goroutine 内以极低延迟完成 apiserver 暂态错误的自愈；**异步 Reconciler 队列（Layer 2，后台恢复层）**通过 APICallFailedTaskQueue 清理孤儿 Assumed 状态、避免节点资源核算错误；**Dispatcher 跨实例回退（Layer 3，全局恢复层）**通过清理 `scheduler-name` 注解触发全局重分发，兜底所有本地无法恢复的场景。四层机制形成本文所见分布式 Kubernetes 调度系统中首个结构化的绑定容错模型。文中给出了核心不变量"任一 Pod 至多绑定到一个节点"的完整证明要点（P1 Bind 唯一性 / P2 Assumed 清理 / P3 注解清理时序 / P4 前置拦截）。
 
@@ -22,7 +22,7 @@ With the continuous growth of cloud-native workloads, Kubernetes cluster schedul
 
 To address these two problems, this thesis proposes two architectural and mechanism-level innovations.
 
-**(1) A distributed scheduling architecture with a single Dispatcher and multiple independent Schedulers (ENO).** By co-locating the binding execution path with the scheduler decision instance, ENO eliminates cross-component gRPC/Informer event passing and serialization overhead, enabling near-linear throughput scaling with the number of scheduler instances. A CacheAdapter layer is designed so that the scheduler and the in-process binder share a single SchedulerCache instance by object reference, achieving zero-copy, zero-synchronization-latency state reuse.
+**(1) A distributed scheduling architecture with a single Dispatcher and multiple independent Schedulers (ENO).** By adopting a dispatch–execution-decoupled collaboration model ("single Dispatcher for unified dispatch + multiple Schedulers for independent parallel execution") and co-locating the binding execution path with the scheduler decision instance, ENO eliminates cross-component gRPC/Informer event passing and serialization overhead, enabling near-linear throughput scaling with the number of scheduler instances. A CacheAdapter layer is designed so that the scheduler and the in-process binder share a single SchedulerCache instance by object reference, achieving zero-copy, zero-synchronization-latency state reuse.
 
 **(2) An etcd-semantics-based layered binding fault-tolerance strategy.** A four-layer structured fault-tolerance chain is constructed: node partition validation (Layer 0, prevention), synchronous exponential-backoff retry (Layer 1, immediate recovery), asynchronous reconciler queue (Layer 2, background recovery), and Dispatcher cross-instance fallback (Layer 3, global recovery). To the best of our knowledge, this is the first structured binding fault-tolerance model for distributed Kubernetes schedulers, together with a complete proof of the core consistency invariant.
 

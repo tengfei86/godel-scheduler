@@ -156,6 +156,8 @@ Layer 2 在 `binder_reconciler.go` 中实现，其核心数据结构是 `APICall
 
 **危害**：若无跨实例回退机制，Scheduler A 会长期卡在这个 Pod 上，本分区内其他新到达的 Pod 也会因此排队等待，最终 Scheduler A 的可用性完全丧失。
 
+**实例级失效的回收路径**：除上述任务级故障外，Scheduler 实例**本身失效**（进程崩溃或心跳超时失活）时，其名下未完成的任务同样需要全局回收。Dispatcher 的 Scheduler Maintainer 基于实例心跳（Lease/心跳上报）进行失活判定；失效实例名下仍处于 Dispatched 状态的任务，由 PodStateReconciler 将其重置为 Pending 并清理 `scheduler-name` 等注解，随后重新进入分发流程。这是 Layer 3 回收路径在实例级故障场景下的体现，与任务级回退共用同一套"清注解 → 重分发"机制，从而保证失效实例遗留的任务不会成为孤儿数据。
+
 ### 4.5.2 Layer 3 的设计
 
 Layer 3 的核心思想是：**放弃本实例，交还给 Dispatcher 重新分发**。图 4-2a 展示了 Dispatcher 侧的主分发流程，图 4-2b 展示了错误恢复逻辑。

@@ -4,7 +4,7 @@
 
 ## 3.1 系统总体架构
 
-本文所研究的分布式 Kubernetes 调度器由三类核心组件组成：Dispatcher、Scheduler、以及底层的 Kubernetes API Server 与 etcd 存储。图 3-1 展示了系统的总体架构。
+本文所研究的分布式 Kubernetes 调度器采用"**集中式任务分发 + 分布式调度执行**"（即**分发-执行解耦**）的总体架构，由三类核心组件组成：Dispatcher（任务分发器）、多个 Scheduler 实例，以及底层的 Kubernetes API Server 与 etcd 存储。图 3-1 展示了系统的总体架构。
 
 ![图 3-1 基于 etcd 的分布式 Kubernetes 调度器系统架构](../figures/fig3-1-system-arch.png)
 
