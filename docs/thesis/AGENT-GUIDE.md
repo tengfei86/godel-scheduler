@@ -13,6 +13,7 @@
 
 | 日期 | 提出人 | 规则变更 | 影响范围 |
 |---|---|---|---|
+| 2026-08-27 | 本人 | 新增 `docs/thesis/interim-report/` 目录，用于存放中期报告的 Word 工作文档（`.docx`、`.doc` 等原始文件）；此目录内容不进入 pandoc 论文导出流水线，仅作参考归档 | 目录规划 |
 | 2026-08-26 | 本人 | 新增 `docs/thesis/FEEDBACK.md` 作为本人与导师修改意见的**统一入口**；处理流程：git pull → 列出意见清单 → 逐条修改 → commit+push → 勾选完成 | 全篇 |
 | 2026-08-26 | 本人 | 论文数据结论**聚焦 latency 与 throughput 两个维度**；goroutines、bind_inflight 等指标数据不完整时仅作定性说明，不强行量化对比 | 第 6 章 |
 | 2026-08-26 | 本人 | 规则修改走"提出 → 登记本表 → 落实正文"流程；本人或导师直接改章节文件时，agent 用 `git diff` 精确识别改动范围 | 全篇 |
@@ -54,8 +55,11 @@ docs/thesis/
 ├─ README.md              工作区索引 + 格式速查
 ├─ figure-mapping.md      图表规划
 ├─ AGENT-GUIDE.md         ← 本文件
+├─ FEEDBACK.md            本人与导师的修改意见统一入口
+├─ consistency-report.md  T5 一致性 pass 报告
 ├─ chapters/              7 章 Markdown 草稿（00-abstract .. 07-conclusion）
-└─ figures/               35 个论文图文件（原图 + mermaid 源 + 三种输出）
+├─ figures/               35 个论文图文件（原图 + mermaid 源 + png 产物）
+└─ interim-report/        中期报告工作目录（.docx 等原始文档）
 
 test/e2e/benchmark/
 ├─ results/                          60 次实验 JSON（按 组/规模/负载/run 组织）
