@@ -48,8 +48,6 @@ setw -g mode-keys vi
 
 # 关键：让 tmux 通过 OSC52 同步到“本地终端”剪贴板
 set -s set-clipboard on
-set -as terminal-features ',*:clipboard'
-
 bind-key -T copy-mode-vi v send-keys -X begin-selection
 bind-key -T copy-mode-vi y send-keys -X copy-selection-and-cancel
 ```
