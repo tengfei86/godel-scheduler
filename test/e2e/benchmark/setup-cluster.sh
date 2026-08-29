@@ -7,7 +7,7 @@
 #
 # 选项:
 #   --force-rebuild    销毁已有集群并重新创建
-#   --rebuild-image     重新编译 Gödel 并构建 Docker 镜像
+#   --rebuild-image     重新编译 ENO 并构建 Docker 镜像
 #
 # 示例:
 #   ./setup-cluster.sh s3                       # 创建 5000 个 KWOK 节点

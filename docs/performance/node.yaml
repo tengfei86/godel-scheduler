@@ -10,14 +10,15 @@ metadata:
     node-role.kubernetes.io/worker: ""
 spec: {}
 status:
+  # pods 上限提升至 500：容纳 w8 (800K pods / 5000 节点)；KWOK 假节点无 kubelet 侧真实开销
   allocatable:
     cpu: "128"
     memory: 256Gi
-    pods: "110"
+    pods: "500"
   capacity:
     cpu: "128"
     memory: 256Gi
-    pods: "110"
+    pods: "500"
   daemonEndpoints:
     kubeletEndpoint:
       Port: 0
