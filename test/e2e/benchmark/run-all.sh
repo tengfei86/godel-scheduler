@@ -21,6 +21,7 @@
 #   ./run-all.sh --groups "a b" --scales "s3" --workloads "w3" --instances "1 2 3 5"  # 水平扩展测试
 #   ./run-all.sh --groups "a b c d e" --scales "s2 s3" --workloads "w2 w3" --setup-nodes  # 所有调度器 × s2/s3 × w2/w3，自动创建节点
 #   ./run-all.sh --groups "a b c d e" --scales "s3 s4" --workloads "w1 w2 w3 w4 w5 w6 w7 w8" --instances "1 3"   --setup-nodes 
+#   ./run-all.sh --groups "a b" --scales "s3 s4" --workloads “w3 w4 w5 w6 w7 w8" --instances "3"   --setup-nodes 
 
 set -eu
 
