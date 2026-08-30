@@ -248,6 +248,10 @@ net.ipv4.tcp_max_syn_backlog = 65535
 net.netfilter.nf_conntrack_max = 1048576
 net.core.netdev_max_backlog = 65535
 
+# 容器网络出站转发 (kind 容器 → 外网必需)
+# 云基线镜像 (AWS EC2 等) 常默认关闭；Docker 启动时不会自动改
+net.ipv4.ip_forward = 1
+
 # 内存 (etcd + API Server 大规模)
 vm.max_map_count = 262144
 vm.overcommit_memory = 1
@@ -262,6 +266,21 @@ cat > "$LIMITS_CONF" <<'EOF'
 *  soft  nproc   unlimited
 *  hard  nproc   unlimited
 EOF
+
+# iptables FORWARD 链修复 (kind 容器出网必需)
+# 症状: VM 上 docker pull 能拉，但 kind 集群里 Pod ImagePullBackOff / i/o timeout
+# 根因: FORWARD 链默认策略若为 DROP，Docker 网桥的流量会被静默丢弃
+FORWARD_POLICY=$(iptables -L FORWARD -n 2>/dev/null | head -1 | grep -oE 'policy [A-Z]+' | awk '{print $2}')
+if [[ "${FORWARD_POLICY}" == "DROP" ]]; then
+  log_warn "检测到 iptables FORWARD 默认策略为 DROP，正在修复..."
+  iptables -P FORWARD ACCEPT
+  # 持久化 (需 iptables-persistent 保存到 /etc/iptables/rules.v4)
+  apt-get install -y -qq iptables-persistent > /dev/null 2>&1 || true
+  netfilter-persistent save > /dev/null 2>&1 || true
+  log_info "✓ FORWARD 链已设为 ACCEPT 并持久化"
+else
+  log_info "✓ FORWARD 链默认策略正常 (${FORWARD_POLICY:-ACCEPT})"
+fi
 
 log_info "✓ 系统参数调优完成"
 
@@ -296,7 +315,7 @@ echo "    kind     : $(kind version 2>/dev/null)"
 echo "    Helm     : $(helm version --short 2>/dev/null)"
 echo "    Python3  : $(python3 --version 2>/dev/null | awk '{print $2}')"
 echo ""
-echo "  系统调优: ✓ (inotify/ulimit/conntrack/vm)"
+echo "  系统调优: ✓ (inotify/ulimit/conntrack/vm/ip_forward/FORWARD)"
 echo "  Helm repos: volcano-sh, koordinator-sh"
 echo ""
 echo "  下一步操作:"

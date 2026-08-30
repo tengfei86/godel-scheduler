@@ -18,6 +18,62 @@ docker version && kind version && kubectl version --client && jq --version
 
 > **性能提示**: 在 WSL2 中建议将项目放在 Linux 原生文件系统（`~/dev/`），而非 `/mnt/c/`，编译和镜像构建速度可提升 10-50 倍。
 
+### 前置：确保 kind 容器能访问外网（新装机器/VM 必查）
+
+**症状**：VM 上 `docker pull xxx` 能拉，但 kind 集群里 Pod 卡在 `ImagePullBackOff`，`crictl pull` 报 `i/o timeout`。
+
+**根因**：kind 节点是 Docker 容器，出向流量走 Linux 内核 FORWARD 链。以下两项**必须**同时满足：
+
+1. `net.ipv4.ip_forward=1`（内核允许包转发）
+2. `iptables FORWARD` 默认策略为 `ACCEPT`（不静默丢包）
+
+某些云厂商基线镜像（AWS EC2、部分公有云硬化 Ubuntu）默认关闭 forwarding 或把 FORWARD 设为 DROP，Docker 启动时不会自动改。
+
+**诊断**：
+
+```bash
+sysctl net.ipv4.ip_forward
+sudo iptables -L FORWARD -n | head -1
+```
+
+预期输出：
+```
+net.ipv4.ip_forward = 1
+Chain FORWARD (policy ACCEPT)
+```
+
+如果看到 `0` 或 `policy DROP`，走下面的修复。
+
+**一次性修复**：
+
+```bash
+# 1. 打开 IP forwarding
+sudo sysctl -w net.ipv4.ip_forward=1
+
+# 2. FORWARD 默认策略改为 ACCEPT
+sudo iptables -P FORWARD ACCEPT
+
+# 3. 立即验证 kind 节点能出网
+docker exec eno-bench-control-plane bash -c '
+  timeout 5 curl -sS -o /dev/null -w "http_code=%{http_code}\n" -k https://1.1.1.1/
+'
+# 预期: http_code=301 (或任何非 000 的值)
+```
+
+**持久化**（重启不丢）：
+
+```bash
+# sysctl 持久化
+echo "net.ipv4.ip_forward=1" | sudo tee /etc/sysctl.d/99-docker-kind.conf
+sudo sysctl -p /etc/sysctl.d/99-docker-kind.conf
+
+# iptables 持久化（Ubuntu）
+sudo apt install -y iptables-persistent
+sudo netfilter-persistent save
+```
+
+> **为什么 Docker 官方要求 FORWARD 默认 ACCEPT**：Docker 假设它插入的规则会先命中；如果 FORWARD 默认 DROP，说明系统不是设计给容器 workload 用的。跑容器的机器上 `FORWARD ACCEPT` 是正常状态。参考 [Docker 官方 iptables 说明](https://docs.docker.com/engine/network/packet-filtering-firewalls/)。
+
 ### Step 1: 搭建集群
 
 创建 kind 集群 + KWOK 模拟节点 + 构建最新镜像：
