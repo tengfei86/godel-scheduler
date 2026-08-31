@@ -1,0 +1,1 @@
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"godel:scheduler_peak_throughput:30m"},"values":[[1788189606,"1028.2222222222222"],[1788189621,"1028.2222222222222"],[1788189636,"1028.2222222222222"]]}]}}

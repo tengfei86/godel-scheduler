@@ -1,0 +1,1 @@
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"godel:binder_pod_binding_phase_duration:avg"},"values":[[1788189606,"NaN"],[1788189621,"NaN"],[1788189636,"0.014660881522701504"]]}]}}
