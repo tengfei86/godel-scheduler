@@ -1,0 +1,1 @@
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"eno:binder_embedded_bind_retries:rate1m"},"values":[[1788059282,"0"],[1788059297,"0"],[1788059312,"0"],[1788059327,"0"],[1788059342,"0"],[1788059357,"0"],[1788059372,"0"],[1788059387,"0"]]}]}}

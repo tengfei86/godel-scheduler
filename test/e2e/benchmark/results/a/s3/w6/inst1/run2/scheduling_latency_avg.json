@@ -1,0 +1,1 @@
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"eno:scheduler_e2e_scheduling_duration:avg"},"values":[[1788083237,"NaN"],[1788083252,"NaN"],[1788083267,"2.235630690716768"]]}]}}

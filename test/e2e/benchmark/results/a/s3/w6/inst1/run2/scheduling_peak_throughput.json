@@ -1,0 +1,1 @@
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"eno:scheduler_peak_throughput:30m"},"values":[[1788083237,"790.6444444444444"],[1788083252,"790.6444444444444"],[1788083267,"790.6444444444444"]]}]}}
