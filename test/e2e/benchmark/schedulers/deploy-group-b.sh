@@ -56,13 +56,42 @@ kubectl apply -k "${MANIFESTS_GODEL}"
 
 # ── 多实例部署 ──
 if (( SCHEDULER_INSTANCES > 1 )); then
-  log_step "Step 3b: 部署 ${SCHEDULER_INSTANCES} 个 Scheduler 实例"
-  # 多实例需手动 scale（原始 godel 在 godel-system 命名空间）
-  for i in $(seq 1 $((SCHEDULER_INSTANCES - 1))); do
+  log_step "Step 3b: 部署 ${SCHEDULER_INSTANCES} 个 Scheduler 实例 (scheduler-0..scheduler-$((SCHEDULER_INSTANCES - 1)))"
+  # 缩容基础 scheduler deployment（保留定义，副本数置 0），避免与克隆实例竞争 pod
+  kubectl -n "${GODEL_NAMESPACE}" scale deployment scheduler --replicas=0 >/dev/null
+  # 清理任何遗留的 scheduler-* deployment
+  for _d in $(kubectl get deployment -n "${GODEL_NAMESPACE}" --no-headers 2>/dev/null \
+      | awk '{print $1}' | grep "^scheduler-" || true); do
+    log_info "  删除遗留 deployment: ${_d}"
+    kubectl -n "${GODEL_NAMESPACE}" delete deployment "$_d" --ignore-not-found >/dev/null
+  done
+  # 从 base scheduler 派生 N 个实例，命名 scheduler-{0..N-1}
+  # 每个实例:
+  #   - 唯一 metadata.name: scheduler-${i}
+  #   - 唯一 selector: godel-scheduler-name=godel-scheduler-${i}
+  #   - 唯一 CLI: --godel-scheduler-name=godel-scheduler-${i}
+  #   - 注入 BENCH_SCHED_* 资源（否则会沿用 manifest 里硬编码值）
+  for i in $(seq 0 $((SCHEDULER_INSTANCES - 1))); do
     local_name="scheduler-${i}"
+    sched_name="godel-scheduler-${i}"
     kubectl -n "${GODEL_NAMESPACE}" get deployment scheduler -o json | \
-      jq --arg name "$local_name" '.metadata.name = $name | del(.metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp, .status)' | \
-      kubectl apply -f -
+      jq --arg name    "$local_name" \
+         --arg sched   "$sched_name" \
+         --arg reqCpu  "${BENCH_SCHED_REQ_CPU}" \
+         --arg reqMem  "${BENCH_SCHED_REQ_MEM}" \
+         --arg limCpu  "${BENCH_SCHED_LIM_CPU}" \
+         --arg limMem  "${BENCH_SCHED_LIM_MEM}" '
+        .metadata.name = $name
+        | .spec.replicas = 1
+        | .spec.selector.matchLabels = {"godel-scheduler-name": $sched}
+        | .spec.template.metadata.labels.app = "godel-scheduler"
+        | .spec.template.metadata.labels["godel-scheduler-name"] = $sched
+        | (.spec.template.spec.containers[] | select(.name == "scheduler")).args
+            += ["--godel-scheduler-name=" + $sched]
+        | (.spec.template.spec.containers[] | select(.name == "scheduler")).resources
+            = {requests: {cpu: $reqCpu, memory: $reqMem}, limits: {cpu: $limCpu, memory: $limMem}}
+        | del(.metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp, .metadata.generation, .status)
+      ' | kubectl apply -f -
   done
 fi
 
@@ -80,7 +109,9 @@ set_deploy_resources() {
 
 set_deploy_resources "binder" "${BENCH_BINDER_REQ_CPU}" "${BENCH_BINDER_REQ_MEM}" "${BENCH_BINDER_LIM_CPU}" "${BENCH_BINDER_LIM_MEM}"
 set_deploy_resources "dispatcher" "${BENCH_DISPATCHER_REQ_CPU}" "${BENCH_DISPATCHER_REQ_MEM}" "${BENCH_DISPATCHER_LIM_CPU}" "${BENCH_DISPATCHER_LIM_MEM}"
-set_deploy_resources "scheduler" "${BENCH_SCHED_REQ_CPU}" "${BENCH_SCHED_REQ_MEM}" "${BENCH_SCHED_LIM_CPU}" "${BENCH_SCHED_LIM_MEM}"
+if (( SCHEDULER_INSTANCES <= 1 )); then
+  set_deploy_resources "scheduler" "${BENCH_SCHED_REQ_CPU}" "${BENCH_SCHED_REQ_MEM}" "${BENCH_SCHED_LIM_CPU}" "${BENCH_SCHED_LIM_MEM}"
+fi
 set_deploy_resources "controller-manager" "${BENCH_SCHED_REQ_CPU}" "${BENCH_SCHED_REQ_MEM}" "${BENCH_SCHED_LIM_CPU}" "${BENCH_SCHED_LIM_MEM}"
 
 # ── Step 4: 等待组件就绪 ──
