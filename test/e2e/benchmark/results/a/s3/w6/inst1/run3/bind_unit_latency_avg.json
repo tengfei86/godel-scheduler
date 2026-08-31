@@ -1,0 +1,1 @@
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"eno:binder_embedded_bind_duration:avg"},"values":[[1788083567,"NaN"],[1788083582,"0.04327475555880001"],[1788083597,"0.051298265072053505"]]}]}}

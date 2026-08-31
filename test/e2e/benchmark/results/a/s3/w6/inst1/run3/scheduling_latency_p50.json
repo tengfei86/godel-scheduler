@@ -1,0 +1,1 @@
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"eno:scheduler_e2e_scheduling_duration:p50"},"values":[[1788083567,"NaN"],[1788083582,"0.05001324503311258"],[1788083597,"0.05046912338070683"]]}]}}

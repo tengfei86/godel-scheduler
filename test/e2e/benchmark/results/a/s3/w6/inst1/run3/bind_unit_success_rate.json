@@ -1,0 +1,1 @@
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"eno:binder_embedded_bind_units:success_rate1m"},"values":[[1788083567,"NaN"],[1788083582,"1"],[1788083597,"1"]]}]}}
