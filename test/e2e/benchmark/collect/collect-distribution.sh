@@ -25,16 +25,22 @@ log_stderr "采集 Pod 分布 (annotation domain: ${ANNO_DOMAIN:-<none, 使用 s
 echo "node,pod_count,scheduler"
 
 # 获取所有 bench namespace Pod 数据
-PODS_JSON=$(kubectl get pods -n bench -o json 2>/dev/null)
+# 注意: 大规模场景 (s4/s5, 数十万 Pod, JSON 数 GB) 下不能用 $(...) 把 kubectl 输出
+# 塞进 bash 变量 —— command substitution 的 buffer 增长会 size_t 溢出，
+# 触发 "xrealloc: cannot allocate 18446744...bytes"。这里落盘到临时文件，
+# 后续 jq 直接读文件，全程绕开 bash buffer。
+PODS_FILE="$(mktemp -t pods-distribution.XXXXXX.json)"
+trap 'rm -f "$PODS_FILE"' EXIT
+kubectl get pods -n bench -o json > "$PODS_FILE" 2>/dev/null || true
 
-if [[ -z "$PODS_JSON" ]] || [[ "$(echo "$PODS_JSON" | jq '.items | length')" == "0" ]]; then
+if [[ ! -s "$PODS_FILE" ]] || [[ "$(jq '.items | length' "$PODS_FILE")" == "0" ]]; then
   log_stderr "bench namespace 中无 Pod"
   exit 0
 fi
 
 # 每节点 Pod 数 + 所属 Scheduler
 # kube-scheduler/volcano/koordinator 不写自定义 annotation，回退到 spec.schedulerName
-echo "$PODS_JSON" | jq -r '
+jq -r '
   .items[] |
   select(.spec.nodeName != null) |
   {
@@ -47,7 +53,7 @@ echo "$PODS_JSON" | jq -r '
       end
     )
   }
-' | jq -rs '
+' "$PODS_FILE" | jq -rs '
   group_by(.node) |
   map({
     node: .[0].node,
@@ -58,24 +64,23 @@ echo "$PODS_JSON" | jq -r '
   .[] |
   "\(.node),\(.pod_count),\(.scheduler)"
 ' 2>/dev/null || {
-  # 简化版本
+  # 简化版本 —— 复用已落盘的 PODS_FILE，避免再打一次 kubectl
   log_stderr "jq 复杂查询失败，使用简化版"
-  kubectl get pods -n bench -o json | \
-    jq -r '.items[] | select(.spec.nodeName != null) | "\(.spec.nodeName),\(.spec.schedulerName // "unknown")"' | \
+  jq -r '.items[] | select(.spec.nodeName != null) | "\(.spec.nodeName),\(.spec.schedulerName // "unknown")"' "$PODS_FILE" | \
     sort | uniq -c | sort -rn | \
     awk '{split($2,a,","); print a[1]","$1","a[2]}'
 }
 
 # 输出汇总到 stderr
-TOTAL_PODS=$(echo "$PODS_JSON" | jq '.items | length')
-SCHEDULED=$(echo "$PODS_JSON" | jq '[.items[] | select(.spec.nodeName != null)] | length')
-UNIQUE_NODES=$(echo "$PODS_JSON" | jq '[.items[] | select(.spec.nodeName != null) | .spec.nodeName] | unique | length')
+TOTAL_PODS=$(jq '.items | length' "$PODS_FILE")
+SCHEDULED=$(jq '[.items[] | select(.spec.nodeName != null)] | length' "$PODS_FILE")
+UNIQUE_NODES=$(jq '[.items[] | select(.spec.nodeName != null) | .spec.nodeName] | unique | length' "$PODS_FILE")
 
 log_stderr "✓ 采集完成: ${SCHEDULED}/${TOTAL_PODS} Pod 已调度到 ${UNIQUE_NODES} 个节点"
 
 # 输出每 Scheduler 分区的汇总（stderr）
 log_stderr "Scheduler 分区分布:"
-echo "$PODS_JSON" | jq -r '
+jq -r '
   [.items[] | (
     if .metadata.annotations["'"${SELECTED_SCHEDULER_KEY}"'"] then
       .metadata.annotations["'"${SELECTED_SCHEDULER_KEY}"'"]
@@ -85,4 +90,4 @@ echo "$PODS_JSON" | jq -r '
   )] |
   group_by(.) | map({scheduler: .[0], count: length}) | sort_by(-.count) |
   .[] | "  \(.scheduler): \(.count) pods"
-' 2>/dev/null >&2 || true
+' "$PODS_FILE" 2>/dev/null >&2 || true
