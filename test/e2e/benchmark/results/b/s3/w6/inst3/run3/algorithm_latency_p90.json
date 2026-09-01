@@ -1,0 +1,1 @@
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"godel:scheduler_scheduling_algorithm_duration:p90"},"values":[[1788164225,"NaN"],[1788164240,"NaN"],[1788164255,"0.0009051268772656655"]]}]}}
