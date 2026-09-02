@@ -1,0 +1,1 @@
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"godel:scheduler_e2e_scheduling_duration:p99"},"values":[[1788314804,"0.23519094732488027"],[1788314819,"0.22396430902763517"],[1788314834,"0.20719169337290383"]]}]}}

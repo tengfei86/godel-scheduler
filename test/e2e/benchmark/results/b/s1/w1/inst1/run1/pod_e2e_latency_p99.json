@@ -1,0 +1,1 @@
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"godel:pod_e2e_duration:p99"},"values":[[1788314804,"3.7088987756582537"],[1788314819,"3.591431850812814"],[1788314834,"3.474166609788946"]]}]}}
