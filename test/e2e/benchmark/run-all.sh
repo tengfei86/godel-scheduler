@@ -23,7 +23,8 @@
 #   ./run-all.sh --groups "a b c d e" --scales "s3 s4" --workloads "w1 w2 w3 w4 w5 w6 w7" --instances "1 3"   --setup-nodes 
 #   ./run-all.sh --groups "a b" --scales "s3 s4" --workloads "w3 w4 w5 w6 w7" --instances "3"   --setup-nodes 
 #   ./run-all.sh --groups "a b" --scales "s3 s4" --workloads "w4" --instances "3"   --setup-nodes 
-
+#   ./run-all.sh --groups "a b c d e" --scales "s1" --workloads "w1"  --instances "1"
+ 
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
