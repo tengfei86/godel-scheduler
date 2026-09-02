@@ -24,6 +24,8 @@
 #   ./run-all.sh --groups "a b" --scales "s3 s4" --workloads "w3 w4 w5 w6 w7" --instances "3"   --setup-nodes 
 #   ./run-all.sh --groups "a b" --scales "s3 s4" --workloads "w4" --instances "3"   --setup-nodes 
 #   ./run-all.sh --groups "a b c d e" --scales "s1" --workloads "w1"  --instances "1"
+#   ./run-all.sh --groups "a b c d e" --scales "s2 s3" --workloads "w2 w3" --instances "1" --setup-nodes 
+
  
 set -eu
 
