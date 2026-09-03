@@ -1,1 +1,1 @@
-{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"kube:scheduler_schedule_attempts:success_rate1m"},"values":[[1785778454,"1"],[1785778469,"1"],[1785778484,"1"],[1785778499,"1"],[1785778514,"1"],[1785778529,"1"],[1785778544,"NaN"]]}]}}
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"kube:scheduler_schedule_attempts:success_rate1m"},"values":[[1788362099,"1"],[1788362114,"1"],[1788362129,"1"],[1788362144,"1"],[1788362159,"1"],[1788362174,"1"]]}]}}
