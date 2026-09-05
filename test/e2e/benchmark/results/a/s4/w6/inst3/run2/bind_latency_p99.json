@@ -1,0 +1,1 @@
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"eno:binder_embedded_bind_pod_duration:p99"},"values":[[1788599463,"NaN"],[1788599478,"0.029959999999999903"],[1788599493,"0.0617495327102804"]]}]}}
