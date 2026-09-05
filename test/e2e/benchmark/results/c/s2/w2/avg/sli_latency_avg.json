@@ -1,1 +1,0 @@
-{"status": "success", "data": {"resultType": "matrix", "result": [{"metric": {"attempts": "1", "instance": "172.18.0.4:10259", "job": "kube-scheduler", "namespace": "kube-system", "node": "eno-bench-control-plane", "pod": "kube-scheduler-eno-bench-control-plane"}, "values": [[0, "19.821319"], [15, "13.127471"], [30, "10.620696"], [45, "3.427892"], [60, "0.012997"]]}]}}
