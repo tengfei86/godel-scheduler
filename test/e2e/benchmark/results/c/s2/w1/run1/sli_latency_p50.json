@@ -1,1 +1,0 @@
-{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"kube:scheduler_pod_scheduling_sli_duration:p50"},"values":[[1784885430,"0.005900804645740026"],[1784885445,"0.005601970691642539"]]}]}}

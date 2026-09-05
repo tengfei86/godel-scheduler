@@ -1,1 +1,0 @@
-{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"godel:binder_binding_pod_attempts:success_rate1m"},"values":[[1784882304,"NaN"],[1784882319,"NaN"],[1784882334,"1"],[1784882349,"1"],[1784882364,"1"],[1784882379,"1"],[1784882394,"1"],[1784882409,"1"]]}]}}
