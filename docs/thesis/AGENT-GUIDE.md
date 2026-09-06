@@ -131,12 +131,41 @@ test/e2e/benchmark/
 
 ## 4. 已有的实验数据字典
 
-**结果目录形态**：`results/<组>/<规模>/<负载>/run<N>/<metric>.json`
+**结果目录形态**（**a/b 组与 c/d/e 组布局不同**）：
 
+- **a/b 组**（分布式，有 scheduler 实例数维度）：`results/<组>/<规模>/<负载>/inst<N>/run<M>/<metric>.json`
+  - `inst1/` = 单 scheduler 实例（对齐 c/d/e 的 baseline 对比）
+  - `inst3/` = 三 scheduler 实例（水平扩展性）
+  - **规则**：a/b 数据一律落在 `inst<N>/` 下，**不允许有 bare `run<M>/`**
+- **c/d/e 组**（单一 scheduler 架构，无实例数维度）：`results/<组>/<规模>/<负载>/run<M>/<metric>.json`
+
+**当前覆盖矩阵（截至 2026-09-06）——数据齐全，无缺口，无冗余**：
+
+| 场景 | s2/w2 | s2/w3 | s3/w2 | s3/w3 | s3/w4 | s3/w5 | s3/w6 | s3/w7 | s4/w3-w7 |
+|---|---|---|---|---|---|---|---|---|---|
+| a/inst1 | ✅ | ✅ | ✅ | ✅ | — | — | — | — | — |
+| a/inst3 | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| b/inst1 | ✅ | ✅ | ✅ | ✅ | — | — | — | — | — |
+| b/inst3 | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| c / d / e | ✅ | ✅ | ✅ | ✅ | — | — | — | — | — |
+
+- `✅` = 计划内已完成（3 run 齐）
+- `—` = 计划外未跑（不需要）
+- 冗余目录 `a/s3/w{4-7}/inst1/` 已于 2026-09-06 移入 `results/.trash-2026-09-05-redundant/`（如需恢复可 `mv` 回去；确认永久删除就 `rm -rf`）
+
+**两批实验对应的评估用途**：
+
+| 数据范围 | 评估用途 | 对应正文 |
+|---|---|---|
+| `{a,b,c,d,e}/{s2,s3}/{w2,w3}` × 1 实例 | 五调度器**基线横向对比**（吞吐 / 延迟 / 成功率）| §6.4 主评估 |
+| `{a,b}/{s3,s4}/{w3-w7}/inst3` | ENO vs Gödel **大规模 + 多样负载**深入对比 | §6.5 扩展性 + §6.6 多样负载 |
+| `{a,b}/s3/w3/{inst1,inst3}` | ENO 从 1→3 实例的**扩展性系数**验证 | §6.5 核心 |
+
+**维度含义**：
 - **组**：`a`=ENO / `b`=Gödel / `c`=kube-scheduler / `d`=Volcano / `e`=Koordinator
-- **规模**：`s2`=1000 节点 / `s3`=5000 节点（论文主用）
-- **负载**：`w2`=500 pods/s×50K / `w3`=1000 pods/s×100K（主用）；辅助 `w1/w4/w6`
-- **run**：每组 3 次
+- **规模**：`s2`=1000 / `s3`=5000 / `s4`=10000 节点
+- **负载**：`w1`=100 pps×10K, `w2`=500 pps×50K, `w3`=1000 pps×100K, `w4`=极限, `w5`=洪峰, `w6`=Gang, `w7`=异构
+- **run**：每格 3 次重复
 
 **每个 run 目录含 JSON**（Prometheus 原始导出）：
 - `scheduling_throughput.json` — 吞吐时间序列
@@ -152,7 +181,9 @@ test/e2e/benchmark/
 
 1. **找一张跨组对比图** → 优先看 [results/compare/](test/e2e/benchmark/results/compare/) 下对应 `{scale}_{wl}/compare_<metric>.png`。这些图基于 60 次实验的均值生成，已经是"论文可用"的粒度。
 2. **需要具体数值**（例如 ENO 相对 Gödel 提升 %） → 打开该 metric 对应的 `avg_*.json`：
-   - 稳态期取值：从 `results/{group}/{scale}/{wl}/avg/<metric>.json` 里取工作负载稳态段（排除头 30s warmup / 尾 30s cooldown）的均值。
+   - **a/b 组**：`results/{a,b}/<s>/<w>/inst{1,3}/avg/<metric>.json`（按对比场景选 inst1 或 inst3）
+   - **c/d/e 组**：`results/{c,d,e}/<s>/<w>/avg/<metric>.json`（无 inst 层）
+   - 稳态期取值：取工作负载稳态段（排除头 30s warmup / 尾 30s cooldown）的均值。
    - 相对提升：`(ENO均值 - Gödel均值) / Gödel均值 * 100%`。
 3. **compare/ 里没有的指标或场景** → 用底层脚本临时生成：
    ```bash
