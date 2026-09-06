@@ -1,9 +1,19 @@
 #!/usr/bin/env bash
-# gen-comparisons.sh — 批量生成跨调度器组的对比图（按 scale × workload 组织）
+# gen-comparisons.sh — 批量生成跨调度器组的对比图（按 scale × workload × inst 组织）
 #
-# 依赖：gen-averages.sh 已经生成过每个 (group, scale, wl) 的 avg/ 目录。
-# 遍历所有 (scale, wl) 组合，把该组合下所有存在 avg/ 的调度器组作为输入，
-# 调用 plot-results.py --compare 生成跨组对比图，输出到 results/compare/{scale}_{wl}/。
+# 依赖：gen-averages.sh 已经生成过每个组的 avg/ 目录。
+#
+# 数据布局：
+#   a/b 组 avg 路径:  results/{a,b}/{s}/{w}/inst{1,3}/avg/
+#   c/d/e 组 avg 路径: results/{c,d,e}/{s}/{w}/avg/         (无 inst 层)
+#
+# 生成两类对比图:
+#   1. 单实例基线 (inst=1):
+#      - a/b 用 inst1/avg，c/d/e 用 bare avg  → 五组横向对比
+#      - 输出: results/compare/{s}_{w}/
+#   2. 多实例扩展 (inst=3):
+#      - 仅 a/b 用 inst3/avg (c/d/e 单调度器架构无此维度)
+#      - 输出: results/compare/{s}_{w}_inst3/
 #
 # 用法:
 #   ./gen-comparisons.sh              # 直接生成
@@ -23,8 +33,8 @@ if [[ ! -f "$PLOT" ]]; then
   exit 1
 fi
 
-SCALES="s2 s3"
-WORKLOADS="w1 w2 w3"
+SCALES="s1 s2 s3 s4"
+WORKLOADS="w1 w2 w3 w4 w5 w6 w7"
 TARGET_GROUPS="a b c d e"
 
 total=0
@@ -36,40 +46,67 @@ echo "=== 批量生成跨组对比图 ==="
 [[ "$DRY_RUN" == "true" ]] && echo "[dry-run] 模式：不会实际调用 python"
 echo ""
 
+# 给一个 (group, scale, wl, inst) 计算对应的 avg 路径
+# inst 取 "1" (单实例基线) 或 "3" (多实例扩展)
+avg_path_for_group() {
+  local group="$1" scale="$2" wl="$3" inst="$4"
+  case "$group" in
+    a|b)
+      echo "$RESULTS_DIR/$group/$scale/$wl/inst${inst}/avg"
+      ;;
+    c|d|e)
+      # 单调度器组只在 inst=1 场景纳入基线对比 (bare 布局)
+      if [[ "$inst" == "1" ]]; then
+        echo "$RESULTS_DIR/$group/$scale/$wl/avg"
+      fi
+      ;;
+  esac
+}
+
+# 处理一个 (scale, wl, inst) 组合：收集所有有效 avg，调用 plot-results.py --compare
+process_comparison() {
+  local scale="$1" wl="$2" inst="$3" out_suffix="$4"
+  local input_dirs=()
+  local groups_present=""
+
+  for g in $TARGET_GROUPS; do
+    local avg
+    avg=$(avg_path_for_group "$g" "$scale" "$wl" "$inst")
+    if [[ -n "$avg" && -d "$avg" ]]; then
+      input_dirs+=("$avg")
+      groups_present+="$g "
+    fi
+  done
+
+  if (( ${#input_dirs[@]} < 2 )); then
+    echo "[skip] $scale/$wl inst=$inst 只有 ${#input_dirs[@]} 组有 avg/，无法对比"
+    skipped=$((skipped+1))
+    return
+  fi
+
+  local out_dir="$RESULTS_DIR/compare/${scale}_${wl}${out_suffix}"
+  total=$((total+1))
+  echo "[gen ] $scale/$wl inst=$inst (${#input_dirs[@]} 组: ${groups_present%% }) -> compare/${scale}_${wl}${out_suffix}/"
+
+  if [[ "$DRY_RUN" == "false" ]]; then
+    if python3 "$PLOT" "${input_dirs[@]}" --compare --output "$out_dir"; then
+      succeeded=$((succeeded+1))
+    else
+      echo "[FAIL] $scale/$wl inst=$inst" >&2
+      failed=$((failed+1))
+    fi
+  else
+    succeeded=$((succeeded+1))
+  fi
+}
+
 for scale in $SCALES; do
   for wl in $WORKLOADS; do
-    # 自动发现该 (scale, wl) 下哪些组已有 avg/
-    input_dirs=()
-    groups_present=""
-    for g in $TARGET_GROUPS; do
-      avg_dir="$RESULTS_DIR/$g/$scale/$wl/avg"
-      if [[ -d "$avg_dir" ]]; then
-        input_dirs+=("$avg_dir")
-        groups_present+="$g "
-      fi
-    done
+    # 1. 单实例基线对比 (a/b inst1/avg + c/d/e bare avg)
+    process_comparison "$scale" "$wl" "1" ""
 
-    # 少于 2 组则跳过（对比无意义）
-    if (( ${#input_dirs[@]} < 2 )); then
-      echo "[skip] $scale/$wl 只有 ${#input_dirs[@]} 组有 avg/，无法对比"
-      skipped=$((skipped+1))
-      continue
-    fi
-
-    out_dir="$RESULTS_DIR/compare/${scale}_${wl}"
-    total=$((total+1))
-    echo "[gen ] $scale/$wl (${#input_dirs[@]} 组: ${groups_present%% }) -> compare/${scale}_${wl}/"
-
-    if [[ "$DRY_RUN" == "false" ]]; then
-      if python3 "$PLOT" "${input_dirs[@]}" --compare --output "$out_dir"; then
-        succeeded=$((succeeded+1))
-      else
-        echo "[FAIL] $scale/$wl" >&2
-        failed=$((failed+1))
-      fi
-    else
-      succeeded=$((succeeded+1))
-    fi
+    # 2. 多实例扩展对比 (仅 a/b inst3/avg)
+    process_comparison "$scale" "$wl" "3" "_inst3"
   done
 done
 
