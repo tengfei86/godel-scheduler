@@ -118,20 +118,22 @@ data:
         interval: 15s
         rules:
           # Scheduling attempt duration (core scheduling algorithm time)
+          # 过滤 {result="scheduled"}：只统计成功调度的耗时，避免 unschedulable/error
+          # 的 fast-fail 样本拉低分位数，保证跨组延迟口径一致（用户可感知延迟）
           - record: kube:scheduler_scheduling_attempt_duration:p50
-            expr: histogram_quantile(0.50, sum by (le) (rate(scheduler_scheduling_attempt_duration_seconds_bucket[1m])))
+            expr: histogram_quantile(0.50, sum by (le) (rate(scheduler_scheduling_attempt_duration_seconds_bucket{result="scheduled"}[1m])))
 
           - record: kube:scheduler_scheduling_attempt_duration:p90
-            expr: histogram_quantile(0.90, sum by (le) (rate(scheduler_scheduling_attempt_duration_seconds_bucket[1m])))
+            expr: histogram_quantile(0.90, sum by (le) (rate(scheduler_scheduling_attempt_duration_seconds_bucket{result="scheduled"}[1m])))
 
           - record: kube:scheduler_scheduling_attempt_duration:p99
-            expr: histogram_quantile(0.99, sum by (le) (rate(scheduler_scheduling_attempt_duration_seconds_bucket[1m])))
+            expr: histogram_quantile(0.99, sum by (le) (rate(scheduler_scheduling_attempt_duration_seconds_bucket{result="scheduled"}[1m])))
 
           - record: kube:scheduler_scheduling_attempt_duration:avg
             expr: >
-              sum(rate(scheduler_scheduling_attempt_duration_seconds_sum[1m]))
+              sum(rate(scheduler_scheduling_attempt_duration_seconds_sum{result="scheduled"}[1m]))
               /
-              sum(rate(scheduler_scheduling_attempt_duration_seconds_count[1m]))
+              sum(rate(scheduler_scheduling_attempt_duration_seconds_count{result="scheduled"}[1m]))
 
           # Scheduling algorithm duration
           - record: kube:scheduler_scheduling_algorithm_duration:p90
