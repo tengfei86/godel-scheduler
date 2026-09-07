@@ -22,8 +22,13 @@
 #   ./run-all.sh --dry-run                                        # 预览执行计划
 #   ./run-all.sh --groups "a b" --scales "s3" --workloads "w3" --instances "1 2 3 5"  # 水平扩展测试
 #   ./run-all.sh --groups "a b c d e" --scales "s2 s3" --workloads "w2 w3" --setup-nodes  # 所有调度器
-#   ./run-all.sh --groups "a b" --scales "s3 s4" --workloads "w3 w4 w5 w6 w7" --instances "3"   --setup-nodes 
-#   ./run-all.sh --groups "a" --scales "s4" --workloads "w3 w4 w5 w6 w7" --instances "3"   --setup-nodes 
+#   ./run-all.sh --groups "a b" --scales "s3 s4" --workloads "w3 w4 w5 w6 w7" --instances "3"   --setup-nodes
+#   ./run-all.sh --groups "a" --scales "s4" --workloads "w3 w4 w5 w6 w7" --instances "3"   --setup-nodes
+#
+#   # --fresh-cluster-per-run 严格隔离每次 run（代价 ~10min/run）
+#   ./run-all.sh --groups "a b" --scales "s3" --workloads "w4" --instances "3" --fresh-cluster-per-run  # 排查跨 run 污染
+#   ./run-all.sh --groups "a b c d e" --scales "s2 s3" --workloads "w2 w3" --dry-run --fresh-cluster-per-run  # 预览耗时
+#   ./run-all.sh --groups "a" --scales "s3" --workloads "w4" --instances "3" --runs 5 --fresh-cluster-per-run  # 单场景多 run 稳定性验证
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
