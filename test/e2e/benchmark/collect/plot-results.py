@@ -380,15 +380,21 @@ def plot_directory(results_dir, output_dir=None, fmt="png"):
     return plotted
 
 
-def average_runs(dirs, output_dir, metric_names=None, fmt="png", std_band=False):
+def average_runs(dirs, output_dir, metric_names=None, fmt="png", std_band=False, stat="mean"):
     """
-    平均模式：将多个同组同场景 run 的时间序列在相对时间轴上对齐后逐点平均。
+    平均模式：将多个同组同场景 run 的时间序列在相对时间轴上对齐后逐点聚合。
 
     按 label 字符串分组匹配，避免多 series 指标（goroutines by work、
     scheduling_throughput_by_result by result 等）跨 label 错位合并。
 
+    stat 参数:
+      - "mean"   : 逐点算数平均 (默认，向后兼容)
+      - "median" : 逐点中位数 (推荐用于 benchmark，抗离群点、不受峰值时刻错位影响)
+
     同时输出 avg_<metric>.json（供 --compare 二次复用）和图片。
     """
+    if stat not in ("mean", "median"):
+        raise ValueError(f"stat 必须是 'mean' 或 'median'，收到: {stat}")
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -485,8 +491,14 @@ def average_runs(dirs, output_dir, metric_names=None, fmt="png", std_band=False)
                 continue
 
             stacked = np.array(per_run)
-            mean_vals = np.nanmean(stacked, axis=0)
-            std_vals = np.nanstd(stacked, axis=0)
+            if stat == "median":
+                mean_vals = np.nanmedian(stacked, axis=0)
+                # median 场景下，std_band 用 IQR（p25/p75）作为分散度更严谨
+                std_vals = (np.nanpercentile(stacked, 75, axis=0) -
+                            np.nanpercentile(stacked, 25, axis=0)) / 2  # 半 IQR，视觉尺度接近 1σ
+            else:  # mean
+                mean_vals = np.nanmean(stacked, axis=0)
+                std_vals = np.nanstd(stacked, axis=0)
 
             color = COLORS[li % len(COLORS)]
             display = label if label else metric_name
@@ -528,7 +540,7 @@ def average_runs(dirs, output_dir, metric_names=None, fmt="png", std_band=False)
         ax.set_title(title)
         if is_quantile:
             ax.set_title(
-                f"{title}\n(mean of quantile across runs, not combined-sample quantile)",
+                f"{title}\n({stat} of quantile across runs, not combined-sample quantile)",
                 fontsize=11,
             )
         ax.set_ylabel(meta["ylabel"])
@@ -689,6 +701,12 @@ def main():
         help="在平均曲线上绘制 ±1σ 标准差区域（需与 --average 同用）",
     )
     parser.add_argument(
+        "--stat",
+        default="mean",
+        choices=["mean", "median"],
+        help="--average 的聚合方式: mean=逐点算数平均 (默认), median=逐点中位数 (抗离群点，推荐用于 benchmark)",
+    )
+    parser.add_argument(
         "--metrics", nargs="*", default=None, help="仅绘制指定指标 (默认: 全部)"
     )
     parser.add_argument(
@@ -710,8 +728,8 @@ def main():
         if len(args.dirs) < 2:
             parser.error("平均模式需要至少 2 个结果目录")
         out = args.output or "charts_average"
-        print(f"平均模式: {len(args.dirs)} 个 run\n")
-        average_runs(args.dirs, out, args.metrics, args.format, args.std_band)
+        print(f"聚合模式 (stat={args.stat}): {len(args.dirs)} 个 run\n")
+        average_runs(args.dirs, out, args.metrics, args.format, args.std_band, stat=args.stat)
     else:
         for d in args.dirs:
             print(f"\n绘制: {d}")

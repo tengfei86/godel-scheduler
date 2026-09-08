@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# gen-averages.sh — 批量为所有 (group, scale, workload[, inst]) 组合生成 run 平均结果
+# gen-averages.sh — 批量为所有 (group, scale, workload[, inst]) 组合生成 run 聚合结果
 #
 # 目录布局:
 #   a/b 组 (分布式，有 scheduler 实例数维度):
@@ -11,8 +11,10 @@
 # 否则退化到 bare run<N>/ 布局生成。
 #
 # 用法:
-#   ./gen-averages.sh              # 直接生成
+#   ./gen-averages.sh              # 用 mean 聚合 (默认，向后兼容)
+#   ./gen-averages.sh --median     # 用 median 聚合 (推荐 benchmark 用；抗离群点)
 #   ./gen-averages.sh --dry-run    # 只打印将处理的组合，不实际调用 python
+#   ./gen-averages.sh --median --dry-run
 
 set -eu
 
@@ -21,7 +23,15 @@ RESULTS_DIR="${SCRIPT_DIR}/../results"
 PLOT="${SCRIPT_DIR}/plot-results.py"
 
 DRY_RUN=false
-[[ "${1:-}" == "--dry-run" ]] && DRY_RUN=true
+STAT="mean"
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run) DRY_RUN=true ;;
+    --median)  STAT="median" ;;
+    --mean)    STAT="mean" ;;
+    *) echo "未知参数: $arg" >&2; exit 1 ;;
+  esac
+done
 
 if [[ ! -f "$PLOT" ]]; then
   echo "错误: 找不到 $PLOT" >&2
@@ -33,7 +43,7 @@ succeeded=0
 skipped=0
 failed=0
 
-echo "=== 批量生成平均结果 ==="
+echo "=== 批量生成聚合结果 (stat=${STAT}) ==="
 [[ "$DRY_RUN" == "true" ]] && echo "[dry-run] 模式：不会实际调用 python"
 echo ""
 
@@ -50,7 +60,7 @@ process_run_group() {
     if [[ "$DRY_RUN" == "false" ]]; then
       if python3 "$PLOT" \
           "$run_parent/run1" "$run_parent/run2" "$run_parent/run3" \
-          --average --std-band \
+          --average --std-band --stat "$STAT" \
           --output "$avg_dir"; then
         succeeded=$((succeeded+1))
       else
