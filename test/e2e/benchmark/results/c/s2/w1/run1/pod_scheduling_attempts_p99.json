@@ -1,1 +1,0 @@
-{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"kube:scheduler_pod_scheduling_attempts:p99"},"values":[[1784885370,"NaN"],[1784885385,"NaN"],[1784885400,"NaN"],[1784885415,"0.9899999999999999"],[1784885430,"0.99"],[1784885445,"0.9899999999999999"]]}]}}

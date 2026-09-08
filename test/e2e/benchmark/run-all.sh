@@ -47,6 +47,7 @@ DRY_RUN=false
 REDEPLOY_EACH_RUN=false
 CUSTOM_WORKLOADS=""
 CUSTOM_INSTANCES=""
+FRESH_CLUSTER_PER_RUN=false
 
 # ── 参数解析 ──
 # --groups 会写入 TARGET_GROUPS（而不是 GROUPS）以规避 Bash 特殊变量冲突。
@@ -150,6 +151,12 @@ if [[ "$REDEPLOY_EACH_RUN" == "true" ]]; then
   log_info "每次 run 前重装调度器: 开启"
 fi
 log_info "总实验数: ${total_experiments}"
+if [[ "$FRESH_CLUSTER_PER_RUN" == "true" ]]; then
+  # 粗略估计：s1/s2 ~5min, s3 ~10min, s4/s5 ~15min per rebuild
+  overhead_min=$((total_experiments * 10))
+  log_warn "⚠  --fresh-cluster-per-run 已开启：每次 run 都重建集群 + 重新部署调度器"
+  log_warn "   预计额外耗时: ~${overhead_min} 分钟 ($(( overhead_min / 60 ))h $((overhead_min % 60))m)"
+fi
 echo ""
 
 # ── 打印执行计划 ──
@@ -204,6 +211,35 @@ fi
 OVERALL_START=$(date +%s)
 exp_index=0
 failed_experiments=()
+
+# ── fresh-cluster-per-run: 重建集群 + 重部署调度器 ──
+# 参数:
+#   $1 = scale (s1..s5)
+#   $2 = group (a..e)
+#   $3 = inst_count (可选，仅 a/b 组水平扩展时传入)
+fresh_cluster_prepare() {
+  local scale="$1"
+  local group="$2"
+  local inst="${3:-}"
+
+  log_step "🔄 [Fresh cluster] 销毁旧集群"
+  kind delete cluster --name "${KIND_CLUSTER_NAME}" 2>/dev/null || true
+
+  log_step "🔄 [Fresh cluster] 重建 kind 集群 + KWOK 节点 (规模=${scale})"
+  bash "${SCRIPT_DIR}/setup-cluster.sh" --force-rebuild "$scale" || {
+    log_error "集群重建失败"
+    return 1
+  }
+
+  log_step "🔄 [Fresh cluster] 部署组 ${group} 调度器${inst:+ (${inst} 实例)}"
+  if [[ -n "$inst" ]]; then
+    bash "${SCRIPT_DIR}/schedulers/deploy-group-${group}.sh" --instances "$inst" || return 1
+  else
+    bash "${SCRIPT_DIR}/schedulers/deploy-group-${group}.sh" || return 1
+  fi
+  sleep 10
+  return 0
+}
 
 for group in $TARGET_GROUPS; do
   separator "部署组 ${group} ($(get_group_label "$group"))"

@@ -1,0 +1,1 @@
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"eno:scheduler_pod_scheduling_attempts:rate1m"},"values":[[1788599463,"0"],[1788599478,"43.55555555555555"],[1788599493,"525.9999999999999"]]}]}}

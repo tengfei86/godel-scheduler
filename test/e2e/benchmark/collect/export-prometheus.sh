@@ -161,6 +161,7 @@ declare -A KUBE_QUERIES=(
   [scheduling_latency_p50]='kube:scheduler_scheduling_attempt_duration:p50'
   [scheduling_latency_p90]='kube:scheduler_scheduling_attempt_duration:p90'
   [scheduling_latency_p99]='kube:scheduler_scheduling_attempt_duration:p99'
+  [scheduling_latency_avg]='kube:scheduler_scheduling_attempt_duration:avg'
 
   # E2E SLI 延迟（入队 → Bound，K8s 1.28+）
   [sli_latency_p50]='kube:scheduler_pod_scheduling_sli_duration:p50'

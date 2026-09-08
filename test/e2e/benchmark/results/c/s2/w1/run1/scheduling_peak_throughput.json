@@ -1,1 +1,0 @@
-{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"kube:scheduler_peak_throughput:30m"},"values":[[1784885430,"40.491976666666666"],[1784885445,"65.48682166666667"]]}]}}

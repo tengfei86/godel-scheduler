@@ -1,0 +1,1 @@
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"eno:pod_e2e_duration:p50"},"values":[[1788599463,"NaN"],[1788599478,"0.040945998338410415"],[1788599493,"0.04485872539205873"]]}]}}

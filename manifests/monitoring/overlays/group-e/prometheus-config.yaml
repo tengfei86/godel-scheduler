@@ -104,20 +104,22 @@ data:
         interval: 15s
         rules:
           # 单次调度尝试延迟 (Filter+Score+Bind) — scheduler_scheduling_attempt_duration_seconds
+          # 过滤 {result="scheduled"}：只统计成功调度的耗时，避免 unschedulable/error
+          # 的 fast-fail 样本拉低分位数，保证跨组延迟口径一致（用户可感知延迟）
           - record: koord:scheduler_scheduling_attempt_duration:p50
-            expr: histogram_quantile(0.50, sum by (le) (rate(scheduler_scheduling_attempt_duration_seconds_bucket[1m])))
+            expr: histogram_quantile(0.50, sum by (le) (rate(scheduler_scheduling_attempt_duration_seconds_bucket{result="scheduled"}[1m])))
 
           - record: koord:scheduler_scheduling_attempt_duration:p90
-            expr: histogram_quantile(0.90, sum by (le) (rate(scheduler_scheduling_attempt_duration_seconds_bucket[1m])))
+            expr: histogram_quantile(0.90, sum by (le) (rate(scheduler_scheduling_attempt_duration_seconds_bucket{result="scheduled"}[1m])))
 
           - record: koord:scheduler_scheduling_attempt_duration:p99
-            expr: histogram_quantile(0.99, sum by (le) (rate(scheduler_scheduling_attempt_duration_seconds_bucket[1m])))
+            expr: histogram_quantile(0.99, sum by (le) (rate(scheduler_scheduling_attempt_duration_seconds_bucket{result="scheduled"}[1m])))
 
           - record: koord:scheduler_scheduling_attempt_duration:avg
             expr: >
-              sum(rate(scheduler_scheduling_attempt_duration_seconds_sum[1m]))
+              sum(rate(scheduler_scheduling_attempt_duration_seconds_sum{result="scheduled"}[1m]))
               /
-              sum(rate(scheduler_scheduling_attempt_duration_seconds_count[1m]))
+              sum(rate(scheduler_scheduling_attempt_duration_seconds_count{result="scheduled"}[1m]))
 
           # Pod 全周期 E2E 延迟 (入队 → Bound) — scheduler_pod_scheduling_sli_duration_seconds
           - record: koord:scheduler_pod_scheduling_sli_duration:p50
