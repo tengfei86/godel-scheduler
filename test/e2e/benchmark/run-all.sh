@@ -12,6 +12,7 @@
 #   --skip-deploy          跳过调度器部署（假设已部署）
 #   --setup-nodes          自动创建/验证 KWOK 节点数量
 #   --instances "1 2 3 5"  Scheduler 实例数列表，仅组 A/B 有效 (水平扩展测试)
+#   --redeploy-each-run    每次 run 之前重装当前组的调度器（隔离每次实验，代价: 每次 +30-60s）
 #   --dry-run              仅打印执行计划，不实际运行
 #
 # 示例:
@@ -24,7 +25,8 @@
 #   ./run-all.sh --groups "a b" --scales "s3 s4" --workloads "w3 w4 w5 w6 w7" --instances "3"   --setup-nodes 
 #   ./run-all.sh --groups "a b" --scales "s3 s4" --workloads "w4" --instances "3"   --setup-nodes 
 #   ./run-all.sh --groups "a b c d e" --scales "s1" --workloads "w1"  --instances "1"
-#   ./run-all.sh --groups "a b c d e" --scales "s2 s3" --workloads "w2 w3" --instances "1" --setup-nodes 
+#   ./run-all.sh --groups "a b c d e" --scales "s2 s3" --workloads "w2 w3" --instances "1" --setup-nodes
+#   ./run-all.sh --groups "a" --scales "s3" --workloads "w4" --instances "3" --setup-nodes --redeploy-each-run  # a × s3 × w4，每次 run 前重装
 
  
 set -eu
@@ -42,6 +44,7 @@ RUNS="${EXPERIMENT_REPEATS}"
 SKIP_DEPLOY=false
 SETUP_NODES=false
 DRY_RUN=false
+REDEPLOY_EACH_RUN=false
 CUSTOM_WORKLOADS=""
 CUSTOM_INSTANCES=""
 
@@ -56,10 +59,17 @@ while [[ $# -gt 0 ]]; do
     --skip-deploy) SKIP_DEPLOY=true; shift ;;
     --setup-nodes) SETUP_NODES=true; shift ;;
     --instances)   CUSTOM_INSTANCES="$2"; shift 2 ;;
+    --redeploy-each-run) REDEPLOY_EACH_RUN=true; shift ;;
     --dry-run)     DRY_RUN=true; shift ;;
     *)             log_error "未知参数: $1"; exit 1 ;;
   esac
 done
+
+# --skip-deploy 和 --redeploy-each-run 语义冲突
+if [[ "$SKIP_DEPLOY" == "true" && "$REDEPLOY_EACH_RUN" == "true" ]]; then
+  log_error "--skip-deploy 与 --redeploy-each-run 不能同时使用"
+  exit 1
+fi
 
 # ── 各组测试的负载场景 ──
 # 组 A/B: 全部 W1-W7
@@ -136,6 +146,9 @@ if [[ -n "$CUSTOM_INSTANCES" ]]; then
   log_info "Scheduler 实例数: ${CUSTOM_INSTANCES} (仅组 A/B)"
 fi
 log_info "重复: ${RUNS} 次"
+if [[ "$REDEPLOY_EACH_RUN" == "true" ]]; then
+  log_info "每次 run 前重装调度器: 开启"
+fi
 log_info "总实验数: ${total_experiments}"
 echo ""
 
@@ -204,7 +217,8 @@ for group in $TARGET_GROUPS; do
 
   # ── 无 instance 变量的正常流程 ──
   if [[ -z "$inst_list" ]]; then
-    if [[ "$SKIP_DEPLOY" != "true" ]]; then
+    # 组级一次性部署：仅在既不 skip 也不每次重装时执行
+    if [[ "$SKIP_DEPLOY" != "true" && "$REDEPLOY_EACH_RUN" != "true" ]]; then
       log_step "部署组 ${group} 调度器"
       bash "${SCRIPT_DIR}/schedulers/deploy-group-${group}.sh" || {
         log_error "组 ${group} 部署失败，跳过该组"
@@ -220,6 +234,17 @@ for group in $TARGET_GROUPS; do
         for run in $(seq 1 "$RUNS"); do
           exp_index=$((exp_index + 1))
           separator "[${exp_index}/${total_experiments}] 组=${group} 规模=${scale} 负载=${wl} Run=#${run}"
+
+          # 每次 run 前重装调度器
+          if [[ "$REDEPLOY_EACH_RUN" == "true" ]]; then
+            log_step "重装组 ${group} 调度器 (run ${run})"
+            if ! bash "${SCRIPT_DIR}/schedulers/deploy-group-${group}.sh"; then
+              log_error "重装失败，跳过本次 run: ${group}/${scale}/${wl}/run${run}"
+              failed_experiments+=("${group}/${scale}/${wl}/run${run}")
+              continue
+            fi
+            sleep 10
+          fi
 
           EXTRA_FLAGS=""
           [[ "$SETUP_NODES" == "true" ]] && EXTRA_FLAGS="--setup-nodes"
@@ -242,7 +267,8 @@ for group in $TARGET_GROUPS; do
   for inst in $inst_list; do
     separator "组 ${group} — ${inst} 个 Scheduler 实例"
 
-    if [[ "$SKIP_DEPLOY" != "true" ]]; then
+    # 一次性 deploy/scale：仅在既不 skip 也不每次重装时执行
+    if [[ "$SKIP_DEPLOY" != "true" && "$REDEPLOY_EACH_RUN" != "true" ]]; then
       if [[ "$first_inst" == "true" ]]; then
         log_step "部署组 ${group} 调度器 (${inst} 实例)"
         bash "${SCRIPT_DIR}/schedulers/deploy-group-${group}.sh" --instances "$inst" || {
@@ -269,6 +295,17 @@ for group in $TARGET_GROUPS; do
         for run in $(seq 1 "$RUNS"); do
           exp_index=$((exp_index + 1))
           separator "[${exp_index}/${total_experiments}] 组=${group} 规模=${scale} 负载=${wl} inst=${inst} Run=#${run}"
+
+          # 每次 run 前重装调度器（含指定实例数）
+          if [[ "$REDEPLOY_EACH_RUN" == "true" ]]; then
+            log_step "重装组 ${group} 调度器 (${inst} 实例, run ${run})"
+            if ! bash "${SCRIPT_DIR}/schedulers/deploy-group-${group}.sh" --instances "$inst"; then
+              log_error "重装失败，跳过本次 run: ${group}/${scale}/${wl}/inst${inst}/run${run}"
+              failed_experiments+=("${group}/${scale}/${wl}/inst${inst}/run${run}")
+              continue
+            fi
+            sleep 10
+          fi
 
           EXTRA_FLAGS="--instances $inst"
           [[ "$SETUP_NODES" == "true" ]] && EXTRA_FLAGS="$EXTRA_FLAGS --setup-nodes"
@@ -341,6 +378,9 @@ REPORT_FILE="${RESULTS_DIR}/report_${REPORT_TIME}.md"
   echo "| Dispatcher 资源 limits | ${BENCH_DISPATCHER_LIM_CPU} CPU / ${BENCH_DISPATCHER_LIM_MEM} MEM |"
   if [[ -n "$CUSTOM_INSTANCES" ]]; then
     echo "| Scheduler 实例数 (组 A/B) | ${CUSTOM_INSTANCES} |"
+  fi
+  if [[ "$REDEPLOY_EACH_RUN" == "true" ]]; then
+    echo "| 每次 run 前重装调度器 | 是 |"
   fi
   echo ""
 
