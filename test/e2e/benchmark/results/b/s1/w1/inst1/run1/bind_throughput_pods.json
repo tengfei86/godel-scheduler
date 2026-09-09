@@ -1,1 +1,1 @@
-{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"godel:binder_binding_pod_attempts:rate1m"},"values":[[1788314804,"123.15806"],[1788314819,"134.05653"],[1788314834,"154.3366188888889"]]}]}}
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"godel:binder_binding_pod_attempts:rate1m"},"values":[[1788942072,"59.19666666666666"],[1788942087,"84.19666666666667"]]}]}}
