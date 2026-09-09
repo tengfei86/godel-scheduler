@@ -116,12 +116,28 @@ wait_all_scheduled() {
 }
 
 # ── 清理 bench namespace ──
+# 大规模场景 (s3/s4, 5w-10w pods) 下 kubectl delete --wait=true 会因超时提前返回，
+# 此时 namespace 仍在 Terminating，紧接着的 pods.Create() 会全部拿到:
+#   "namespaces ... is forbidden: unable to create new content in namespace ...
+#    because it is being terminated"
+# 所以这里发起 delete 后主动轮询，直到 API Server 里彻底看不到该 namespace 才返回。
 cleanup_bench() {
   local ns="${1:-bench}"
-  log_step "清理 namespace=${ns}..."
-  kubectl delete namespace "$ns" --ignore-not-found --wait=true 2>/dev/null || true
-  sleep 10
-  log_info "✓ namespace=${ns} 已清理"
+  local timeout="${CLEANUP_BENCH_TIMEOUT:-900}"   # 秒；s5 场景可再放宽
+  log_step "清理 namespace=${ns} (最多等 ${timeout}s)..."
+
+  kubectl delete namespace "$ns" --ignore-not-found --wait=false 2>/dev/null || true
+
+  local elapsed=0
+  while kubectl get namespace "$ns" &>/dev/null; do
+    if (( elapsed >= timeout )); then
+      log_warn "namespace ${ns} 清理超时 (${timeout}s)，仍处 Terminating，强制继续"
+      return 1
+    fi
+    sleep 5
+    elapsed=$((elapsed + 5))
+  done
+  log_info "✓ namespace=${ns} 已清理 (耗时 ${elapsed}s)"
 }
 
 # ── 计算持续时间（人类可读） ──
