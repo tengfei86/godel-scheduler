@@ -337,6 +337,11 @@ type podTask struct {
 	pod *corev1.Pod
 }
 
+// 已打印的错误样本数（原子），最多打印前 3 条以避免刷屏
+var errorSampleCount atomic.Int64
+
+const maxErrorSamples = 3
+
 func createWorker(ctx context.Context, client kubernetes.Interface, ch <-chan podTask,
 	submitted, errors *atomic.Int64, wg *sync.WaitGroup) {
 	defer wg.Done()
@@ -373,6 +378,11 @@ func createWorker(ctx context.Context, client kubernetes.Interface, ch <-chan po
 				}
 			}
 			if err != nil {
+				// 打印前 3 条错误详情，便于定位（webhook 拒绝 / RBAC / quota 等）
+				if errorSampleCount.Add(1) <= maxErrorSamples {
+					fmt.Fprintf(os.Stderr, "\n[ERROR sample %d/%d] pod=%s ns=%s: %v\n",
+						errorSampleCount.Load(), maxErrorSamples, task.pod.Name, task.pod.Namespace, err)
+				}
 				errors.Add(1)
 				continue
 			}
@@ -467,7 +477,11 @@ func ensureNamespace(ctx context.Context, client kubernetes.Interface) {
 		ObjectMeta: metav1.ObjectMeta{Name: flagNamespace},
 	}
 	// Create 是幂等检查 — 如果已存在会返回 AlreadyExists
-	_, _ = client.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+	_, err := client.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+	if err != nil && !strings.Contains(err.Error(), "already exists") {
+		// 只有真正的失败（非 AlreadyExists）才提示
+		fmt.Fprintf(os.Stderr, "[WARN] 无法创建 namespace %s: %v\n", flagNamespace, err)
+	}
 }
 
 // ── basic 模式 ──
