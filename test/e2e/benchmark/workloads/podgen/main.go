@@ -358,8 +358,9 @@ func createWorker(ctx context.Context, client kubernetes.Interface, ch <-chan po
 				continue
 			}
 			var err error
-			// 指数退避重试，最多 3 次
-			for attempt := 0; attempt < 3; attempt++ {
+			// 指数退避重试，最多 15 次（覆盖 apiserver 冷启动 + admission chain 就绪的 ~30s 窗口）
+			const maxAttempts = 15
+			for attempt := 0; attempt < maxAttempts; attempt++ {
 				_, err = client.CoreV1().Pods(task.pod.Namespace).Create(ctx, task.pod, metav1.CreateOptions{})
 				if err == nil {
 					break
@@ -370,8 +371,11 @@ func createWorker(ctx context.Context, client kubernetes.Interface, ch <-chan po
 					err = nil // 避免下方再计数
 					break
 				}
-				// 指数退避: 50ms, 200ms, 800ms
+				// 指数退避: 50ms, 100ms, 200ms, ..., capped at 3s
 				backoff := time.Duration(50<<uint(attempt)) * time.Millisecond
+				if backoff > 3*time.Second {
+					backoff = 3 * time.Second
+				}
 				select {
 				case <-ctx.Done():
 				case <-time.After(backoff):
@@ -446,6 +450,9 @@ func main() {
 
 	if !flagDryRun {
 		ensureNamespace(ctx, client)
+		// 预热 client-go transport：一次同步 API 调用触发 TLS 握手 + apiserver 认证缓存，
+		// 避免 64 个 worker 同时打第一发时握手风暴 → 前几十个 pod 全部报错的经典问题。
+		warmupClient(ctx, client)
 	}
 
 	fmt.Fprintf(os.Stderr, "[INFO] podgen v2 (client-go): rate=%d/s total=%d scheduler=%s type=%s workers=%d qps=%d burst=%d\n",
@@ -470,6 +477,34 @@ func main() {
 	elapsed := time.Since(startTime)
 	fmt.Fprintf(os.Stderr, "\n[INFO] ✓ 完成: %d pods, 耗时 %v, 平均 %.0f pods/s\n",
 		flagTotal, elapsed.Round(time.Second), float64(flagTotal)/elapsed.Seconds())
+}
+
+// warmupClient 触发一次同步 API 调用，让 client-go 的 HTTP/2 长连接、
+// apiserver 的 auth/RBAC 缓存都热起来。最多重试 20 次（覆盖 apiserver 刚重启的场景）。
+func warmupClient(ctx context.Context, client kubernetes.Interface) {
+	const maxAttempts = 20
+	start := time.Now()
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		_, err := client.CoreV1().Namespaces().Get(ctx, "default", metav1.GetOptions{})
+		if err == nil {
+			fmt.Fprintf(os.Stderr, "[INFO] client-go 预热完成 (attempt=%d, 耗时 %v)\n",
+				attempt, time.Since(start).Round(time.Millisecond))
+			return
+		}
+		lastErr = err
+		if ctx.Err() != nil {
+			return
+		}
+		// 指数退避: 200ms, 400ms, 800ms, ..., capped at 3s
+		backoff := time.Duration(200<<uint(attempt-1)) * time.Millisecond
+		if backoff > 3*time.Second {
+			backoff = 3 * time.Second
+		}
+		time.Sleep(backoff)
+	}
+	fmt.Fprintf(os.Stderr, "[WARN] client-go 预热失败 (超过 %d 次尝试, 最后错误: %v), 继续执行\n",
+		maxAttempts, lastErr)
 }
 
 func ensureNamespace(ctx context.Context, client kubernetes.Interface) {

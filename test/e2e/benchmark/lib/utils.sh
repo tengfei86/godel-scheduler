@@ -142,6 +142,52 @@ wait_all_scheduled() {
   return 1
 }
 
+# ── 等待 API Server + Admission webhook 完全就绪 ──
+# 部署脚本的 kubectl rollout status 只保证 Deployment 副本 Ready，
+# 但对应的 admission webhook Service Endpoints 可能还没被 apiserver 观测到，
+# 导致 podgen 起来后前几十个 pod 全部报 "failed calling webhook" 之类错误、
+# 等 endpoints 热了才恢复。
+# 这里用 --dry-run=server 走一次完整 admission 链，通过一次即视为就绪。
+# 用法: wait_ready_to_create_pods <namespace> <scheduler_name> [timeout]
+wait_ready_to_create_pods() {
+  local ns="${1:-bench}"
+  local sched="${2:-default-scheduler}"
+  local timeout="${3:-120}"
+  local elapsed=0
+  local err=""
+
+  log_info "验证 admission 链就绪 (ns=${ns}, scheduler=${sched}, timeout=${timeout}s)..."
+
+  # 确保 ns 存在（--dry-run=server 需要）
+  kubectl create ns "$ns" >/dev/null 2>&1 || true
+
+  while (( elapsed < timeout )); do
+    if err=$(kubectl apply --dry-run=server -f - <<YAML 2>&1
+apiVersion: v1
+kind: Pod
+metadata:
+  name: podgen-smoke-$$
+  namespace: ${ns}
+spec:
+  schedulerName: ${sched}
+  containers:
+  - {name: c, image: registry.k8s.io/pause:3.9}
+YAML
+); then
+      log_info "✓ admission 链已就绪 (耗时 ${elapsed}s)"
+      return 0
+    fi
+    if (( elapsed > 0 && elapsed % 10 == 0 )); then
+      log_warn "  ${elapsed}s: 尚未就绪, 最近错误: $(echo "$err" | head -n1 | cut -c1-160)"
+    fi
+    sleep 2
+    elapsed=$((elapsed + 2))
+  done
+
+  log_error "超时: admission 链仍未就绪 (最后错误: $(echo "$err" | head -n1))"
+  return 1
+}
+
 # ── 清理 bench namespace ──
 # 大规模场景 (s3/s4, 5w-10w pods) 下 kubectl delete --wait=true 会因超时提前返回，
 # 此时 namespace 仍在 Terminating，紧接着的 pods.Create() 会全部拿到:

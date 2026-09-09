@@ -219,6 +219,12 @@ case "$GROUP" in
 esac
 
 # ═══════════════════════════════════════════════
+# Step 5b: 等 admission 链就绪（避免 podgen 前几十个 pod 全报 webhook 错误）
+# ═══════════════════════════════════════════════
+log_step "Step 5b/12: 验证 admission 链已就绪 (webhook smoke test)"
+wait_ready_to_create_pods "$BENCH_NAMESPACE" "$SCHED_NAME" "${ADMISSION_READY_TIMEOUT:-120}"
+
+# ═══════════════════════════════════════════════
 # Step 6: 记录实验开始时间
 # ═══════════════════════════════════════════════
 log_step "Step 6/12: 记录实验开始时间"
