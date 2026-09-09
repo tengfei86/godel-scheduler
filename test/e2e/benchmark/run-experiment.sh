@@ -234,10 +234,10 @@ bash "${SCRIPT_DIR}/workloads/create-pods.sh" \
   "$RATE" "$TOTAL" "$SCHED_NAME" "$CPU" "$MEM" "$WTYPE"
 
 # ═══════════════════════════════════════════════
-# Step 8: 轮询等待所有 Pod 调度完成
+# Step 8: 轮询等待所有 Pod 调度完成（严格 100%）
 # ═══════════════════════════════════════════════
-log_step "Step 8/12: 等待所有 Pod 调度完成"
-wait_all_scheduled "$BENCH_NAMESPACE" "$WAIT_SCHEDULE_TIMEOUT"
+log_step "Step 8/12: 等待所有 Pod 调度完成（严格 ${TOTAL}/100%）"
+wait_all_scheduled "$BENCH_NAMESPACE" "$WAIT_SCHEDULE_TIMEOUT" "$TOTAL"
 
 # ═══════════════════════════════════════════════
 # Step 9: 记录实验结束时间
@@ -279,6 +279,11 @@ if [[ "$SKIP_COLLECT" != "true" ]]; then
   bash "${SCRIPT_DIR}/collect/collect-distribution.sh" "$ANNO_DOMAIN" > "$EXP_RESULTS_DIR/pod-distribution.csv"
 fi
 
+# 采集最终 Pod 计数（用于验证 100% 调度）
+FINAL_TOTAL_PODS=$(kubectl get pods -n "$BENCH_NAMESPACE" --no-headers 2>/dev/null | wc -l | tr -d ' ')
+FINAL_PENDING_PODS=$(kubectl get pods -n "$BENCH_NAMESPACE" --field-selector=status.phase=Pending --no-headers 2>/dev/null | wc -l | tr -d ' ')
+FINAL_SCHEDULED_PODS=$((FINAL_TOTAL_PODS - FINAL_PENDING_PODS))
+
 # 写入元数据
 cat > "$EXP_RESULTS_DIR/metadata.txt" <<EOF
 group=${GROUP}
@@ -301,6 +306,10 @@ end_iso=${END_ISO}
 duration=${DURATION}
 duration_human=$(format_duration $DURATION)
 scheduler_instances=${SCHEDULER_INSTANCES:-1}
+final_total_pods=${FINAL_TOTAL_PODS}
+final_scheduled_pods=${FINAL_SCHEDULED_PODS}
+final_pending_pods=${FINAL_PENDING_PODS}
+schedule_completion_rate=$(awk "BEGIN{printf \"%.4f\", ${FINAL_SCHEDULED_PODS}/${TOTAL}}")
 EOF
 
 separator "实验完成"

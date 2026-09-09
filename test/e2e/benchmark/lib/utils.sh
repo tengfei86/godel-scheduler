@@ -86,32 +86,59 @@ wait_deployment_ready() {
 }
 
 # ── 等待所有 Bench Pod 调度完成 ──
-# 用法: wait_all_scheduled <namespace> <timeout-seconds>
+# 用法: wait_all_scheduled <namespace> <timeout-seconds> [expected-total]
+# 严格模式 (提供 expected-total):
+#   同时要求 pending==0 且 total==expected；否则视为失败（submissions 缺失或 pod 丢失）。
+# 宽松模式 (未提供 expected-total): 仅要求 pending==0（旧行为，保留兼容）。
+# 返回:
+#   0 成功
+#   1 超时（仍有 Pending）
+#   2 数量不匹配（无 Pending 但 total ≠ expected；submissions 不完整）
 wait_all_scheduled() {
   local ns="${1:-bench}"
   local timeout="${2:-3600}"
+  local expected="${3:-}"
   local elapsed=0
 
-  log_info "等待 namespace=${ns} 中所有 Pod 调度完成 (timeout=${timeout}s)..."
+  if [[ -n "$expected" ]]; then
+    log_info "等待 namespace=${ns} 中 ${expected} 个 Pod 全部调度完成 (严格 100%, timeout=${timeout}s)..."
+  else
+    log_info "等待 namespace=${ns} 中所有 Pod 调度完成 (timeout=${timeout}s)..."
+  fi
 
   while (( elapsed < timeout )); do
-    local pending
+    local pending total scheduled
     pending=$(kubectl get pods -n "$ns" --field-selector=status.phase=Pending \
       --no-headers 2>/dev/null | wc -l | tr -d ' ')
+    total=$(kubectl get pods -n "$ns" --no-headers 2>/dev/null | wc -l | tr -d ' ')
+    scheduled=$((total - pending))
+
     if (( pending == 0 )); then
-      local total
-      total=$(kubectl get pods -n "$ns" --no-headers 2>/dev/null | wc -l | tr -d ' ')
-      log_info "✓ 所有 ${total} 个 Pod 已调度完成"
-      return 0
+      if [[ -z "$expected" ]]; then
+        log_info "✓ 所有 ${total} 个 Pod 已调度完成"
+        return 0
+      fi
+      if (( total == expected )); then
+        log_info "✓ ${expected} 个 Pod 全部调度完成 (scheduled=${scheduled}, total=${total})"
+        return 0
+      fi
+      log_error "调度数不达标: expected=${expected}, total in ns=${total}, scheduled=${scheduled}"
+      log_error "  可能原因: podgen 提交失败（webhook/quota/RBAC）或 Pod 提前被清理"
+      return 2
     fi
+
     sleep "${POLL_INTERVAL:-5}"
     elapsed=$((elapsed + ${POLL_INTERVAL:-5}))
     if (( elapsed % 30 == 0 )); then
-      log_info "  仍有 ${pending} 个 Pending Pod... (${elapsed}s)"
+      if [[ -n "$expected" ]]; then
+        log_info "  scheduled=${scheduled}/${expected}, pending=${pending}, total_in_ns=${total} ... (${elapsed}s)"
+      else
+        log_info "  仍有 ${pending} 个 Pending Pod... (${elapsed}s)"
+      fi
     fi
   done
 
-  log_error "超时：仍有 Pending Pod"
+  log_error "超时：仍有 Pending Pod（scheduled=${scheduled:-?}/${expected:-?}, pending=${pending:-?}）"
   return 1
 }
 

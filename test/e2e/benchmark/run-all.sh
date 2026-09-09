@@ -386,27 +386,72 @@ REPORT_FILE="${RESULTS_DIR}/report_${REPORT_TIME}.md"
 
   echo "## 实验明细"
   echo ""
-  echo "| # | 组 | 规模 | 负载 | Run | 状态 |"
-  echo "|---|---|------|------|-----|------|"
+  echo "| # | 组 | 规模 | 负载 | 实例 | Run | 完成率 | 完成时间 | 状态 |"
+  echo "|---|---|------|------|-----|-----|--------|----------|------|"
+
+  # 从 metadata.txt 读取字段（缺失返回 "—"）
+  read_meta_field() {
+    local file="$1" key="$2"
+    if [[ -f "$file" ]]; then
+      local v
+      v=$(awk -F= -v k="$key" '$1==k { sub(/^[^=]*=/, ""); print; exit }' "$file")
+      [[ -n "$v" ]] && echo "$v" || echo "—"
+    else
+      echo "—"
+    fi
+  }
+
+  # 完成率 (0.9856 → 98.56%)；若已是百分比或缺失则原样返回
+  format_completion_rate() {
+    local raw="$1"
+    if [[ "$raw" == "—" || -z "$raw" ]]; then
+      echo "—"
+    else
+      awk -v v="$raw" 'BEGIN { printf "%.2f%%", v * 100 }'
+    fi
+  }
 
   detail_index=0
   for group in $TARGET_GROUPS; do
     workloads=$(get_workloads_for_group "$group")
+    if [[ "$group" =~ ^[ab]$ ]] && [[ -n "$CUSTOM_INSTANCES" ]]; then
+      inst_list="$CUSTOM_INSTANCES"
+    else
+      inst_list=""
+    fi
     for scale in $SCALES; do
       for wl in $workloads; do
-        for run in $(seq 1 "$RUNS"); do
-          detail_index=$((detail_index + 1))
-          exp_key="${group}/${scale}/${wl}/run${run}"
-          status="✅ 成功"
-          for f in "${failed_experiments[@]}"; do
-            if [[ "$f" == "$exp_key" ]]; then
-              status="❌ 失败"
-              break
-            fi
+        if [[ -n "$inst_list" ]]; then
+          for inst in $inst_list; do
+            for run in $(seq 1 "$RUNS"); do
+              detail_index=$((detail_index + 1))
+              exp_key="${group}/${scale}/${wl}/inst${inst}/run${run}"
+              meta_file="${RESULTS_DIR}/${exp_key}/metadata.txt"
+              rate_str=$(format_completion_rate "$(read_meta_field "$meta_file" "schedule_completion_rate")")
+              dur_str=$(read_meta_field "$meta_file" "duration_human")
+              status="✅ 成功"
+              for f in "${failed_experiments[@]}"; do
+                if [[ "$f" == "$exp_key" ]]; then status="❌ 失败"; break; fi
+              done
+              printf "| %d | %s (%s) | %s | %s | inst%s | %d | %s | %s | %s |\n" \
+                "$detail_index" "$group" "$(get_group_label "$group")" "$scale" "$wl" "$inst" "$run" "$rate_str" "$dur_str" "$status"
+            done
           done
-          printf "| %d | %s (%s) | %s | %s | %d | %s |\n" \
-            "$detail_index" "$group" "$(get_group_label "$group")" "$scale" "$wl" "$run" "$status"
-        done
+        else
+          for run in $(seq 1 "$RUNS"); do
+            detail_index=$((detail_index + 1))
+            exp_key="${group}/${scale}/${wl}/run${run}"
+            meta_file="${RESULTS_DIR}/${exp_key}/metadata.txt"
+            rate_str=$(format_completion_rate "$(read_meta_field "$meta_file" "schedule_completion_rate")")
+            dur_str=$(read_meta_field "$meta_file" "duration_human")
+            status="✅ 成功"
+            for f in "${failed_experiments[@]}"; do
+              if [[ "$f" == "$exp_key" ]]; then status="❌ 失败"; break; fi
+            done
+            printf "| %d | %s (%s) | %s | %s | — | %d | %s | %s | %s |\n" \
+              "$detail_index" "$group" "$(get_group_label "$group")" "$scale" "$wl" "$run" "$rate_str" "$dur_str" "$status"
+          done
+        fi
       done
     done
   done
