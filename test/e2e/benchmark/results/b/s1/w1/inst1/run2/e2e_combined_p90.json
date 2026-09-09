@@ -1,1 +1,1 @@
-{"status":"success","data":{"resultType":"matrix","result":[]}}
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"godel:e2e_schedule_and_bind_duration:p90_estimate"},"values":[[1788947954,"0.027621658928749297"],[1788947969,"0.02749276758600442"],[1788947984,"0.027376060348892034"],[1788947999,"0.027258105002060225"]]}]}}

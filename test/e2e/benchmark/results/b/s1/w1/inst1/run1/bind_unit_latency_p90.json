@@ -1,1 +1,1 @@
-{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"godel:binder_unit_e2e_duration:p90"},"values":[[1788942072,"0.0134905771434343"],[1788942087,"0.013404644472110351"]]}]}}
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"godel:binder_unit_e2e_duration:p90"},"values":[[1788947493,"0.013283018867924531"],[1788947508,"0.013226277372262774"],[1788947523,"0.013261267040898157"],[1788947538,"0.013312738853503186"],[1788947553,"0.013269099756690998"]]}]}}

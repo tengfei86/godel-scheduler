@@ -1,1 +1,1 @@
-{"status":"success","data":{"resultType":"matrix","result":[]}}
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"kube:scheduler_pod_scheduling_sli_duration:avg","attempts":"1","instance":"172.18.0.2:10259","job":"kube-scheduler","namespace":"kube-system","node":"eno-bench-control-plane","pod":"kube-scheduler-eno-bench-control-plane"},"values":[[1788949762,"0.005419996662441623"],[1788949777,"0.005386371086999986"],[1788949792,"0.005329793414222209"],[1788949807,"0.005239484419684521"]]}]}}

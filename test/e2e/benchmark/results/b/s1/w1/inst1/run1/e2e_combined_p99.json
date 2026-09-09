@@ -1,1 +1,1 @@
-{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"godel:e2e_schedule_and_bind_duration:p99_estimate"},"values":[[1788942087,"0.0426763765745522"]]}]}}
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"godel:e2e_schedule_and_bind_duration:p99_estimate"},"values":[[1788947508,"0.039908970402165"],[1788947523,"0.03858245098366672"],[1788947538,"0.037336669892699376"],[1788947553,"0.034111884057970915"]]}]}}
