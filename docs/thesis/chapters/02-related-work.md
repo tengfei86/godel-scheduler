@@ -4,13 +4,13 @@
 
 ## 2.1 Kubernetes 原生调度器
 
-kube-scheduler 是 Kubernetes 集群中的默认调度器，也是本文其他调度器的共同基线。其核心工作流程包括三个阶段：
+kube-scheduler 是 Kubernetes 集群中的默认调度器<sup>[7]</sup>，也是本文其他调度器的共同基线。其核心工作流程包括三个阶段：
 
 - 入队与排序：待调度的 Pod 通过 Informer 事件进入调度队列 activeQ，按优先级与创建时间排序；调度失败的 Pod 进入 backoffQ 等待退避后重试；
 - 调度决策：从 activeQ 弹出 Pod 后，依次执行 PreFilter → Filter → PostFilter → PreScore → Score → Reserve → Permit 一系列插件，最终产出目标节点；
 - 绑定：将调度决策通过 Bind API 写入 kube-apiserver，Bind API 是 Pod 资源的一个子资源，Kubernetes 提供了对该操作的原子性保证。
 
-kube-scheduler 采用单实例串行处理架构，虽然内部通过 goroutine 池并发执行 Filter/Score，但同一时刻仅有一个 Pod 处于绑定阶段，Bind 操作串行地写入 apiserver。这一设计的主要优势是天然避免了多实例并发绑定同一节点的冲突——不需要额外的一致性协议——但其吞吐上限也就此固定：官方测试<sup>[7]</sup>与本文实验均表明其稳态吞吐约在数百 pods/s 量级。Burns 等在《Kubernetes: Up and Running》中亦系统阐述了 kube-scheduler 的单实例架构与调度流程<sup>[8]</sup>；张磊对 kube-scheduler 的内部实现进行了源码级剖析<sup>[9]</sup>。调度约束通过污点容忍<sup>[10]</sup>与节点亲和/反亲和<sup>[11]</sup>等机制表达，Pod 优先级与抢占<sup>[12]</sup>则决定队列排序与资源竞争时的处理次序。
+kube-scheduler 采用单实例串行处理架构，虽然内部通过 goroutine 池并发执行 Filter/Score，但同一时刻仅有一个 Pod 处于绑定阶段，Bind 操作串行地写入 apiserver。这一设计的主要优势是天然避免了多实例并发绑定同一节点的冲突——不需要额外的一致性协议——但其吞吐上限也就此固定：本文实验测得 kube-scheduler 的稳态调度吞吐为 465~800 pods/s（见 §6.4.1），与 Gödel 官方性能评估中对 kube-scheduler 的测量结果处于同一量级<sup>[3]</sup>。Burns 等在《Kubernetes: Up and Running》中亦系统阐述了 kube-scheduler 的单实例架构与调度流程<sup>[8]</sup>；张磊对 kube-scheduler 的内部实现进行了源码级剖析<sup>[9]</sup>。调度约束通过污点容忍<sup>[10]</sup>与节点亲和/反亲和<sup>[11]</sup>等机制表达，Pod 优先级与抢占<sup>[12]</sup>则决定队列排序与资源竞争时的处理次序。
 
 kube-scheduler 2019 年引入的 Scheduling Framework<sup>[2,13]</sup> 通过插件化机制将调度流程解耦为若干扩展点，使得第三方项目（Volcano、Koordinator 等）可以在不 fork 主线代码的前提下扩展调度能力，这也构成了本章后续调度器的技术起点。
 

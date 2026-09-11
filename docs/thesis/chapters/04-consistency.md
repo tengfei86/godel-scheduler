@@ -142,7 +142,7 @@ Layer 2 在 `binder_reconciler.go` 中实现，其核心数据结构是 `APICall
 - 若节点归属仍属于本 Scheduler 且 Pod 还需要绑定，重新加入 activeQ 进入调度循环；
 - 若节点归属已漂移或 Pod 已被删除，直接放弃并触发 Layer 3。
 
-进程崩溃恢复：即使 Scheduler 进程 panic 重启，workqueue 中的任务并不因此丢失——workqueue 由 client-go 在内存中维护，但更重要的是 SchedulerCache 中的 Assumed 状态本身在进程重启后会被 Informer 重新同步（从 etcd 中读取 Pod 的最新注解，重建 Assumed 集合）。因此 Layer 2 的清理最终一致性由 etcd 的持久化 + Informer 的重建保证。
+进程崩溃恢复：需要说明的是，`APICallFailedTaskQueue` 基于 client-go 的 workqueue 实现，是内存中的限速队列而非持久化队列，因此 Scheduler 进程 panic 重启后，队列中尚未处理的任务会随之丢失，Layer 2 不能依赖队列本身提供跨崩溃的恢复能力（见 [36] 的 workqueue 说明）。真正提供恢复能力的是 etcd 中持久化的 Pod 状态：进程重启后，Scheduler 通过 Informer 从 etcd 同步 Pod 并重建 SchedulerCache，此时凡 `spec.nodeName` 仍为空、`scheduler-name` 注解指向本实例的 Pod，都会作为待调度 Pod 重新进入调度队列，再次经历 Filter/Score/Reserve 与 Bind 流程。换言之，进程内的 Assumed 状态随进程消失，而 etcd 中的注解状态使这些 Pod 可被重新发现；Layer 2 的最终一致性由 etcd 的持久化与 Informer 的重建共同保证，而不是依赖内存队列的存活。
 
 ## 4.5 Layer 3 — 跨实例回退
 
