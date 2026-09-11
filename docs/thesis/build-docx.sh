@@ -60,14 +60,26 @@ fi
 
 # ── 预处理：上标转换 ──
 rm -rf build && mkdir -p build
+FIRST=1
 for f in "${FILES[@]}"; do
-  python3 - "$f" <<'PY'
+  python3 - "$f" "$FIRST" <<'PY'
 import re, sys
-f = sys.argv[1]
+f, first = sys.argv[1], sys.argv[2] == "1"
 t = open(f"chapters/{f}", encoding="utf-8").read()
+# 引用上标：<sup>[N]</sup> → pandoc 上标语法
 t = re.sub(r'<sup>\[([0-9,\s]+)\]</sup>', lambda m: '^\\[' + m.group(1) + '\\]^', t)
-open(f"build/{f}", "w", encoding="utf-8").write(t)
+# 每章/每部分另起一页：在一级标题前插入分页符（文档第一个标题除外）
+BRK = '```{=openxml}\n<w:p><w:r><w:br w:type="page"/></w:r></w:p>\n```\n\n'
+lines, out = t.split('\n'), []
+for ln in lines:
+    if re.match(r'^# ', ln):
+        if not first:
+            out.append(BRK.rstrip('\n'))
+        first = False
+    out.append(ln)
+open(f"build/{f}", "w", encoding="utf-8").write('\n'.join(out))
 PY
+  FIRST=0
 done
 
 # ── 导出 ──
@@ -83,6 +95,28 @@ if [[ -n "${REFERENCE_DOC}" ]]; then
 fi
 "${PANDOC}" "${ARGS[@]}"
 cd ..
+
+# ── 后处理：表格内文字改为五号居中（TableCell 样式）──
+python3 - <<'PY'
+import re, zipfile, shutil
+src = "thesis-preview.docx"
+tmp = "_pp"
+shutil.rmtree(tmp, ignore_errors=True)
+with zipfile.ZipFile(src) as z:
+    z.extractall(tmp)
+p = f"{tmp}/word/document.xml"
+x = open(p, encoding="utf-8").read()
+def fix_tbl(m):
+    return re.sub(r'<w:pStyle w:val="Compact"\s*/>', '<w:pStyle w:val="TableCell"/>', m.group(0))
+x2 = re.sub(r"<w:tbl>.*?</w:tbl>", fix_tbl, x, flags=re.S)
+open(p, "w", encoding="utf-8").write(x2)
+with zipfile.ZipFile(src, "w", zipfile.ZIP_DEFLATED) as z:
+    for f in sorted(__import__("pathlib").Path(tmp).rglob("*")):
+        if f.is_file():
+            z.write(f, f.relative_to(tmp))
+shutil.rmtree(tmp, ignore_errors=True)
+print("后处理完成：表格内文字已套用五号居中样式")
+PY
 
 echo "导出完成：$(pwd)/thesis-preview.docx"
 rm -rf build

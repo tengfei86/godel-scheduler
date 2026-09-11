@@ -85,6 +85,9 @@ STYLES = f"""
 <w:style w:type="paragraph" w:styleId="FootnoteText"><w:name w:val="Footnote Text"/><w:basedOn w:val="Normal"/><w:qFormat/>
 <w:pPr><w:ind w:hangingChars="150" w:hanging="315"/><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/></w:pPr>
 {rpr("宋体", 9)}</w:style>
+<w:style w:type="paragraph" w:styleId="TableCell"><w:name w:val="Table Cell"/><w:basedOn w:val="Normal"/><w:qFormat/>
+<w:pPr><w:jc w:val="center"/><w:ind w:firstLineChars="0" w:firstLine="0" w:leftChars="0" w:left="0"/><w:spacing w:before="40" w:after="40" w:line="240" w:lineRule="auto"/></w:pPr>
+{rpr("宋体", 10.5)}</w:style>
 <w:style w:type="table" w:styleId="Table"><w:name w:val="Table"/><w:basedOn w:val="TableNormal"/><w:qFormat/>
 <w:tblPr><w:jc w:val="center"/><w:tblBorders>
 <w:top w:val="single" w:sz="12" w:space="0" w:color="auto"/>
@@ -133,6 +136,32 @@ def main():
         if t2 != t:
             f.write_text(t2, encoding="utf-8")
 
+    # 页脚：居中页码（Times New Roman 五号，无修饰线）
+    ftr = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        '<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        '<w:p><w:pPr><w:jc w:val="center"/>'
+        '<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="21"/></w:rPr></w:pPr>'
+        '<w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="21"/></w:rPr>'
+        '<w:fldChar w:fldCharType="begin"/></w:r>'
+        '<w:r><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r>'
+        '<w:r><w:fldChar w:fldCharType="separate"/></w:r>'
+        '<w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="21"/></w:rPr><w:t>1</w:t></w:r>'
+        '<w:r><w:fldChar w:fldCharType="end"/></w:r></w:p></w:ftr>'
+    )
+    for _fn in ("footer1.xml", "footer2.xml", "footer3.xml"):
+        (out / "word" / _fn).write_text(ftr, encoding="utf-8")
+    # 页眉：校名（小五号宋体居中）
+    hdr = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        '<w:p><w:pPr><w:jc w:val="center"/>'
+        '<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="宋体"/><w:sz w:val="18"/></w:rPr></w:pPr>'
+        '<w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="宋体"/><w:sz w:val="18"/></w:rPr>'
+        '<w:t>北京航空航天大学硕士学位论文</w:t></w:r></w:p></w:hdr>'
+    )
+    (out / "word" / "header1.xml").write_text(hdr, encoding="utf-8")
+
     # 3) 打包
     if DST.exists():
         DST.unlink()
@@ -140,6 +169,7 @@ def main():
         for p in sorted(out.rglob("*")):
             if p.is_file():
                 z.write(p, p.relative_to(out))
+
     shutil.rmtree(tmp, ignore_errors=True)
     shutil.rmtree(out, ignore_errors=True)
     print(f"已生成参考模板：{DST}")
