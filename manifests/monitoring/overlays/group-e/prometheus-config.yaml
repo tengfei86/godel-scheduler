@@ -86,12 +86,14 @@ data:
         interval: 15s
         rules:
           # Scheduling throughput (pods/s) by result
+          # 用 sum by(result) 聚合掉 pod 维度（Koordinator 可能多副本），
+          # 保留 result label 供 by_result 视图使用
           - record: koord:scheduler_schedule_attempts:rate1m
-            expr: rate(scheduler_schedule_attempts_total[1m])
+            expr: sum by (result) (rate(scheduler_schedule_attempts_total[1m]))
 
-          # Successful scheduling throughput
+          # Successful scheduling throughput — sum() 聚合掉 pod 维度
           - record: koord:scheduler_schedule_attempts_scheduled:rate1m
-            expr: rate(scheduler_schedule_attempts_total{result="scheduled"}[1m])
+            expr: sum(rate(scheduler_schedule_attempts_total{result="scheduled"}[1m]))
 
           # Peak throughput
           - record: koord:scheduler_peak_throughput:30m
