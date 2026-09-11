@@ -1,18 +1,16 @@
-# 第三章分布式 Kubernetes 调度器系统架构
+# 第三章　分布式 Kubernetes 调度器系统架构
 
 本章系统阐述本文所研究的分布式 Kubernetes 调度器架构。首先给出系统的总体视图，说明各组件的职责与交互（§3.1）；随后详细讨论基于 etcd 的三步事务写入模型（§3.2）；接下来分别展开 Dispatcher 的内部数据结构与 Pod 流转过程（§3.3）以及单个 Scheduler 实例的内部调度流程（§3.4）；最后对全章的关键设计要点进行总结（§3.5）。
 
-## 3.1 系统总体架构
+## 3.1　系统总体架构
 
 本文所研究的分布式 Kubernetes 调度器采用"集中式任务分发 + 分布式调度执行"（即分发-执行解耦）的总体架构，由三类核心组件组成：Dispatcher（任务分发器）、多个 Scheduler 实例，以及底层的 Kubernetes API Server 与 etcd 存储。图 3-1 展示了系统的总体架构。
 
-![图 3-1 基于 etcd 的分布式 Kubernetes 调度器系统架构](../figures/fig3-1-system-arch.png)
-
-**图 3-1  基于 etcd 的分布式 Kubernetes 调度器系统架构**
+![图 3-1  基于 etcd 的分布式 Kubernetes 调度器系统架构](../figures/fig3-1-system-arch.png)
 
 图 3-1 中，用户与集群控制平面组件（如 kube-controller-manager、kubelet）通过 API Server 与 etcd 交互；本文所关注的分布式调度器由 Dispatcher 与 N 个 Scheduler 实例构成，二者通过 API Server（进而通过 etcd）间接通信，不存在任何直接的 RPC/gRPC 连接。三条关键的写路径分别是：① dispatching（Dispatcher 写入 Pod 的 `scheduler-name` 注解）、② assuming（Scheduler 内部 Reserve 阶段将 Pod 标记为已选定节点，并写入 `assumed-node` 注解）、③ binding（Scheduler 内部的 Binder 模块调用 Bind 子资源 API 完成最终绑定）。
 
-### 3.1.1 Dispatcher
+### 3.1.1　Dispatcher
 
 Dispatcher 是全集群唯一活跃的分发实例（通过 Leader Election 机制保证高可用），承担着将待调度 Pod 分配到具体 Scheduler 实例的职责。Dispatcher 内部由四个模块组成：
 
@@ -21,7 +19,7 @@ Dispatcher 是全集群唯一活跃的分发实例（通过 Leader Election 机�
 - Node Partition Manager：维护"Partition 1..N"的节点分区表，每个分区归属一个 Scheduler 实例；
 - Scheduler Maintainer：维护 Scheduler 实例的注册与健康状态（Scheduler 0..N）。
 
-### 3.1.2 Scheduler
+### 3.1.2　Scheduler
 
 每个 Scheduler 实例只负责被分配到自己的 Pod，并只对自己分区内的节点执行 Filter/Score 决策。图 3-1 中"Scheduler 0"内部展开了三个主要子系统：
 
@@ -31,17 +29,15 @@ Dispatcher 是全集群唯一活跃的分发实例（通过 Leader Election 机�
 
 图 3-1 所示的 Binder 位于 Scheduler 实例内部，这正是本文第 5 章 ENO 架构改造的结果。原 Gödel 架构中 Binder 是独立部署的 Deployment，两种部署形态的对比与切换机制将在第 5 章展开。
 
-### 3.1.3 API Server 与 etcd
+### 3.1.3　API Server 与 etcd
 
 API Server 是所有组件唯一的通信中介。Dispatcher 与 Scheduler 之间没有直接连接，它们通过 API Server 的 Watch/Informer 机制观察对方对 Pod 资源的修改，实现事件驱动的松耦合协作。etcd 作为 API Server 的后端存储，通过 Raft 协议提供强一致性保证，并通过其原子写入语义（如 `resourceVersion` 乐观并发控制、Bind 子资源的原子性）为整个分布式调度器的一致性提供底层依赖。
 
-## 3.2 基于 etcd 的三步事务写入模型
+## 3.2　基于 etcd 的三步事务写入模型
 
 图 3-1 中标注的三条写路径 ① dispatching、② assuming、③ binding 构成了本文所研究的分布式调度器的核心事务模型。每一步都是对 etcd 的一次原子写入，且都通过 Kubernetes API Server 中转，得益于 etcd 的强一致性保证，这三步写入满足如下性质：
 
-![图 3-2 基于 etcd 的三步事务写入时序（dispatching / assuming / binding）](../figures/fig3-2-etcd-three-step-txn.png)
-
-**图 3-2  基于 etcd 的三步事务写入时序（dispatching → assuming → binding）**
+![图 3-2  基于 etcd 的三步事务写入时序（dispatching → assuming → binding）](../figures/fig3-2-etcd-three-step-txn.png)
 
 （1）① dispatching 步骤。Dispatcher 通过 `PatchPod` 操作，在 Pod 的注解字段中写入 `godel.bytedance.com/scheduler-name={selectedScheduler}`。这一步操作携带 Pod 的 `resourceVersion`，若并发情况下已有其他修改，则会由 etcd 返回 `409 Conflict`，Dispatcher 收到冲突后重新读取 Pod 并重试。这保证了同一 Pod 的分发决策不会出现竞争条件。
 
@@ -55,13 +51,11 @@ API Server 是所有组件唯一的通信中介。Dispatcher 与 Scheduler 之�
 
 > 附注 3-1：上述三步事务写入模型完全依赖 etcd 与 kube-apiserver 提供的原子性语义。本文的分布式调度器没有引入任何自研的分布式协调机制（例如 Raft 复制、分布式锁、外部 ZooKeeper 等）——所有一致性保证都建立在 Kubernetes 已有的存储抽象之上。这一设计选择的优点是：任何一个符合 Kubernetes 规范的 kube-apiserver + etcd 部署都能天然支持本调度器，无需额外的部署依赖。
 
-## 3.3 Dispatcher 内部：Pod 的数据结构流转
+## 3.3　Dispatcher 内部：Pod 的数据结构流转
 
 图 3-3 展示了 Dispatcher 内部 Pod 从进入到分发完成的完整流转过程。
 
-![图 3-3 Dispatcher 内部数据结构流转：Pod 从新建到分发](../figures/fig3-3-dispatcher-flow.png)
-
-**图 3-3  Dispatcher 内部数据结构流转：Pod 从新建到分发完成的过程**
+![图 3-3  Dispatcher 内部数据结构流转：Pod 从新建到分发完成的过程](../figures/fig3-3-dispatcher-flow.png)
 
 如图 3-3 所示，一个新创建的 Pod（尚未被调度）进入 Dispatcher 的流转过程如下：
 
@@ -79,13 +73,11 @@ API Server 是所有组件唯一的通信中介。Dispatcher 与 Scheduler 之�
 
 上述流程中，Sorting Policy Manager 与 Dispatching Policy Manager 的解耦是一个关键设计决策：排序策略解决"下一个应该处理谁"的问题，分发策略解决"应该分给谁"的问题，两者独立扩展。例如，FIFO 排序 + MaxIdle 分发组合能够较好地满足在线服务场景的公平性需求；未来若引入 DRF 排序 + 亲和性优先分发，则可支持多租户资源公平共享。
 
-## 3.4 单个 Scheduler 内部：Pod 的调度流程
+## 3.4　单个 Scheduler 内部：Pod 的调度流程
 
 被 Dispatcher 分发到某个 Scheduler 实例后，Pod 进入该 Scheduler 内部的调度循环。图 3-4 展示了这一过程。
 
-![图 3-4 单个 Scheduler 内部数据结构流转：Pod 在 activeQ/backoffQ 间的流动](../figures/fig3-4-scheduler-flow.png)
-
-**图 3-4  单个 Scheduler 内部：Pod 在活跃队列与退避队列间的流动**
+![图 3-4  单个 Scheduler 内部：Pod 在活跃队列与退避队列间的流动](../figures/fig3-4-scheduler-flow.png)
 
 图 3-4 描述的流转过程可分为如下步骤：
 
@@ -109,7 +101,7 @@ API Server 是所有组件唯一的通信中介。Dispatcher 与 Scheduler 之�
 
 需要特别强调的是，图 3-3 中的 "unschedulable pool → 回到 Sorting Policy Manager" 与图 3-4 中的 "多次重试失败 → 回到 Dispatcher" 是同一个跨实例回退机制的两个侧面：Scheduler 侧决定何时放弃本地重试并回退，Dispatcher 侧决定回退回来的 Pod 何时被重新分发。这一双向协作是分布式调度器实现整体高可用的核心机制之一，其一致性证明将在第 4 章展开。
 
-## 3.5 本章小结
+## 3.5　本章小结
 
 本章从系统总体（§3.1）、事务模型（§3.2）、Dispatcher 内部（§3.3）、Scheduler 内部（§3.4）四个层面完整刻画了本文所研究的分布式 Kubernetes 调度器架构。全章的关键设计要点可归纳为以下三条：
 

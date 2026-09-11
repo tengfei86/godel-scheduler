@@ -2,6 +2,8 @@
 
 > 格式：GB/T 7714-2015 顺序编码制，编号与正文中的上标引用一一对应。
 
+::: {custom-style="Bibliography"}
+
 [1] SCHWARZKOPF M, KONWINSKI A, ABD-EL-MALEK M, et al. Omega: Flexible, Scalable Schedulers for Large Compute Clusters[C]//Proceedings of the 8th ACM European Conference on Computer Systems (EuroSys 2013). 2013: 351-364.
 
 [2] KUBERNETES. Scheduling Framework[EB/OL]. https://kubernetes.io/docs/concepts/scheduling-eviction/scheduling-framework/ [2026-08-25].
@@ -81,3 +83,5 @@
 [39] AUTHORS P. Prometheus Documentation[EB/OL]. https://prometheus.io/docs/ [2026-08-25].
 
 [40] LABS G. Grafana Documentation[EB/OL]. https://grafana.com/docs/ [2026-08-25].
+
+:::

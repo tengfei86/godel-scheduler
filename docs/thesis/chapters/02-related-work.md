@@ -1,8 +1,8 @@
-# 第二章相关工作与背景
+# 第二章　相关工作与背景
 
 本章围绕本文研究涉及的四个方向展开：Kubernetes 原生调度器架构、批处理调度器（Volcano）、混部调度器（Koordinator）、大规模分布式调度器（Gödel）；最后简要介绍 etcd 的一致性模型与本文所依赖的三种原子性语义。
 
-## 2.1 Kubernetes 原生调度器
+## 2.1　Kubernetes 原生调度器
 
 kube-scheduler 是 Kubernetes 集群中的默认调度器<sup>[7]</sup>，也是本文其他调度器的共同基线。其核心工作流程包括三个阶段：
 
@@ -14,19 +14,19 @@ kube-scheduler 采用单实例串行处理架构，虽然内部通过 goroutine 
 
 kube-scheduler 2019 年引入的 Scheduling Framework<sup>[2,13]</sup> 通过插件化机制将调度流程解耦为若干扩展点，使得第三方项目（Volcano、Koordinator 等）可以在不 fork 主线代码的前提下扩展调度能力，这也构成了本章后续调度器的技术起点。
 
-## 2.2 批处理调度器 Volcano
+## 2.2　批处理调度器 Volcano
 
 Volcano 是 CNCF 孵化的 Kubernetes 批处理调度器<sup>[5]</sup>，主要面向 AI 训练、大数据、HPC 等场景。相比 kube-scheduler，其关键差异有三处。最突出的是 Gang 调度：批处理任务（例如分布式训练）通常要求"要么全部 Pod 都被调度，要么全部不调度"，Volcano 通过 PodGroup 抽象与 gang 插件在决策阶段整体判断是否满足 Gang 约束<sup>[14]</sup>。其次是 Session-based 调度周期，Volcano 将一次调度周期封装为 Session，在 Session 内维护该周期看到的资源视图与 job 队列，周期结束时统一提交决策。最后是多维公平共享，Volcano 通过 DRF（Dominant Resource Fairness）<sup>[15]</sup> 等算法在多个租户或队列之间实现公平资源分配。
 
 Volcano 的架构上仍然沿用了 kube-scheduler 的单实例调度，其扩展性主要通过 Session 内的批处理决策与插件化实现，而非水平扩展多个调度器实例。这一设计使 Volcano 在批处理场景下具备较好的策略表达能力，但在需要极高稳态吞吐的场景下同样受制于单实例的处理能力。
 
-## 2.3 混部调度器 Koordinator
+## 2.3　混部调度器 Koordinator
 
 Koordinator 是阿里巴巴开源的、面向在线离线混合部署场景的 Kubernetes 调度器<sup>[6]</sup>，其技术定位与 Volcano 有明显区别。它首先强调 QoS 感知调度<sup>[16]</sup>，区分 Latency-Sensitive（LS）、Best-Effort（BE）等 QoS 等级，使 Best-Effort 类工作负载可以复用 Latency-Sensitive 类工作负载的空闲资源；在此之上引入资源超卖，基于历史使用率数据对节点资源进行合理超售以提升集群整体利用率；并通过干扰隐藏机制，结合节点级 Agent（koordlet）监测高优任务的实际负载，动态压制低优任务。
 
 Koordinator 的架构上同样是基于 kube-scheduler 的插件扩展，属于 Scheduling Framework 之上的能力增强，而非分布式架构改造。因此在多实例并发调度、水平扩展方向上，Koordinator 与 kube-scheduler 保持一致，并不追求单纯的吞吐提升。
 
-## 2.4 大规模分布式调度器 Gödel
+## 2.4　大规模分布式调度器 Gödel
 
 从集群调度系统的演进历程来看，Google 的 Borg<sup>[17]</sup> 采用集中式架构并以成熟的工程实践支撑超大规模集群；Omega<sup>[1]</sup> 提出共享状态与乐观并发控制的调度模型；Mesos<sup>[18]</sup> 采用双层架构，通过资源拍卖机制支持多框架共享集群；基于一致性哈希<sup>[19]</sup> 等分片思想的资源划分进一步降低了全局竞争，Sparrow<sup>[20]</sup> 通过批采样实现分布式低延迟调度，YARN<sup>[21]</sup> 将资源管理从任务调度中解耦。近年来，BeeHive<sup>[22]</sup>、YuniKorn<sup>[23]</sup> 等方案面向弹性伸缩与大数据队列场景提供了差异化能力；Burns 等系统回顾了 Borg、Omega 与 Kubernetes 三代集群管理系统的演进<sup>[24]</sup>，Tirmazi 等给出了 Borg 在超大规模生产环境中的最新实践<sup>[25]</sup>；在调度策略优化方面，Tetris<sup>[26]</sup> 针对多维资源进行联合打包以提升集群利用率。
 
@@ -40,7 +40,7 @@ Gödel 的核心创新点在于节点分区机制：通过将全集群节点划�
 
 然而，Gödel 中 Binder 的独立部署形态在超高并发场景下会再次成为串行化瓶颈，这也是本文第 5 章 ENO 架构改造要解决的问题。此外，Gödel 公开发表的分析中缺乏对节点分区归属动态漂移（Dispatcher 在运行时重新分配节点归属）场景下一致性保证的完整论证，本文第 4 章将补充这一部分。
 
-## 2.5 etcd 的一致性模型与本文关键依赖
+## 2.5　etcd 的一致性模型与本文关键依赖
 
 etcd 是 Kubernetes 集群的核心元数据存储，采用 Raft 协议<sup>[27]</sup>保证强一致性。所有 Kubernetes 资源对象（Pod、Node、Deployment 等）都以 key-value 的形式存储在 etcd 中，并通过 kube-apiserver 暴露 RESTful 接口对外提供访问。etcd 官方文档<sup>[28]</sup>（代码仓库见 <sup>[31]</sup>）对其一致性模型与 API 语义进行了完整描述。
 
@@ -54,7 +54,7 @@ etcd 是 Kubernetes 集群的核心元数据存储，采用 Raft 协议<sup>[27]
 
 本文第 4 章的一致性容错机制正是在上述三种 etcd 原子性语义的基础上层层构建的应用层协议，在此我们对其做出显式引用。与 Gossip 等基于概率传播的最终一致性协议<sup>[29]</sup>不同，本文依赖 etcd 提供的强一致性模型；Raft 作为 Paxos<sup>[30]</sup> 的工程化简化，为 etcd 提供了可理解、可验证的一致性实现。表 2-1 汇总了本文所依赖的关键技术与它们所解决的核心问题之间的映射关系。
 
-**表 2-1  本文关键技术与对应问题映射**
+: 表 2-1  本文关键技术与对应问题映射
 
 | 关键技术 | 对应问题 | 在本文中的作用 |
 |---|---|---|
@@ -64,7 +64,7 @@ etcd 是 Kubernetes 集群的核心元数据存储，采用 Raft 协议<sup>[27]
 | Lease / 实例心跳 | 实例健康检测 | 触发故障回收链路（Layer 3） |
 | 指数退避 | 冲突风暴 | 抑制重试放大，避免 etcd 写放大 |
 
-## 2.6 现有工作的不足与本文定位
+## 2.6　现有工作的不足与本文定位
 
 综上，现有的开源调度器工作主要存在如下不足：
 

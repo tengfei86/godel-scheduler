@@ -1,10 +1,10 @@
-# 第四章基于 etcd 语义的一致性容错机制
+# 第四章　基于 etcd 语义的一致性容错机制
 
 本章是全文的核心章节之一。第 3 章描述的分布式调度器架构中，多个 Scheduler 实例并发工作时不可避免地会遇到多种故障场景，如何在故障下依然维持"任一 Pod 至多绑定到一个节点"这一核心不变量，是评价一个分布式调度器正确性的最低门槛。本章将围绕四类典型威胁展开，给出对应的四层容错机制，并从形式化的角度论证不变量的维持。
 
-## 4.1 一致性挑战与核心不变量
+## 4.1　一致性挑战与核心不变量
 
-### 4.1.1 系统模型
+### 4.1.1　系统模型
 
 本章的讨论采用如下形式化系统模型：
 
@@ -17,7 +17,7 @@ System = { Pod, Node, Dispatcher, Scheduler_1..N, APIServer, etcd }
 - Dispatcher 与 Scheduler_1..N 是本文所研究的调度器组件；
 - APIServer 与 etcd 提供第 2 章 §2.5 所述的三种原子性语义（`resourceVersion` 乐观并发、Watch 一致性、Bind 子资源原子性）。
 
-### 4.1.2 核心不变量
+### 4.1.2　核心不变量
 
 分布式 Kubernetes 调度器需要维持的核心不变量记为 I：
 
@@ -29,13 +29,11 @@ $$
 
 违反 I 的严重性：若同一 Pod 被绑定到两个节点，Kubernetes 的资源核算会出错，kubelet 会在两个节点上同时启动该 Pod 的容器，网络与存储配置将出现冲突，进而可能导致数据错乱、服务异常。这已经超出一般"性能下降"的范畴，属于数据不一致的灾难性事故。因此本章的容错机制不是"锦上添花"的健壮性优化，而是分布式调度器能够生产可用的最低正确性门槛。
 
-### 4.1.3 Pod 生命周期与容错介入点
+### 4.1.3　Pod 生命周期与容错介入点
 
 图 4-1 展示了 Pod 在本文调度器中的生命周期状态机，并标注了四层容错机制的介入点。
 
-![图 4-1 Pod 生命周期状态机与 4 层容错介入点](../figures/fig4-1-pod-state-machine.png)
-
-**图 4-1  Pod 生命周期状态机与 4 层容错机制介入点**
+![图 4-1  Pod 生命周期状态机与 4 层容错机制介入点](../figures/fig4-1-pod-state-machine.png)
 
 如图 4-1 所示，Pod 生命周期的主状态为：
 `[*] → Pending → Dispatched → Assumed → Bound → [*]`
@@ -47,15 +45,15 @@ $$
 - Layer 2（橙色）：L1_Retry → L2_Queue → Assumed，超同步重试上限后交由异步 Reconciler；
 - Layer 3（紫色）：L0_Fail / L2_Queue → Pending，回到最初状态触发 Dispatcher 重分发。
 
-## 4.2 Layer 0 — Node 分区归属前置校验
+## 4.2　Layer 0 — Node 分区归属前置校验
 
-### 4.2.1 威胁 T0：节点分区归属漂移
+### 4.2.1　威胁 T0：节点分区归属漂移
 
 场景：Scheduler A 通过 Filter/Score 决定将 Pod p 调度到 Node X，但在 Bind API 调用发生之前，Dispatcher 因节点负载重新平衡（`node-shuffler` 触发）将 Node X 从 Scheduler A 的分区剥离，改分给 Scheduler B。
 
 危害：若不加拦截，Scheduler A 仍会发起对 Node X 的 Bind 尝试，与此同时 Scheduler B 也可能在自己的分区变更后开始处理与 Node X 相关的调度请求。虽然 Bind 子资源的原子性最终能防止同一 Pod 被绑定两次（本例中只涉及一个 Pod），但会产生大量无效的 Bind 请求、错误日志、以及 API Server 压力。更严重的是，这种"跨分区的 Bind 尝试"会破坏节点分区语义——每个 Scheduler 只应对自己分区内的节点做写操作。
 
-### 4.2.2 Layer 0 的设计
+### 4.2.2　Layer 0 的设计
 
 节点分区的归属通过 Node 对象的注解 `eno.io/scheduler-name` 表达。Dispatcher 在做出分区决策后，通过 `PatchNode` 写入该注解；每个 Scheduler 只处理注解与自身名字匹配的节点。
 
@@ -83,15 +81,15 @@ func (v *NodeValidator) Validate(nodeName string) error {
 
 上述实现有三个要点。节点信息通过 `nodeGetter` 抽象读取，不硬编码数据来源，由调用方决定从 Informer 缓存还是 API Server 读取，生产环境通常选择前者以降低延迟。归属状态被区分为三种：注解为空表示节点尚未分区，允许 Bind 以兼容单调度器场景；注解与自身一致表示归属正确；注解与自身不一致表示归属漂移，此时返回结构化错误。返回的错误类型为 `NodeOwnershipError`，调用方可通过 `errors.As` 判断类型，进而触发 Layer 3 全局回退。
 
-### 4.2.3 Layer 0 的效果
+### 4.2.3　Layer 0 的效果
 
 Layer 0 是四层机制中唯一的前置层——它在 Bind API 之前拦截，避免了跨分区的 API 调用。当两个 Scheduler 因分区状态视图不一致都认为自己拥有 Node X 时，Layer 0 的注解查询确保只有真实持有节点注解的那个 Scheduler 能通过前置校验，另一个会因归属不匹配而被拦截，直接进入 Layer 3 全局回退。
 
 这一层的正确性保证依赖于 etcd 对 Node 注解的原子性写入：当 Dispatcher `PatchNode` 修改归属注解时，任何后续从 Informer 读取到该 Node 的组件，最终都会看到修改后的注解值（Informer 通过 Watch 保证最终一致性）。虽然存在短暂的窗口期（旧值尚未在 Informer 中更新），但这一窗口的处理由 Layer 3 兜底：即使 Scheduler A 通过了 Layer 0（读到旧值）并调用了 Bind API，Bind API 的原子性 + Scheduler B 侧的 Layer 0 校验也能保证最终只有一个 Bind 成功。
 
-## 4.3 Layer 1 — 同步重试
+## 4.3　Layer 1 — 同步重试
 
-### 4.3.1 威胁 T1：Bind API 暂态失败
+### 4.3.1　威胁 T1：Bind API 暂态失败
 
 场景：Scheduler 通过 Layer 0 校验后调用 Bind API，但 API Server 因如下原因返回错误：
 
@@ -101,7 +99,7 @@ Layer 0 是四层机制中唯一的前置层——它在 Bind API 之前拦截�
 
 危害：若不重试，Pod 将长期停留在 Assumed 状态，可用性下降。
 
-### 4.3.2 Layer 1 的设计
+### 4.3.2　Layer 1 的设计
 
 Layer 1 在 `embedded_binder.go` 的 `bindPodToNode` 函数中实现，核心逻辑是指数退避 + 有限次同步重试：
 
@@ -118,15 +116,15 @@ Layer 1 在 `embedded_binder.go` 的 `bindPodToNode` 函数中实现，核心逻
 
 （3）幂等性。Bind API 本身是幂等的：若第一次 Bind 已经成功但客户端未收到响应，第二次 Bind 会因 `spec.nodeName` 已被设置而返回 `409 Conflict`，Scheduler 可将其视为成功。
 
-## 4.4 Layer 2 — 异步 Reconciler
+## 4.4　Layer 2 — 异步 Reconciler
 
-### 4.4.1 威胁 T2：进程内偶发错误
+### 4.4.1　威胁 T2：进程内偶发错误
 
 场景：Scheduler 在 Reserve 阶段将 Pod 标记为 Assumed（写入 `assumed-node` 注解，同时在 SchedulerCache 中记录节点资源占用），但随后 Bind API 失败且同步重试全部耗尽——甚至在极端情况下 Scheduler 进程本身崩溃/panic。
 
 危害：Pod 在 SchedulerCache 中的 Assumed 状态成为孤儿数据，占用节点资源核算配额但从未真正落盘。若不清理，该节点将被 Scheduler 认为已经容纳了这个 Pod，从而拒绝为其他 Pod 分配资源，导致资源永久占用。
 
-### 4.4.2 Layer 2 的设计
+### 4.4.2　Layer 2 的设计
 
 Layer 2 在 `binder_reconciler.go` 中实现，其核心数据结构是 `APICallFailedTaskQueue`——一个持久化的失败任务队列（基于 client-go 的 workqueue<sup>[36]</sup>，具备去重、限流、自动重试能力）。
 
@@ -144,9 +142,9 @@ Layer 2 在 `binder_reconciler.go` 中实现，其核心数据结构是 `APICall
 
 进程崩溃恢复：需要说明的是，`APICallFailedTaskQueue` 基于 client-go 的 workqueue 实现，是内存中的限速队列而非持久化队列，因此 Scheduler 进程 panic 重启后，队列中尚未处理的任务会随之丢失，Layer 2 不能依赖队列本身提供跨崩溃的恢复能力（见 [36] 的 workqueue 说明）。真正提供恢复能力的是 etcd 中持久化的 Pod 状态：进程重启后，Scheduler 通过 Informer 从 etcd 同步 Pod 并重建 SchedulerCache，此时凡 `spec.nodeName` 仍为空、`scheduler-name` 注解指向本实例的 Pod，都会作为待调度 Pod 重新进入调度队列，再次经历 Filter/Score/Reserve 与 Bind 流程。换言之，进程内的 Assumed 状态随进程消失，而 etcd 中的注解状态使这些 Pod 可被重新发现；Layer 2 的最终一致性由 etcd 的持久化与 Informer 的重建共同保证，而不是依赖内存队列的存活。
 
-## 4.5 Layer 3 — 跨实例回退
+## 4.5　Layer 3 — 跨实例回退
 
-### 4.5.1 威胁 T3：本地重试耗尽 / 节点长期不可用
+### 4.5.1　威胁 T3：本地重试耗尽 / 节点长期不可用
 
 场景：一个 Pod 在 Scheduler A 中反复失败——例如 Scheduler A 分区内确实无可用节点、或者 Node X 因硬件故障从集群中移除、或者 apiserver 长期不可达。Layer 1 与 Layer 2 都无法在本实例内解决问题。
 
@@ -154,17 +152,13 @@ Layer 2 在 `binder_reconciler.go` 中实现，其核心数据结构是 `APICall
 
 实例级失效的回收路径：除上述任务级故障外，Scheduler 实例本身失效（进程崩溃或心跳超时失活）时，其名下未完成的任务同样需要全局回收。Dispatcher 的 Scheduler Maintainer 基于实例心跳（Lease/心跳上报）进行失活判定；失效实例名下仍处于 Dispatched 状态的任务，由 PodStateReconciler 将其重置为 Pending 并清理 `scheduler-name` 等注解，随后重新进入分发流程。这是 Layer 3 回收路径在实例级故障场景下的体现，与任务级回退共用同一套"清注解 → 重分发"机制，从而保证失效实例遗留的任务不会成为孤儿数据。
 
-### 4.5.2 Layer 3 的设计
+### 4.5.2　Layer 3 的设计
 
 Layer 3 的核心思想是：放弃本实例，交还给 Dispatcher 重新分发。图 4-2a 展示了 Dispatcher 侧的主分发流程，图 4-2b 展示了错误恢复逻辑。
 
-![图 4-2a Dispatcher 策略分发决策路径](../figures/fig4-2a-dispatcher-main-flow.png)
+![图 4-2a  Dispatcher 策略分发的决策路径（PodGroup / Owner 亲和 / 负载均衡）](../figures/fig4-2a-dispatcher-main-flow.png)
 
-**图 4-2a  Dispatcher 策略分发的决策路径（PodGroup / Owner 亲和 / 负载均衡）**
-
-![图 4-2b Dispatcher 侧的错误恢复流程](../figures/fig4-2b-dispatcher-error-recovery.png)
-
-**图 4-2b  Dispatcher 侧的错误恢复流程（Layer 3 全局回退）**
+![图 4-2b  Dispatcher 侧的错误恢复流程（Layer 3 全局回退）](../figures/fig4-2b-dispatcher-error-recovery.png)
 
 Layer 3 的具体操作序列为：
 
@@ -178,21 +172,19 @@ Layer 3 的具体操作序列为：
 
 （3）幂等重分发：Dispatcher 的 `selectScheduler` 方法是幂等的——多次调用最终会写入同一个 `scheduler-name` 注解（这一注解通过 API Server 的 Patch 语义 + `resourceVersion` 保证并发安全）。因此即使 Layer 3 触发时 Dispatcher 恰好也在处理该 Pod，也不会产生错误的分发结果。
 
-### 4.5.3 Layer 3 与 Layer 0 的相互衔接
+### 4.5.3　Layer 3 与 Layer 0 的相互衔接
 
 Layer 3 与 Layer 0 在流程上相互衔接，构成一条可自我修复的回路：Layer 3 清除 `scheduler-name` 注解后，Pod 被重新分发给另一个 Scheduler B；Scheduler B 在调用 Bind API 之前执行 Layer 0 校验；若 Node X 的归属仍为 Scheduler A（例如本次回退由 Layer 1 重试耗尽触发，与节点归属漂移无关），Layer 0 会拒绝该 Bind 并再次触发 Layer 3；若 Node X 的归属已漂移至 Scheduler B，Layer 0 校验通过，Bind API 随即完成绑定。
 
 这条回路保证了无论故障如何组合，Pod 最终要么被正确绑定到一个节点，要么持续处于 Pending 状态等待条件改善，不会陷入"错误绑定"或"永久卡死"的中间态。
 
-## 4.6 一致性论证
+## 4.6　一致性论证
 
 本节给出四层容错机制维持核心不变量 I 的完整论证。图 4-3 综合展示了 4 类威胁、4 层防御、以及 4 项证明要点的对应关系。
 
-![图 4-3 一致性论证：不变量 + 威胁-防御-证明要点](../figures/fig4-3-consistency-invariant.png)
+![图 4-3  一致性论证：核心不变量 I 及其 4 层威胁-防御映射](../figures/fig4-3-consistency-invariant.png)
 
-**图 4-3  一致性论证：核心不变量 I 及其 4 层威胁-防御映射**
-
-### 4.6.1 证明要点
+### 4.6.1　证明要点
 
 P1【Bind 唯一性】 来自 Kubernetes 自身的原子性保证。Bind API 是 Pod 资源的子资源，kube-apiserver 通过 etcd 事务保证：当且仅当 Pod 的 `spec.nodeName` 为空时允许原子设置为目标节点；若已设置，返回 `409 Conflict`。这是 Kubernetes 集群层面的性质，本文只引用而不重新证明。
 
@@ -206,7 +198,7 @@ P3【注解清理 → 重分发的时序】 由 Layer 3 的操作顺序保证。
 
 P4【时序保证：Layer 0 前置拦截】 由 Node 归属注解的原子写入 + Layer 0 校验共同保证。当 Dispatcher `PatchNode` 修改归属注解时，Kubernetes 通过 `resourceVersion` 保证原子性；Layer 0 在 Bind API 前查询该注解，只有归属与自身匹配的 Scheduler 才能通过校验。虽然 Informer 缓存可能短暂滞后，但即使两个 Scheduler 都通过了 Layer 0，P1 的 Bind API 原子性也能保证最终只有一个 Bind 成功——第二个会因 `nodeName` 已设置而返回 `409 Conflict`，触发 Layer 1 重试，进而 Layer 2/3 清理。
 
-### 4.6.2 组合论证
+### 4.6.2　组合论证
 
 现证明 P1 ∧ P2 ∧ P3 ∧ P4 ⇒ 不变量 I 永远成立。
 
@@ -222,7 +214,7 @@ P4【时序保证：Layer 0 前置拦截】 由 Node 归属注解的原子写入
 
 综上，四种情况覆盖了图 4-1 状态机的所有可能路径，且每种情况下 I 都得到维持。■
 
-### 4.6.3 论证的形式化程度
+### 4.6.3　论证的形式化程度
 
 本文的一致性论证采用严谨自然语言 + 关键代码引用 + 状态机图的组合方式，而非 TLA+ 等形式化验证工具（一致性属性的系统化分析框架可参见 Golab 等的工作<sup>[37]</sup>）。这一选择的理由是：
 
@@ -232,7 +224,7 @@ P4【时序保证：Layer 0 前置拦截】 由 Node 归属注解的原子写入
 
 若未来在生产环境暴露出未考虑的边界情况，可考虑将 Layer 0/3 的时序性质用 TLA+ 显式建模，作为后续研究方向（见第 7 章展望）。
 
-## 4.7 本章小结
+## 4.7　本章小结
 
 本章围绕核心不变量 "任一 Pod 至多绑定到一个节点" 展开，识别了分布式调度器场景下的 4 类典型威胁：
 

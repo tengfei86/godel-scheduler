@@ -28,7 +28,7 @@ if [[ -z "${PANDOC}" || ! -x "${PANDOC}" ]]; then
 fi
 
 # ── 解析参数 ──
-REFERENCE_DOC=""
+REFERENCE_DOC="${THESIS_DIR}/beihang-reference.docx"
 if [[ "${1:-}" == "--reference" ]]; then
   REFERENCE_DOC="${2:?用法: build-docx.sh --reference <模板.docx>}"
   [[ -f "${REFERENCE_DOC}" ]] || { echo "错误：模板不存在 ${REFERENCE_DOC}" >&2; exit 1; }
@@ -51,6 +51,12 @@ FILES=(
   98-appendix.md
   99-acknowledgements.md
 )
+
+# ── 参考模板：不存在则自动生成 ──
+if [[ ! -f "${REFERENCE_DOC}" ]]; then
+  echo "参考模板不存在，正在生成：${REFERENCE_DOC}"
+  python3 "${THESIS_DIR}/make-reference.py"
+fi
 
 # ── 预处理：上标转换 ──
 rm -rf build && mkdir -p build
