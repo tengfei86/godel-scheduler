@@ -1,1 +1,1 @@
-{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"godel:scheduler_pod_scheduling_attempts:rate1m"},"values":[[1788163529,"0"],[1788163544,"0"],[1788163559,"0"],[1788163574,"37.77777777777777"]]}]}}
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"godel:scheduler_pod_scheduling_attempts:rate1m"},"values":[[1789216019,"0"],[1789216034,"0"],[1789216049,"0"],[1789216064,"0"],[1789216079,"73.37174814814814"],[1789216094,"240.98077037037035"]]}]}}
