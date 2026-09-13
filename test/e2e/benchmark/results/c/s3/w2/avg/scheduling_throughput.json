@@ -1,1 +1,1 @@
-{"status": "success", "data": {"resultType": "matrix", "result": [{"metric": {"profile": "default-scheduler", "result": "scheduled"}, "values": [[0, "441.220173"], [15, "668.531627"], [30, "835.79376"], [45, "677.111111"], [60, "372.733333"], [75, "137.755556"]]}]}}
+{"status": "success", "data": {"resultType": "matrix", "result": [{"metric": {"profile": "default-scheduler", "result": "scheduled"}, "values": [[0, "486.150933"], [15, "696.558747"], [30, "816.0"], [45, "723.777778"], [60, "440.266667"], [75, "194.777778"], [90, "0.0"]]}]}}
