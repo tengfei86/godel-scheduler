@@ -61,13 +61,17 @@ WORKLOAD_TYPE[w5]="burst"
 WORKLOAD_DESC[w5]="突发洪峰 (0→2000→0 pods/s, 50K pods)"
 
 # W6: Gang 调度
+# 注：2026-09-14 从 10K pods (2K gangs) 扩到 50K pods (10K gangs)——
+# 原配置在 s3 (5000 节点) 下 30 秒即完成，rate[1m] 采样窗口内数据点过少，
+# 导致 avg/compare 图无法生成（s3/w6/inst1 baseline 空数据）。扩容后
+# 单次实验 duration 预期 ~60 秒，采样点充足。
 WORKLOAD_RATE[w6]=1000
-WORKLOAD_TOTAL[w6]=10000
+WORKLOAD_TOTAL[w6]=50000
 WORKLOAD_CPU[w6]=100
 WORKLOAD_MEM[w6]=128
 WORKLOAD_GANG_SIZE[w6]=5
 WORKLOAD_TYPE[w6]="gang"
-WORKLOAD_DESC[w6]="Gang 调度 (200 groups/s × 5 pods/group, 10K pods)"
+WORKLOAD_DESC[w6]="Gang 调度 (200 groups/s × 5 pods/group, 50K pods, 10K gangs)"
 
 # W7: 异构资源
 WORKLOAD_RATE[w7]=500

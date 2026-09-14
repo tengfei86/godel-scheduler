@@ -23,7 +23,7 @@
 #   w3 - 高负载稳态     1,000 pods/s, 100K pods, cpu:100m/mem:128Mi
 #   w4 - 极限负载       2,000 pods/s, 200K pods, cpu:100m/mem:128Mi
 #   w5 - 突发洪峰   0→2000→0 pods/s,  50K pods, cpu:100m/mem:128Mi
-#   w6 - Gang 调度   200 groups/s × 5 pods/group, 10K pods
+#   w6 - Gang 调度   200 groups/s × 5 pods/group, 50K pods (10K gangs)
 #   w7 - 异构资源       500 pods/s,  50K pods, 混合规格(30%小+40%中+20%大+10%超大)
 #   w8 - 大规模集群   2,000 pods/s, 800K pods, cpu:100m/mem:128Mi
 #
