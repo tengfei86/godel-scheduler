@@ -1,0 +1,1 @@
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"eno:binder_embedded_bind_pods:rate1m"},"values":[[1789354659,"0"],[1789354674,"0"]]}]}}

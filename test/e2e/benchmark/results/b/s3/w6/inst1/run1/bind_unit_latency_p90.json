@@ -1,0 +1,1 @@
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"godel:binder_unit_e2e_duration:p90"},"values":[[1789355097,"0.03633641368473359"]]}]}}
