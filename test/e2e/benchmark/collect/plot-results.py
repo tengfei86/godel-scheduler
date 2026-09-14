@@ -444,6 +444,10 @@ def average_runs(dirs, output_dir, metric_names=None, fmt="png", std_band=False,
     all_metrics = set()
     for d in dirs:
         for f in Path(d).glob("*.json"):
+            # run_* 是 export-prometheus.sh 为短 run（如 w6）导出的 run 级标量
+            # （累计直方图分位），不参与时序聚合与逐点对比，直接跳过
+            if f.stem.startswith("run_"):
+                continue
             all_metrics.add(f.stem)
 
     if metric_names:
@@ -650,6 +654,10 @@ def compare_groups(dirs, output_dir, metric_names=None, fmt="png", label_mode="s
     all_metrics = set()
     for d in dirs:
         for f in Path(d).glob("*.json"):
+            # run_* 是 export-prometheus.sh 为短 run（如 w6）导出的 run 级标量
+            # （累计直方图分位），不参与时序聚合与逐点对比，直接跳过
+            if f.stem.startswith("run_"):
+                continue
             all_metrics.add(f.stem)
 
     if metric_names:

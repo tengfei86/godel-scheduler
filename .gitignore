@@ -19,6 +19,10 @@
 # OSX trash
 .DS_Store
 
+# Python
+__pycache__/
+*.pyc
+
 # Eclipse files
 .classpath
 .project

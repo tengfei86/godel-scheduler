@@ -277,6 +277,46 @@ declare -A KOORDINATOR_QUERIES=(
 )
 
 # ═══════════════════════════════════════════════
+# run 级累计直方图分位（短 run 专用，仅组 A/B）
+# ═══════════════════════════════════════════════
+# 背景：时序分位 recording rule 基于 rate(..._bucket[1m])，run 时长不足约 2 分钟时，
+# query_range 只能导出 0~1 个采样点（w6 Gang 实测单次 run 仅 29~39 s），按第 6 章
+# 口径（去首尾各 2 点）会得到空值。
+#
+# 这里换一条独立路径：用范围查询首尾两端的累计计数之差做 histogram_quantile，
+#   @ start() / @ end() 固定取范围查询的起止时刻（Prometheus ≥ 2.33 默认支持），
+# 计数器相减后仍是按 le 累积的直方图，直方图分位由 Prometheus 自行插值计算。
+# 这样每个 Pod 都计入样本，不依赖滑窗长度，且对"是否逐 run 重部署"都成立。
+#
+# 输出 run_<metric>.json，格式与其余导出文件一致（matrix，1~2 点，各点数值相同）。
+# 尾部留 RUN_TAIL_MARGIN 秒余量以覆盖最后一次 scrape。
+export_run_totals() {
+  local pod_e2e_bucket="${1:?用法: export_run_totals <pod_e2e_bucket>}"
+  local margin="${RUN_TAIL_MARGIN:-30}"
+  local query_end=$(( END + margin ))
+  local span=$(( query_end - START ))
+  if (( span < 60 )); then
+    span=60
+  fi
+  local step="${span}s"
+
+  local sched_bucket="scheduler_e2e_scheduling_duration_seconds_bucket"
+
+  declare -A run_queries=(
+    [run_scheduling_latency_p90]="histogram_quantile(0.90, sum by (le)((${sched_bucket} @ end()) - (${sched_bucket} @ start())))"
+    [run_scheduling_latency_p99]="histogram_quantile(0.99, sum by (le)((${sched_bucket} @ end()) - (${sched_bucket} @ start())))"
+    [run_pod_e2e_latency_p90]="histogram_quantile(0.90, sum by (le)((${pod_e2e_bucket} @ end()) - (${pod_e2e_bucket} @ start())))"
+    [run_pod_e2e_latency_p99]="histogram_quantile(0.99, sum by (le)((${pod_e2e_bucket} @ end()) - (${pod_e2e_bucket} @ start())))"
+  )
+
+  log_info "导出 run 级累计直方图分位 (window=[${START}, ${query_end}], step=${step})..."
+  for name in "${!run_queries[@]}"; do
+    log_debug "  ${name}"
+    prometheus_query_range "${run_queries[$name]}" "$START" "$query_end" "${DIR}/${name}.json" "$step"
+  done
+}
+
+# ═══════════════════════════════════════════════
 # 按组选择查询集并导出
 # ═══════════════════════════════════════════════
 export_queries() {
@@ -311,12 +351,14 @@ case "$GROUP" in
     export_queries COMMON_QUERIES ENO_EMBEDDED_QUERIES
     log_info "导出 ENO Embedded Binder 查询集 (${#ENO_EMBEDDED_QUERIES[@]} 条)..."
     export_queries ENO_EMBEDDED_QUERIES
+    export_run_totals "eno_pod_e2e_duration_seconds_bucket"
     ;;
   b)
     log_info "导出通用查询..."
     export_queries COMMON_QUERIES GODEL_QUERIES
     log_info "导出 Gödel Shared Binder 查询集 (${#GODEL_QUERIES[@]} 条)..."
     export_queries GODEL_QUERIES
+    export_run_totals "godel_pod_e2e_duration_seconds_bucket"
     ;;
   c)
     log_info "导出通用查询..."
