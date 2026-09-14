@@ -1,0 +1,1 @@
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"godel:scheduler_pod_scheduling_attempts:rate1m"},"values":[[1789365657,"0"],[1789365672,"89.30342222222221"],[1789365687,"189.92012592592593"]]}]}}

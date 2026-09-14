@@ -1,1 +1,1 @@
-{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"godel:scheduler_peak_throughput:30m"},"values":[[1789355555,"0"],[1789355570,"0"],[1789355585,"34.719566666666665"]]}]}}
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"godel:scheduler_peak_throughput:30m"},"values":[[1789365301,"0"],[1789365316,"0"],[1789365331,"94.54496296296298"]]}]}}
