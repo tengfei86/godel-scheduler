@@ -1,0 +1,7 @@
+# 生成的构建产物（可由 build-docx.sh / make-reference.py 重新生成）
+beihang-reference.docx
+thesis-preview.docx
+thesis-beihang.docx
+build/
+_ref_out/
+_ref_tmp/

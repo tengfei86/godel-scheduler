@@ -229,8 +229,8 @@ declare -A VOLCANO_QUERIES=(
   [pending_pods]='sum(volcano_unschedule_task_count)'
   [unschedule_jobs]='sum(volcano_unschedule_job_count)'
 
-  # Goroutines
-  [goroutines]='go_goroutines{job=~".*volcano.*"}'
+  # Goroutines（sum() 防御性聚合，避免未来多副本时 series 分裂）
+  [goroutines]='sum(go_goroutines{job=~".*volcano.*"})'
 )
 
 # ═══════════════════════════════════════════════
@@ -269,11 +269,11 @@ declare -A KOORDINATOR_QUERIES=(
   [scheduling_success_rate]='koord:scheduler_schedule_attempts:success_rate1m'
   [scheduling_error_rate]='koord:scheduler_schedule_attempts:error_rate1m'
 
-  # Pending pods（直接查原始 gauge）
-  [pending_pods]='scheduler_pending_pods{job=~".*koord.*"}'
+  # Pending pods（sum() 聚合 pod 副本，保留 queue 维度供分队列显示）
+  [pending_pods]='sum(scheduler_pending_pods{job=~".*koord.*"}) by (queue)'
 
-  # Goroutines
-  [goroutines]='go_goroutines{job=~".*koord.*"}'
+  # Goroutines（sum() 聚合 pod 副本）
+  [goroutines]='sum(go_goroutines{job=~".*koord.*"})'
 )
 
 # ═══════════════════════════════════════════════

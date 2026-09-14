@@ -238,8 +238,57 @@ plt.rcParams.update(
 )
 
 
+# 实例级 label：识别"哪个 pod / 哪个副本"而非业务维度。
+# 归一化时剥离这些 label，使跨 run 的时序能按业务维度聚合（例如 --redeploy-each-run
+# 场景下每次 run 的 pod 名不同，导致同一业务指标被拆成多条独立 series）。
+_INSTANCE_LABELS = {
+    "pod", "instance", "pod_ip", "container", "container_id",
+    "node", "service", "namespace", "job",
+}
+
+
+def _normalize_metric_label(metric: dict) -> str:
+    """从 Prometheus metric dict 构建业务级 label 字符串，剥离实例维度。
+
+    保留：__name__ 以外的业务 label（如 queue, result, work, le, method, verb 等）
+    剥离：pod, instance, pod_ip, container, node 等实例标识
+    """
+    if not metric:
+        return ""
+    kept = {
+        k: v for k, v in metric.items()
+        if k != "__name__" and k not in _INSTANCE_LABELS
+    }
+    return ", ".join(f"{k}={v}" for k, v in sorted(kept.items()))
+
+
+def _aggregate_series_by_label(results):
+    """把 Prometheus result 里 label 归一化后重复的 series 逐点求和合并。
+
+    典型触发：--redeploy-each-run 导致 pod label 不同、其余标签相同的 3 条 series
+    → 归一化后 label 空/相同 → 应合并成 1 条（sum by timestamp）
+    """
+    merged: dict[str, dict[float, float]] = {}
+    for series in results:
+        label = _normalize_metric_label(series.get("metric", {}))
+        values = series.get("values", [])
+        for t_str, v_str in values:
+            t = float(t_str)
+            try:
+                v = float(v_str)
+            except (TypeError, ValueError):
+                continue
+            if label not in merged:
+                merged[label] = {}
+            merged[label][t] = merged[label].get(t, 0.0) + v
+    return merged
+
+
 def load_prometheus_json(filepath):
-    """加载 Prometheus query_range JSON 文件，返回 [(series_label, timestamps, values), ...]"""
+    """加载 Prometheus query_range JSON 文件，返回 [(series_label, timestamps, values), ...]
+
+    自动做实例级 label 归一化：同一时刻多 pod 的采样点会 sum 起来变成一条 series。
+    """
     with open(filepath, "r") as f:
         data = json.load(f)
 
@@ -247,22 +296,15 @@ def load_prometheus_json(filepath):
         return []
 
     results = data.get("data", {}).get("result", [])
+    merged = _aggregate_series_by_label(results)
+
     series_list = []
-
-    for series in results:
-        metric = series.get("metric", {})
-        values = series.get("values", [])
-        if not values:
+    for label, ts_to_val in merged.items():
+        if not ts_to_val:
             continue
-
-        # 构建 series 标签
-        if metric:
-            label = ", ".join(f"{k}={v}" for k, v in metric.items() if k != "__name__")
-        else:
-            label = ""
-
-        timestamps = [datetime.fromtimestamp(float(v[0])) for v in values]
-        vals = [float(v[1]) for v in values]
+        sorted_ts = sorted(ts_to_val.keys())
+        timestamps = [datetime.fromtimestamp(t) for t in sorted_ts]
+        vals = [ts_to_val[t] for t in sorted_ts]
         series_list.append((label, timestamps, vals))
 
     return series_list
@@ -456,7 +498,11 @@ def average_runs(dirs, output_dir, metric_names=None, fmt="png", std_band=False,
         label_avg_data = {}
 
         for li, label in enumerate(sorted(all_labels)):
-            # 计算该 label 在各 run 中的末尾相对时间，取最短覆盖为上界
+            # 计算该 label 在各 run 中的末尾相对时间。
+            # 用中位数而非最小值作 t_end 上界——避免"极短异常 run（如冷启动
+            # 采样稀疏、metric rate 前段返空）"把整个聚合窗口拉短，导致有效
+            # 数据被丢弃甚至触发 <2 点跳过。超出各自 run 范围的时间点在
+            # np.interp 阶段自动填 NaN，nanmedian/nanmean 会跳过 NaN。
             label_ends = []
             for entry in run_data:
                 if label not in entry:
@@ -466,7 +512,7 @@ def average_runs(dirs, output_dir, metric_names=None, fmt="png", std_band=False,
                     label_ends.append(rel_t[-1])
             if not label_ends:
                 continue
-            t_end = min(label_ends)
+            t_end = float(np.median(label_ends))
             common_t = np.arange(0, t_end, STEP)
             if len(common_t) < 2:
                 continue

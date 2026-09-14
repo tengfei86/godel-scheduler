@@ -1,1 +1,1 @@
-{"status": "success", "data": {"resultType": "matrix", "result": [{"metric": {}, "values": [[0, "0.012209"], [15, "0.012542"], [30, "0.011703"], [45, "0.01276"]]}]}}
+{"status": "success", "data": {"resultType": "matrix", "result": [{"metric": {}, "values": [[0, "0.011373"], [15, "0.011542"], [30, "0.011659"], [45, "0.011567"], [60, "0.011636"]]}]}}
