@@ -2,110 +2,142 @@
 
 ## 附录 A  完整实验数据表
 
-本附录汇总本文全部场景下 ENO（a）与 Gödel（b）的关键指标稳态均值（口径见 §6.3：稳态窗口均值，剔除头尾 30 秒，每场景 3 次重复取均值）。原始数据与跨组对比图见仓库 `test/e2e/benchmark/results/`。
+本附录汇总 `test/e2e/benchmark/results/compare/` 下 16 个对比场景的关键指标。场景命名规则为 `{规模}_{负载}[_inst3]`：不带 `_inst3` 后缀的场景包含全部五组调度器，带后缀的场景仅含 ENO 与 Gödel 两组（均为 3 实例）。所有数值由同组 3 次重复实验按时间点取中位数聚合后，在剔除头尾各 30 秒的稳态窗口内求均值得到；标—表示该场景未采集到有效数据。
 
-: 表 A-1  ENO 与 Gödel 关键指标汇总（稳态口径）
+: 表 A-1  各对比场景关键指标汇总
 
-| 场景（实例配置） | 指标 | ENO（a） | Gödel（b） | 相对变化 |
-|---|---|---|---|---|
-| s2/w2（inst1） | 吞吐(pods/s) | 313.76 | 414.94 | -24.4% |
-|  | 峰值吞吐 | 500.09 | 539.77 | -7.4% |
-|  | P90(秒) | 0.048 | 0.060 | +20.1% |
-|  | P99(秒) | 0.185 | 0.195 | +5.4% |
-|  | E2E P99(秒) | 0.332 | 0.420 | +20.9% |
-|  | 绑定P99(秒) | 0.036 | 0.068 | +47.0% |
-|  | Pending堆积 | 0.400 | 0.167 | -140.0% |
-|  | 成功率 | 1.00 | 1.00 | +0.0% |
-| s2/w3（inst1） | 吞吐(pods/s) | 444.37 | 417.02 | +6.6% |
-|  | 峰值吞吐 | 984.81 | 869.40 | +13.3% |
-|  | P90(秒) | 2.69 | 15.93 | +83.1% |
-|  | P99(秒) | 3.48 | 19.35 | +82.0% |
-|  | E2E P99(秒) | 3.74 | 18.39 | +79.7% |
-|  | 绑定P99(秒) | 0.103 | 0.097 | -6.9% |
-|  | Pending堆积 | 799.40 | 4394.38 | +81.8% |
-|  | 成功率 | 1.00 | 1.00 | +0.0% |
-| s3/w2（inst1） | 吞吐(pods/s) | 314.60 | 409.66 | -23.2% |
-|  | 峰值吞吐 | 632.17 | 500.62 | +26.3% |
-|  | P90(秒) | 0.243 | 0.257 | +5.5% |
-|  | P99(秒) | 0.582 | 0.508 | -14.4% |
-|  | E2E P99(秒) | 0.912 | 1.04 | +12.0% |
-|  | 绑定P99(秒) | 0.037 | 0.052 | +28.6% |
-|  | Pending堆积 | 0.200 | 16.83 | +98.8% |
-|  | 成功率 | 1.00 | 1.00 | +0.0% |
-| s3/w3（inst1） | 吞吐(pods/s) | 444.44 | 409.49 | +8.5% |
-|  | 峰值吞吐 | 789.33 | 686.38 | +15.0% |
-|  | P90(秒) | 16.01 | 30.91 | +48.2% |
-|  | P99(秒) | 19.02 | 36.21 | +47.5% |
-|  | E2E P99(秒) | 20.09 | 33.86 | +40.7% |
-|  | 绑定P99(秒) | 0.059 | 0.078 | +23.3% |
-|  | Pending堆积 | 4956.20 | 7912.44 | +37.4% |
-|  | 成功率 | 1.00 | 1.00 | +0.0% |
-| s3/w3（inst3） | 吞吐(pods/s) | 418.22 | 414.36 | +0.9% |
-|  | 峰值吞吐 | 1270.60 | 913.84 | +39.0% |
-|  | P90(秒) | 0.047 | 0.058 | +17.8% |
-|  | P99(秒) | 0.385 | 0.325 | -18.4% |
-|  | E2E P99(秒) | 0.625 | 1.21 | +48.5% |
-|  | 绑定P99(秒) | 0.065 | 0.102 | +36.3% |
-|  | Pending堆积 | 2.13 | 1.19 | -79.6% |
-|  | 成功率 | 1.00 | 1.00 | +0.0% |
-| s3/w4（inst3） | 吞吐(pods/s) | 345.26 | 292.26 | +18.1% |
-|  | 峰值吞吐 | 1873.83 | 1641.79 | +14.1% |
-|  | P90(秒) | 7.89 | 11.62 | +32.1% |
-|  | P99(秒) | 9.88 | 15.88 | +37.8% |
-|  | E2E P99(秒) | 11.90 | 22.17 | +46.3% |
-|  | 绑定P99(秒) | 0.162 | 0.777 | +79.1% |
-|  | Pending堆积 | 1283.48 | 2291.89 | +44.0% |
-|  | 成功率 | 1.00 | 1.00 | +0.0% |
-| s3/w5（inst3） | 吞吐(pods/s) | 254.94 | 534.37 | -52.3% |
-|  | 峰值吞吐 | 809.69 | 1020.68 | -20.7% |
-|  | P90(秒) | 1.81 | 0.432 | -318.6% |
-|  | P99(秒) | 2.79 | 1.18 | -135.3% |
-|  | E2E P99(秒) | 34.22 | 7.03 | -386.9% |
-|  | 绑定P99(秒) | 0.081 | 0.158 | +48.8% |
-|  | Pending堆积 | 273.33 | 59.71 | -357.7% |
-|  | 成功率 | 1.00 | 1.00 | +0.0% |
-| s3/w7（inst3） | 吞吐(pods/s) | 0.000 | 368.19 | -100.0% |
-|  | 峰值吞吐 | 205.33 | 520.09 | -60.5% |
-|  | P90(秒) | 0.016 | 0.367 | +95.7% |
-|  | P99(秒) | 0.041 | 1.17 | +96.5% |
-|  | E2E P99(秒) | 32.60 | 1.76 | -1754.6% |
-|  | 绑定P99(秒) | 0.026 | 0.062 | +57.9% |
-|  | Pending堆积 | 0.000 | 42.00 | +100.0% |
-|  | 成功率 | 1.00 | 1.00 | +0.0% |
-| s4/w3（inst3） | 吞吐(pods/s) | 445.69 | 392.07 | +13.7% |
-|  | 峰值吞吐 | 952.27 | 938.05 | +1.5% |
-|  | P90(秒) | 0.059 | 4.97 | +98.8% |
-|  | P99(秒) | 0.209 | 7.29 | +97.1% |
-|  | E2E P99(秒) | 0.672 | 7.46 | +91.0% |
-|  | 绑定P99(秒) | 0.062 | 0.095 | +34.7% |
-|  | Pending堆积 | 5.13 | 605.18 | +99.2% |
-|  | 成功率 | 1.00 | 1.00 | +0.0% |
-| s4/w4（inst3） | 吞吐(pods/s) | 365.15 | 402.86 | -9.4% |
-|  | 峰值吞吐 | 1453.53 | 1417.38 | +2.6% |
-|  | P90(秒) | 24.14 | 29.91 | +19.3% |
-|  | P99(秒) | 30.05 | 34.53 | +13.0% |
-|  | E2E P99(秒) | 53.71 | 42.22 | -27.2% |
-|  | 绑定P99(秒) | 0.128 | 0.350 | +63.4% |
-|  | Pending堆积 | 6012.17 | 6490.92 | +7.4% |
-|  | 成功率 | 1.00 | 1.00 | +0.0% |
-| s4/w5（inst3） | 吞吐(pods/s) | 581.12 | 505.94 | +14.9% |
-|  | 峰值吞吐 | 902.44 | 965.49 | -6.5% |
-|  | P90(秒) | 1.33 | 1.40 | +5.4% |
-|  | P99(秒) | 2.62 | 2.44 | -7.2% |
-|  | E2E P99(秒) | 3.12 | 5.15 | +39.4% |
-|  | 绑定P99(秒) | 0.075 | 0.095 | +20.9% |
-|  | Pending堆积 | 383.17 | 241.00 | -59.0% |
-|  | 成功率 | 1.00 | 1.00 | +0.0% |
-| s4/w7（inst3） | 吞吐(pods/s) | 1215.47 | 406.23 | +199.2% |
-|  | 峰值吞吐 | 1520.91 | 519.10 | +193.0% |
-|  | P90(秒) | 1.28 | 0.449 | -185.9% |
-|  | P99(秒) | 3.85 | 1.93 | -99.6% |
-|  | E2E P99(秒) | 3.72 | 2.47 | -50.8% |
-|  | 绑定P99(秒) | 0.045 | 0.062 | +27.1% |
-|  | Pending堆积 | 60.83 | 15.00 | -305.6% |
-|  | 成功率 | 1.00 | 1.00 | +0.0% |
+| 场景 | 指标 | a(ENO) | b(Gödel) | c(kube-scheduler) | d(Volcano) | e(Koordinator) |
+|---|---|---|---|---|---|---|
+| s1_w1 | 稳态吞吐(pods/s) | 86.24 | — | — | — | — |
+| s1_w1 | 峰值吞吐(pods/s) | — | — | — | 50.27 | 19.28 |
+| s1_w1 | P90 调度延迟(s) | — | 0.015 | — | 0.330 | 16.38 |
+| s1_w1 | P99 调度延迟(s) | — | 0.020 | — | 0.402 | 16.38 |
+| s1_w1 | Pod E2E P99(s) | 0.031 | — | — | — | — |
+| s1_w1 | 绑定延迟 P99(s) | 0.016 | — | — | — | — |
+| s1_w1 | Pending 堆积(pods) | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 |
+| s1_w1 | 绑定成功率 | 1.00 | — | — | — | — |
+| s2_w2 | 稳态吞吐(pods/s) | 499.07 | 499.73 | — | — | — |
+| s2_w2 | 峰值吞吐(pods/s) | 500.00 | 474.38 | 797.62 | 51.32 | 24.78 |
+| s2_w2 | P90 调度延迟(s) | 0.040 | 0.035 | 0.017 | 2.28 | 16.38 |
+| s2_w2 | P99 调度延迟(s) | 0.161 | 0.107 | 0.112 | 2.53 | 16.38 |
+| s2_w2 | Pod E2E P99(s) | 0.235 | 0.209 | — | — | — |
+| s2_w2 | 绑定延迟 P99(s) | 0.049 | 0.050 | — | — | — |
+| s2_w2 | Pending 堆积(pods) | 3.60 | 0.000 | 8767.62 | 0.000 | 2872.77 |
+| s2_w2 | 绑定成功率 | 1.00 | 1.00 | — | — | — |
+| s2_w3 | 稳态吞吐(pods/s) | 455.86 | 342.00 | — | — | — |
+| s2_w3 | 峰值吞吐(pods/s) | 977.29 | 865.96 | 998.82 | 74.93 | 17.77 |
+| s2_w3 | P90 调度延迟(s) | 3.51 | 18.17 | 0.018 | 3.89 | 4.45 |
+| s2_w3 | P99 调度延迟(s) | 4.59 | 22.65 | 0.117 | 4.01 | 4.81 |
+| s2_w3 | Pod E2E P99(s) | 4.60 | 20.81 | — | — | — |
+| s2_w3 | 绑定延迟 P99(s) | 0.112 | 0.092 | — | — | — |
+| s2_w3 | Pending 堆积(pods) | 768.62 | 3126.47 | 15748.61 | 0.000 | 53360.52 |
+| s2_w3 | 绑定成功率 | 1.00 | 1.00 | — | — | — |
+| s3_w2 | 稳态吞吐(pods/s) | 500.05 | 488.21 | — | — | — |
+| s3_w2 | 峰值吞吐(pods/s) | 386.62 | 362.98 | 745.84 | 133.29 | 24.72 |
+| s3_w2 | P90 调度延迟(s) | 0.060 | 0.631 | 0.016 | 3.15 | 16.38 |
+| s3_w2 | P99 调度延迟(s) | 0.185 | 0.956 | 0.093 | 3.38 | 16.38 |
+| s3_w2 | Pod E2E P99(s) | 0.304 | 0.528 | — | — | — |
+| s3_w2 | 绑定延迟 P99(s) | 0.037 | 0.066 | — | — | — |
+| s3_w2 | Pending 堆积(pods) | 0.500 | 0.167 | 9862.62 | 0.000 | 2988.38 |
+| s3_w2 | 绑定成功率 | 1.00 | 1.00 | — | — | — |
+| s3_w3 | 稳态吞吐(pods/s) | 333.40 | 319.33 | — | — | — |
+| s3_w3 | 峰值吞吐(pods/s) | 779.04 | 675.70 | 857.69 | 221.20 | 27.11 |
+| s3_w3 | P90 调度延迟(s) | 14.55 | 25.85 | 0.016 | 4.49 | 16.28 |
+| s3_w3 | P99 调度延迟(s) | 19.73 | 30.16 | 0.094 | 4.58 | 16.32 |
+| s3_w3 | Pod E2E P99(s) | 19.75 | 27.82 | — | — | — |
+| s3_w3 | 绑定延迟 P99(s) | 0.075 | 0.071 | — | — | — |
+| s3_w3 | Pending 堆积(pods) | 2880.61 | 5383.58 | 20245.06 | 0.000 | 32404.39 |
+| s3_w3 | 绑定成功率 | 1.00 | 1.00 | — | — | — |
+| s3_w3_inst3 | 稳态吞吐(pods/s) | 427.57 | 299.81 | — | — | — |
+| s3_w3_inst3 | 峰值吞吐(pods/s) | 889.02 | 887.82 | 857.69 | 221.20 | 27.11 |
+| s3_w3_inst3 | P90 调度延迟(s) | 0.035 | 0.045 | 0.016 | 4.49 | 16.28 |
+| s3_w3_inst3 | P99 调度延迟(s) | 0.127 | 0.149 | 0.094 | 4.58 | 16.32 |
+| s3_w3_inst3 | Pod E2E P99(s) | 0.496 | 1.09 | — | — | — |
+| s3_w3_inst3 | 绑定延迟 P99(s) | 0.070 | 0.089 | — | — | — |
+| s3_w3_inst3 | Pending 堆积(pods) | 2.07 | 1.37 | 20245.06 | 0.000 | 32404.39 |
+| s3_w3_inst3 | 绑定成功率 | 1.00 | 1.00 | — | — | — |
+| s3_w4_inst3 | 稳态吞吐(pods/s) | 345.26 | 292.26 | — | — | — |
+| s3_w4_inst3 | 峰值吞吐(pods/s) | 1873.83 | 1641.79 | — | — | — |
+| s3_w4_inst3 | P90 调度延迟(s) | 7.89 | 11.62 | — | — | — |
+| s3_w4_inst3 | P99 调度延迟(s) | 9.88 | 15.88 | — | — | — |
+| s3_w4_inst3 | Pod E2E P99(s) | 11.90 | 22.17 | — | — | — |
+| s3_w4_inst3 | 绑定延迟 P99(s) | 0.162 | 0.777 | — | — | — |
+| s3_w4_inst3 | Pending 堆积(pods) | 1283.48 | 2291.89 | — | — | — |
+| s3_w4_inst3 | 绑定成功率 | 1.00 | 1.00 | — | — | — |
+| s3_w5_inst3 | 稳态吞吐(pods/s) | 777.41 | 372.75 | — | — | — |
+| s3_w5_inst3 | 峰值吞吐(pods/s) | 631.65 | 676.35 | — | — | — |
+| s3_w5_inst3 | P90 调度延迟(s) | 0.323 | 0.420 | — | — | — |
+| s3_w5_inst3 | P99 调度延迟(s) | 0.751 | 0.916 | — | — | — |
+| s3_w5_inst3 | Pod E2E P99(s) | 0.891 | 2.01 | — | — | — |
+| s3_w5_inst3 | 绑定延迟 P99(s) | 0.112 | 0.226 | — | — | — |
+| s3_w5_inst3 | Pending 堆积(pods) | 45.00 | 67.88 | — | — | — |
+| s3_w5_inst3 | 绑定成功率 | 1.00 | 1.00 | — | — | — |
+| s3_w6 | 稳态吞吐(pods/s) | — | — | — | — | — |
+| s3_w6 | 峰值吞吐(pods/s) | — | — | — | 50.93 | — |
+| s3_w6 | P90 调度延迟(s) | — | — | — | 0.549 | — |
+| s3_w6 | P99 调度延迟(s) | — | — | — | 0.635 | — |
+| s3_w6 | Pod E2E P99(s) | — | — | — | — | — |
+| s3_w6 | 绑定延迟 P99(s) | — | — | — | — | — |
+| s3_w6 | Pending 堆积(pods) | — | — | — | 0.000 | — |
+| s3_w6 | 绑定成功率 | — | — | — | — | — |
+| s3_w6_inst3 | 稳态吞吐(pods/s) | — | — | — | — | — |
+| s3_w6_inst3 | 峰值吞吐(pods/s) | — | — | — | 50.93 | — |
+| s3_w6_inst3 | P90 调度延迟(s) | — | — | — | 0.549 | — |
+| s3_w6_inst3 | P99 调度延迟(s) | — | — | — | 0.635 | — |
+| s3_w6_inst3 | Pod E2E P99(s) | — | — | — | — | — |
+| s3_w6_inst3 | 绑定延迟 P99(s) | — | — | — | — | — |
+| s3_w6_inst3 | Pending 堆积(pods) | — | — | — | 0.000 | — |
+| s3_w6_inst3 | 绑定成功率 | — | — | — | — | — |
+| s3_w7_inst3 | 稳态吞吐(pods/s) | 532.94 | 445.01 | — | — | — |
+| s3_w7_inst3 | 峰值吞吐(pods/s) | 542.11 | 396.27 | — | — | — |
+| s3_w7_inst3 | P90 调度延迟(s) | 0.016 | 0.021 | — | — | — |
+| s3_w7_inst3 | P99 调度延迟(s) | 0.053 | 0.063 | — | — | — |
+| s3_w7_inst3 | Pod E2E P99(s) | 0.109 | 0.351 | — | — | — |
+| s3_w7_inst3 | 绑定延迟 P99(s) | 0.042 | 0.056 | — | — | — |
+| s3_w7_inst3 | Pending 堆积(pods) | 0.000 | 0.375 | — | — | — |
+| s3_w7_inst3 | 绑定成功率 | 1.00 | 1.00 | — | — | — |
+| s4_w3_inst3 | 稳态吞吐(pods/s) | 321.62 | 302.16 | — | — | — |
+| s4_w3_inst3 | 峰值吞吐(pods/s) | 988.91 | 883.81 | — | — | — |
+| s4_w3_inst3 | P90 调度延迟(s) | 0.037 | 0.080 | — | — | — |
+| s4_w3_inst3 | P99 调度延迟(s) | 0.219 | 0.289 | — | — | — |
+| s4_w3_inst3 | Pod E2E P99(s) | 0.583 | 0.920 | — | — | — |
+| s4_w3_inst3 | 绑定延迟 P99(s) | 0.054 | 0.106 | — | — | — |
+| s4_w3_inst3 | Pending 堆积(pods) | 1.71 | 9.16 | — | — | — |
+| s4_w3_inst3 | 绑定成功率 | 1.00 | 1.00 | — | — | — |
+| s4_w4_inst3 | 稳态吞吐(pods/s) | 325.80 | 265.49 | — | — | — |
+| s4_w4_inst3 | 峰值吞吐(pods/s) | 1502.78 | 1413.51 | — | — | — |
+| s4_w4_inst3 | P90 调度延迟(s) | 24.28 | 35.02 | — | — | — |
+| s4_w4_inst3 | P99 调度延迟(s) | 26.76 | 42.90 | — | — | — |
+| s4_w4_inst3 | Pod E2E P99(s) | 28.43 | 46.59 | — | — | — |
+| s4_w4_inst3 | 绑定延迟 P99(s) | 0.109 | 0.324 | — | — | — |
+| s4_w4_inst3 | Pending 堆积(pods) | 4210.73 | 5133.61 | — | — | — |
+| s4_w4_inst3 | 绑定成功率 | 1.00 | 1.00 | — | — | — |
+| s4_w5_inst3 | 稳态吞吐(pods/s) | 582.84 | 416.31 | — | — | — |
+| s4_w5_inst3 | 峰值吞吐(pods/s) | 936.74 | 649.90 | — | — | — |
+| s4_w5_inst3 | P90 调度延迟(s) | 2.42 | 2.44 | — | — | — |
+| s4_w5_inst3 | P99 调度延迟(s) | 3.93 | 3.93 | — | — | — |
+| s4_w5_inst3 | Pod E2E P99(s) | 3.96 | 3.99 | — | — | — |
+| s4_w5_inst3 | 绑定延迟 P99(s) | 0.104 | 0.177 | — | — | — |
+| s4_w5_inst3 | Pending 堆积(pods) | 392.50 | 335.38 | — | — | — |
+| s4_w5_inst3 | 绑定成功率 | 1.00 | 1.00 | — | — | — |
+| s4_w6_inst3 | 稳态吞吐(pods/s) | — | — | — | — | — |
+| s4_w6_inst3 | 峰值吞吐(pods/s) | — | — | — | — | — |
+| s4_w6_inst3 | P90 调度延迟(s) | — | — | — | — | — |
+| s4_w6_inst3 | P99 调度延迟(s) | — | — | — | — | — |
+| s4_w6_inst3 | Pod E2E P99(s) | — | — | — | — | — |
+| s4_w6_inst3 | 绑定延迟 P99(s) | — | — | — | — | — |
+| s4_w6_inst3 | Pending 堆积(pods) | — | — | — | — | — |
+| s4_w6_inst3 | 绑定成功率 | — | — | — | — | — |
+| s4_w7_inst3 | 稳态吞吐(pods/s) | 452.56 | 453.76 | — | — | — |
+| s4_w7_inst3 | 峰值吞吐(pods/s) | 574.08 | 397.41 | — | — | — |
+| s4_w7_inst3 | P90 调度延迟(s) | 1.30 | 0.020 | — | — | — |
+| s4_w7_inst3 | P99 调度延迟(s) | 2.02 | 0.064 | — | — | — |
+| s4_w7_inst3 | Pod E2E P99(s) | 4.09 | 0.320 | — | — | — |
+| s4_w7_inst3 | 绑定延迟 P99(s) | 0.041 | 0.053 | — | — | — |
+| s4_w7_inst3 | Pending 堆积(pods) | 0.167 | 0.125 | — | — | — |
+| s4_w7_inst3 | 绑定成功率 | 1.00 | 1.00 | — | — | — |
 
-> 说明：相对变化一列中，吞吐类指标为正值表示 ENO 更优，延迟与堆积类指标为正值表示 ENO 更低（已统一为"正值即更优"）。标"—"的场景表示该指标未采集到有效数据。
+> 说明：c（kube-scheduler）、d（Volcano）、e（Koordinator）为单实例架构，其延迟分位在过载场景下存在采样偏差（见 §6.3.1），表中仅列出数值供参考，正文未据此做跨调度器延迟的等价性比较。
 
 ## 附录 B  核心代码片段
 
@@ -115,20 +147,8 @@
 
 ```go
 type BinderInterface interface {
-	// BindUnit performs conflict checking and binds all Pods in the given BindRequest
-	// to their target node. It returns a BindResult indicating which Pods succeeded
-	// and which failed.
-	//
-	// The caller (typically the Scheduler's unit_scheduler) invokes this after a
-	// successful scheduling decision. In embedded mode, this replaces the PatchPod
-	// path that was previously used to communicate with the standalone Binder.
 	BindUnit(ctx context.Context, req *BindRequest) (*BindResult, error)
-
-	// Start initialises and starts the Binder's internal workers. It must be called
-	// before BindUnit. Calling Start on an already-running Binder returns an error.
 	Start(ctx context.Context) error
-
-	// Stop gracefully shuts down the Binder, draining in-flight bind operations.
 	Stop()
 }
 ```
@@ -137,40 +157,22 @@ type BinderInterface interface {
 
 ```go
 func (v *NodeValidator) Validate(nodeName string) error {
-	if v.nodeGetter == nil {
-		return fmt.Errorf("nodeGetter is nil in NodeValidator")
-	}
-
 	node, err := v.nodeGetter(nodeName)
 	if err != nil {
 		return fmt.Errorf("failed to get node %q: %w", nodeName, err)
 	}
-
-	if node == nil {
-		return fmt.Errorf("node %q not found (nil)", nodeName)
-	}
-
 	owner := ""
 	if node.Annotations != nil {
 		owner = node.Annotations[nodeutil.EnoSchedulerNodeAnnotationKey]
 	}
-
-	// When the annotation is absent the node has not been partitioned yet
-	// (e.g., single-scheduler deployment, or Dispatcher has not assigned it).
-	// In that case we allow the bind to proceed — only reject when the
-	// annotation is present AND belongs to a different scheduler.
+	// 注解为空：节点尚未分区（单调度器场景），允许 Bind
 	if owner == "" {
 		return nil
 	}
-
+	// 注解非空且不属于本实例：归属漂移，返回结构化错误
 	if owner != v.schedulerName {
-		return &NodeOwnershipError{
-			Node:     nodeName,
-			Expected: v.schedulerName,
-			Actual:   owner,
-		}
+		return &NodeOwnershipError{Node: nodeName, Expected: v.schedulerName, Actual: owner}
 	}
-
 	return nil
 }
 ```
@@ -181,27 +183,24 @@ func (v *NodeValidator) Validate(nodeName string) error {
 DefaultMaxBindRetries = 3
 ```
 
-重试退避采用 client-go 的 `ItemExponentialFailureRateLimiter`，初始间隔 5 ms、上限 10 s。
+重试退避基于 client-go 的 `ItemExponentialFailureRateLimiter`，初始间隔 5 ms、上限 10 s。
 
 ## 附录 C  Prometheus recording rules 示例
 
 实验观测栈为每组调度器定义了统一的 recording rules，将各调度器原始指标归一化为 `{group}:{metric}:{aggregation}` 形式。以组 a（ENO）为例：
 
 ```yaml
-          - record: eno:binder_embedded_bind_pods:rate1m
-            expr: sum(rate(binder_embedded_bind_pods_total[1m]))
-          - record: eno:binder_embedded_bind_units:rate1m
-            expr: sum(rate(binder_embedded_bind_total[1m]))
-          - record: eno:binder_embedded_bind_duration:p50
-            expr: histogram_quantile(0.50, sum by (le) (rate(binder_embedded_bind_duration_seconds_bucket[1m])))
-          - record: eno:binder_embedded_bind_duration:p90
-            expr: histogram_quantile(0.90, sum by (le) (rate(binder_embedded_bind_duration_seconds_bucket[1m])))
-          - record: eno:binder_embedded_bind_duration:p99
-            expr: histogram_quantile(0.99, sum by (le) (rate(binder_embedded_bind_duration_seconds_bucket[1m])))
-          - record: eno:binder_embedded_bind_duration:avg
-              sum(rate(binder_embedded_bind_duration_seconds_sum[1m]))
-              sum(rate(binder_embedded_bind_duration_seconds_count[1m]))
-          - record: eno:binder_embedded_bind_pod_duration:p50
+- record: eno:binder_embedded_bind_pods:rate1m
+  expr: sum(rate(binder_embedded_bind_pods_total[1m]))
+
+- record: eno:binder_embedded_bind_duration:p99
+  expr: histogram_quantile(0.99, sum by (le) (rate(binder_embedded_bind_duration_seconds_bucket[1m])))
+
+- record: eno:binder_embedded_bind_duration:avg
+  expr: >
+    sum(rate(binder_embedded_bind_duration_seconds_sum[1m]))
+    /
+    sum(rate(binder_embedded_bind_duration_seconds_count[1m]))
 ```
 
 其中吞吐类规则使用 `rate(...[1m])` 计算每秒速率，延迟类规则使用 `histogram_quantile(...)` 计算分位数，从而保证跨组对比时指标口径一致。
