@@ -27,6 +27,7 @@
 #   ./run-all.sh --groups "a b c d e" --scales "s1" --workloads "w1" --redeploy-each-run  --instances "1"
 #   ./run-all.sh --groups "a b c d e" --scales "s2 s3" --workloads "w2 w3" --redeploy-each-run --instances "1" --setup-nodes
 #   ./run-all.sh --groups "a" --scales "s3" --workloads "w4" --instances "3" --setup-nodes --redeploy-each-run
+#   ./run-all.sh --groups "a b d" --scales "s3" --workloads "w6" --instances "1" --setup-nodes --redeploy-each-run
 
  
 set -eu
