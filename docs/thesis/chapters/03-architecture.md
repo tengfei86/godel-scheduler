@@ -1,7 +1,5 @@
 # 第三章　分布式 Kubernetes 调度器系统架构
 
-本章系统阐述本文所研究的分布式 Kubernetes 调度器架构。首先给出系统的总体视图，说明各组件的职责与交互（§3.1）；随后详细讨论基于 etcd 的三步事务写入模型（§3.2）；接下来分别展开 Dispatcher 的内部数据结构与 Pod 流转过程（§3.3）以及单个 Scheduler 实例的内部调度流程（§3.4）；最后对全章的关键设计要点进行总结（§3.5）。
-
 ## 3.1　系统总体架构
 
 本文所研究的分布式 Kubernetes 调度器采用"集中式任务分发 + 分布式调度执行"（即分发-执行解耦）的总体架构，由三类核心组件组成：Dispatcher（任务分发器）、多个 Scheduler 实例，以及底层的 Kubernetes API Server 与 etcd 存储。图 3-1 展示了系统的总体架构。
@@ -39,9 +37,9 @@ API Server 是所有组件唯一的通信中介。Dispatcher 与 Scheduler 之�
 
 ![图 3-2  基于 etcd 的三步事务写入时序（dispatching → assuming → binding）](../figures/fig3-2-etcd-three-step-txn.png)
 
-（1）① dispatching 步骤。Dispatcher 通过 `PatchPod` 操作，在 Pod 的注解字段中写入 `godel.bytedance.com/scheduler-name={selectedScheduler}`。这一步操作携带 Pod 的 `resourceVersion`，若并发情况下已有其他修改，则会由 etcd 返回 `409 Conflict`，Dispatcher 收到冲突后重新读取 Pod 并重试。这保证了同一 Pod 的分发决策不会出现竞争条件。
+（1）① dispatching 步骤。Dispatcher 通过 `PatchPod` 操作，在 Pod 的注解字段中写入 `eno.io/scheduler-name={selectedScheduler}`。这一步操作携带 Pod 的 `resourceVersion`，若并发情况下已有其他修改，则会由 etcd 返回 `409 Conflict`，Dispatcher 收到冲突后重新读取 Pod 并重试。这保证了同一 Pod 的分发决策不会出现竞争条件。
 
-（2）② assuming 步骤。被分发到的 Scheduler 通过 Informer 观察到 Pod 的 `scheduler-name` 注解匹配自己，将其纳入调度循环。Filter/Score/Reserve 完成后，Scheduler 通过 `PatchPod` 写入 `godel.bytedance.com/assumed-node={selectedNode}`，同样受 `resourceVersion` 乐观并发保护。
+（2）② assuming 步骤。被分发到的 Scheduler 通过 Informer 观察到 Pod 的 `scheduler-name` 注解匹配自己，将其纳入调度循环。Filter/Score/Reserve 完成后，Scheduler 通过 `PatchPod` 写入 `eno.io/assumed-node={selectedNode}`，同样受 `resourceVersion` 乐观并发保护。
 
 （3）③ binding 步骤。Scheduler 内部的 Binder 模块（或独立 Binder，取决于部署形态）通过 Bind 子资源 API `POST /api/v1/namespaces/{ns}/pods/{name}/binding` 完成最终的绑定操作。这是与前两步性质截然不同的一步：Bind API 是 Kubernetes 定义的特殊子资源<sup>[35]</sup>，其内部实现由 kube-apiserver 通过 etcd 事务保证如下语义：
 
