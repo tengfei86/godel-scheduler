@@ -283,12 +283,16 @@ declare -A KOORDINATOR_QUERIES=(
 # query_range 只能导出 0~1 个采样点（w6 Gang 实测单次 run 仅 29~39 s），按第 6 章
 # 口径（去首尾各 2 点）会得到空值。
 #
-# 这里换一条独立路径：用范围查询首尾两端的累计计数之差做 histogram_quantile，
-#   @ start() / @ end() 固定取范围查询的起止时刻（Prometheus ≥ 2.33 默认支持），
-# 计数器相减后仍是按 le 累积的直方图，直方图分位由 Prometheus 自行插值计算。
-# 这样每个 Pod 都计入样本，不依赖滑窗长度，且对"是否逐 run 重部署"都成立。
+# 这里换一条独立路径：用 increase() 在整个 run 窗口上取累计增量，再交给
+# histogram_quantile 计算分位。每个被处理的 Pod 都计入样本，不依赖滑窗长度。
 #
-# 输出 run_<metric>.json，格式与其余导出文件一致（matrix，1~2 点，各点数值相同）。
+# 注意不要用「首尾两次快照相减」的写法（(x @ end()) - (x @ start())）：
+# 逐 run 重部署调度器时，进程在 Step 6 之后才开始产生样本，@ start() 处取不到
+# 样本，整个表达式会返回空结果。2026-09-15 的 s2/w2 批次（--redeploy-each-run）
+# 四个 run_* 查询全部为空即由此而来。increase() 只依赖窗口内已有的样本，
+# 且其外推只是把各 bucket 同比缩放，不影响 histogram_quantile 的取值。
+#
+# 输出 run_<metric>.json，格式与其余导出文件一致（matrix，通常 1 个点，位于窗口末端）。
 # 尾部留 RUN_TAIL_MARGIN 秒余量以覆盖最后一次 scrape。
 export_run_totals() {
   local pod_e2e_bucket="${1:?用法: export_run_totals <pod_e2e_bucket>}"
@@ -298,21 +302,32 @@ export_run_totals() {
   if (( span < 60 )); then
     span=60
   fi
+  # step = span：query_range 只评估窗口末端一个点，前一个点（窗口完全落在 run
+  # 之前）自然为空，不参与统计
   local step="${span}s"
 
   local sched_bucket="scheduler_e2e_scheduling_duration_seconds_bucket"
 
   declare -A run_queries=(
-    [run_scheduling_latency_p90]="histogram_quantile(0.90, sum by (le)((${sched_bucket} @ end()) - (${sched_bucket} @ start())))"
-    [run_scheduling_latency_p99]="histogram_quantile(0.99, sum by (le)((${sched_bucket} @ end()) - (${sched_bucket} @ start())))"
-    [run_pod_e2e_latency_p90]="histogram_quantile(0.90, sum by (le)((${pod_e2e_bucket} @ end()) - (${pod_e2e_bucket} @ start())))"
-    [run_pod_e2e_latency_p99]="histogram_quantile(0.99, sum by (le)((${pod_e2e_bucket} @ end()) - (${pod_e2e_bucket} @ start())))"
+    [run_scheduling_latency_p90]="histogram_quantile(0.90, sum by (le)(increase(${sched_bucket}[${span}s])))"
+    [run_scheduling_latency_p99]="histogram_quantile(0.99, sum by (le)(increase(${sched_bucket}[${span}s])))"
+    [run_pod_e2e_latency_p90]="histogram_quantile(0.90, sum by (le)(increase(${pod_e2e_bucket}[${span}s])))"
+    [run_pod_e2e_latency_p99]="histogram_quantile(0.99, sum by (le)(increase(${pod_e2e_bucket}[${span}s])))"
   )
 
-  log_info "导出 run 级累计直方图分位 (window=[${START}, ${query_end}], step=${step})..."
+  log_info "导出 run 级累计直方图分位 (window=[${START}, ${query_end}], span=${span}s)..."
   for name in "${!run_queries[@]}"; do
-    log_debug "  ${name}"
-    prometheus_query_range "${run_queries[$name]}" "$START" "$query_end" "${DIR}/${name}.json" "$step"
+    local output="${DIR}/${name}.json"
+    prometheus_query_range "${run_queries[$name]}" "$START" "$query_end" "$output" "$step"
+    # 逐条回显取值：查询"成功但为空"时不会再静默通过
+    local got
+    got=$(jq -r 'if (.data.result | length) == 0 then "空(无样本)"
+                 else ([.data.result[].values[-1][1]] | last) end' "$output" 2>/dev/null || echo "解析失败")
+    if [[ "$got" == "空(无样本)" || "$got" == "解析失败" ]]; then
+      log_warn "  ${name} = ${got}（该 run 的延迟将记为无数据）"
+    else
+      log_info "  ${name} = ${got}"
+    fi
   done
 }
 
