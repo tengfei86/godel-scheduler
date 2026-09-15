@@ -110,15 +110,15 @@ s2、s3 与 s4 覆盖了从中等到超大规模的集群场景（跨度 10×）
 
 ### 6.3.1　关于跨调度器延迟对比的方法学说明
 
-不同调度器的 latency histogram 具有不同的采样偏差，直接比较绝对数值可能产生误导，本节明确本文的方法学立场：
+各调度器上报的 latency histogram 数值本身都是真实的采样结果，不存在数据"失真"；但 c/d/e 与 a/b 的 histogram **统计样本群体不同**，直接比较分位数在语义上并不对齐，本节明确本文的方法学立场：
 
-- 过载单实例调度器（c/d/e）：当 Pod 到达速率超过调度器处理能力（例如 w3 负载下 kube-scheduler 无法承接 1000 pods/s），大量 Pod 长时间堵塞在 activeQ 队列中，永远不会被 pop 出来进入 `scheduling_attempt_duration_seconds` 的 histogram 采样窗口。histogram 因此仅记录能被成功处理的少数样本，其 P99 分位严重低估真实用户感知延迟。这一现象在性能测量领域被称为 Coordinated Omission（协同遗漏）或 Survivor Bias（幸存者偏差）。
-- 多实例分布式调度器（a/b）：处理能力接近或超过输入速率，绝大多数 Pod 都能被成功绑定并记入 histogram，P99 反映的是真实的尾延迟。
+- 过载单实例调度器（c/d/e）：当 Pod 到达速率超过调度器处理能力（例如 w3 负载下 kube-scheduler 无法承接 1000 pods/s），大量 Pod 长时间堵塞在 activeQ 队列中，永远不会被 pop 出来进入 `scheduling_attempt_duration_seconds` 的 histogram 采样窗口。histogram 因此**只覆盖"已被 pop 出队处理的 Pod"这一子集**，不包含仍在队列中排队的 Pod。数值对"已处理 Pod 的单次调度周期耗时"是准确的，但样本外定义与 a/b 不一致——**性能测量领域称此为幸存者偏差（Survivor Bias）**。
+- 多实例分布式调度器（a/b）：处理能力接近或超过输入速率，绝大多数 Pod 都能被成功绑定并记入 histogram，P99 覆盖了完整的 Pod 群体，反映真实的尾延迟。
 
 基于此，本文的定量对比策略如下：
 
 1. 主对比（a vs b）：ENO 与 Gödel 使用完全相同的 `scheduler_e2e_scheduling_duration_seconds` 指标，数据采样条件一致，可直接比较 latency 的绝对数值与相对改善百分比。
-2. 辅助对比（vs c/d/e）：以吞吐、pending_pods 队列堆积、绑定成功率等不受采样偏差影响的指标进行整体扩展性对比，不做 latency 数值的直接对齐。相关讨论见 §6.5 与 §6.8。
+2. 辅助对比（vs c/d/e）：以吞吐、pending_pods 队列堆积、绑定成功率等不受样本群体差异影响的指标进行整体扩展性对比；c/d/e 的 latency 分位数不与 a/b 做数值对齐（相关讨论见 §6.5 与 §6.8）。
 
 ## 6.4　单调度器性能对比
 
@@ -345,7 +345,7 @@ TODO(实验)：
 
 （6）Volcano 指标口径的差异：Volcano 的 `volcano_task_scheduling_latency_milliseconds` 与其他调度器的 `scheduler_scheduling_attempt_duration_seconds` 在语义上并不完全等价，本文在 §6.1.2 中通过 recording rules 尽力对齐了口径，但仍难以做到 100% 严格等价的对比。这在结论中会予以说明。
 
-（7）延迟指标的跨调度器可比性：kube-scheduler（c）、Volcano（d）、Koordinator（e）在过载场景下的 P99 延迟数值因 Coordinated Omission（协同遗漏）而系统性低估——单实例调度器无法处理的 Pod 长期堵塞在队列中，从未进入 latency histogram 的采样窗口，histogram 只统计"能被受理"的少数样本。本文在 §6.3.1 已明确该方法学立场，并在数值对比中回避了对 c/d/e 的 latency 数值直接引用。将来的研究若希望做严格的跨调度器 latency 数值对比，需要在负载生成端记录每个 Pod 的入队时间戳，从外部计算真实用户感知的 P99（bypass 各调度器 histogram 的采样偏差）。
+（7）延迟指标的跨调度器可比性：kube-scheduler（c）、Volcano（d）、Koordinator（e）上报的 P99 延迟数值本身都是真实采样，并不存在失真；但在 1000 pods/s 及以上的过载场景下，其 histogram **仅覆盖"已被 pop 出队处理的少数 Pod"**——大量长时间堵塞在 activeQ 中的 Pod 从未进入 latency histogram 的采样窗口。这属于统计学上的幸存者偏差（Survivor Bias），使 c/d/e 与 a/b 的 P99 数值代表不同的样本群体，直接对齐分位数在语义上并不严格。本文在 §6.3.1 已明确该方法学立场，并在数值对比中回避了对 c/d/e 的 latency 数值直接引用。将来的研究若希望做严格的跨调度器 latency 数值对比，可在负载生成端记录每个 Pod 的入队与绑定时间戳，从外部计算覆盖全部 Pod 的用户感知 P99。
 
 （8）吞吐指标的口径权衡：本文以有效吞吐（总工作量／总完成时间）作为吞吐主口径，其优点是只依赖"完成时间"这一可核验事实、不受采样窗口长度影响，缺点是把"处理速率"与"启动/爬升快慢"合并为一个数，无法区分 ENO 的优势有多少来自更高的稳定处理速率、多少来自更快的启动。本文以峰值吞吐（稳定段瞬时速率）作为补充：在 s3/w5 与 s4/w3 等场景中，ENO 的峰值吞吐并不高于 Gödel，但有效吞吐仍领先，说明其收益部分来自更短的整体完成时间。后续工作可在负载生成端记录每个 Pod 的创建与绑定时间戳，从而把启动段与稳态段分别统计。
 
