@@ -1,1 +1,1 @@
-{"status":"success","data":{"resultType":"matrix","result":[]}}
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"eno:binder_embedded_bind_pods:success_rate1m"},"values":[[1789443624,"1"],[1789443639,"1"],[1789443654,"1"],[1789443669,"1"],[1789443684,"1"],[1789443699,"1"],[1789443714,"1"],[1789443729,"1"]]}]}}
