@@ -9,8 +9,9 @@
        （逐时间点 nanmedian，时间轴步长 15 s，t=0 为该 run 导出序列的首个采样点）
   2. 时序点数不足时回退到 results/{a,b}/{s}/{w}/inst{N}/run{1,2,3}/run_<metric>.json
      = export-prometheus.sh 的 export_run_totals 导出的 run 级标量
-       （用 run 首尾两次累计计数之差做 histogram_quantile，每 run 一个值，
-        再对 3 条 run 取中位数；见该函数注释）
+       （用 increase(<bucket>[span]) 在整个 run 窗口上取累计增量后做
+        histogram_quantile，每 run 一个值，取窗口末端那个点；
+        再对存在的 run 取中位数）
 
 统计口径（与论文 §6.2 warmup/cooldown 约定一致）：
   1. 取聚合序列中的非 NaN 采样点；
@@ -125,8 +126,9 @@ def collect(
         rec[f"{group}_per_run"] = per_run
 
         # 时序点数不足（短 run，例如 w6 的 29~39 s）时回退到 run 级累计直方图分位：
-        # export-prometheus.sh 导出的 run_<metric>.json 每条 run 给出一个标量，
-        # 对存在的 run 取中位数。该路径不依赖 avg/ 目录是否存在。
+        # export-prometheus.sh 导出的 run_<metric>.json 每条 run 给出一个标量
+        # （位于窗口末端），取最后一个有效点，再对存在的 run 取中位数。
+        # 该路径不依赖 avg/ 目录是否存在。
         if rec[f"{group}_value"] is None and allow_run_total:
             run_totals = []
             for idx in (1, 2, 3):
@@ -134,7 +136,7 @@ def collect(
                     RESULTS_DIR / group / sub / f"run{idx}" / f"run_{metric}.json"
                 )
                 if points:
-                    run_totals.append(statistics.median(points))
+                    run_totals.append(points[-1])
             if run_totals:
                 rec[f"{group}_value"] = statistics.median(run_totals)
                 rec[f"{group}_caliber"] = "run-total"
