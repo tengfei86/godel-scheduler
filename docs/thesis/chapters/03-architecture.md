@@ -25,8 +25,6 @@ Dispatcher 是全集群唯一活跃的分发实例（通过 Leader Election 机�
 - Preempting：抢占路径，当资源不足时通过 Victims Searching Plugins 寻找可抢占的低优 Pod、Candidates Sorting Plugins 对抢占候选进行排序；
 - Binder：绑定路径，包含 Node Conflict Resolver（节点分区归属校验，见第 4 章 Layer 0）、Preemption Executor（执行抢占决策）、Pod Binder（调用 Bind API 完成最终绑定）。
 
-图 3-1 所示的 Binder 位于 Scheduler 实例内部，这正是本文第 5 章 ENO 架构改造的结果。原 Gödel 架构中 Binder 是独立部署的 Deployment，两种部署形态的对比与切换机制将在第 5 章展开。
-
 ### 3.1.3　API Server 与 etcd
 
 API Server 是所有组件唯一的通信中介。Dispatcher 与 Scheduler 之间没有直接连接，它们通过 API Server 的 Watch/Informer 机制观察对方对 Pod 资源的修改，实现事件驱动的松耦合协作。etcd 作为 API Server 的后端存储，通过 Raft 协议提供强一致性保证，并通过其原子写入语义（如 `resourceVersion` 乐观并发控制、Bind 子资源的原子性）为整个分布式调度器的一致性提供底层依赖。
@@ -45,7 +43,7 @@ API Server 是所有组件唯一的通信中介。Dispatcher 与 Scheduler 之�
 
 > 当且仅当 Pod 的 `spec.nodeName` 为空时，允许原子设置为目标节点名；若已经设置，返回 `409 Conflict`。
 
-这一语义从根本上排除了同一 Pod 被绑定到两个不同节点的可能性。任意数量的 Scheduler 实例、任意的并发度、任意的网络重排——只要它们最终都通过 Bind API 完成绑定，"任一 Pod 至多绑定到一个节点"这一核心不变量就得到 Kubernetes 集群的原子性保证。这是本文第 4 章一致性论证的最底层基石。
+这一语义从根本上排除了同一 Pod 被绑定到两个不同节点的可能性。任意数量的 Scheduler 实例、任意的并发度、任意的网络重排——只要它们最终都通过 Bind API 完成绑定，"任一 Pod 至多绑定到一个节点"这一核心不变量就得到 Kubernetes 集群的原子性保证。
 
 > 附注 3-1：上述三步事务写入模型完全依赖 etcd 与 kube-apiserver 提供的原子性语义。本文的分布式调度器没有引入任何自研的分布式协调机制（例如 Raft 复制、分布式锁、外部 ZooKeeper 等）——所有一致性保证都建立在 Kubernetes 已有的存储抽象之上。这一设计选择的优点是：任何一个符合 Kubernetes 规范的 kube-apiserver + etcd 部署都能天然支持本调度器，无需额外的部署依赖。
 
@@ -97,16 +95,14 @@ API Server 是所有组件唯一的通信中介。Dispatcher 与 Scheduler 之�
 
 （8）多次重试失败。若一个 Pod 在本 Scheduler 内经过若干次退避重试仍然无法完成绑定（例如本分区内确实无可用节点），Pod 将被送回 Dispatcher 分发器，触发跨实例回退（对应第 4 章 Layer 3）。
 
-需要特别强调的是，图 3-3 中的 "unschedulable pool → 回到 Sorting Policy Manager" 与图 3-4 中的 "多次重试失败 → 回到 Dispatcher" 是同一个跨实例回退机制的两个侧面：Scheduler 侧决定何时放弃本地重试并回退，Dispatcher 侧决定回退回来的 Pod 何时被重新分发。这一双向协作是分布式调度器实现整体高可用的核心机制之一，其一致性证明将在第 4 章展开。
+需要特别强调的是，图 3-3 中的 "unschedulable pool → 回到 Sorting Policy Manager" 与图 3-4 中的 "多次重试失败 → 回到 Dispatcher" 是同一个跨实例回退机制的两个侧面：Scheduler 侧决定何时放弃本地重试并回退，Dispatcher 侧决定回退回来的 Pod 何时被重新分发。这一双向协作是分布式调度器实现整体高可用的核心机制之一。
 
 ## 3.5　本章小结
 
-本章从系统总体（§3.1）、事务模型（§3.2）、Dispatcher 内部（§3.3）、Scheduler 内部（§3.4）四个层面完整刻画了本文所研究的分布式 Kubernetes 调度器架构。全章的关键设计要点可归纳为以下三条：
+本章描述的分布式 Kubernetes 调度器架构有三条关键设计要点：
 
 （1）无自研分布式协调机制。整个分布式调度器完全依赖 Kubernetes 已有的 API Server + etcd 抽象，通过 Pod 注解 CAS、Bind 子资源原子性、Informer 一致性视图三种机制维持多实例并发场景下的正确性。这一设计将分布式一致性问题的解决完全交给了 etcd，本调度器不需要额外的部署依赖。
 
 （2）Dispatcher 与 Scheduler 的双向协作。Dispatcher 通过分区表将节点划分给各 Scheduler，实现资源竞争的天然规避；Scheduler 通过 Pod 状态与注解反馈调度进展，触发必要的重分发。这一松耦合的双向协作既保证了并发调度的效率，也保留了失败回退的兜底能力。
 
 （3）关键路径均由 etcd 事务落盘。dispatching / assuming / binding 三步事务写入都是对 etcd 的一次原子操作，任意组件在任意时刻崩溃，Pod 状态都能通过 etcd 中的持久化数据在恢复后被正确重建。特别地，binding 步骤依赖 Bind 子资源的强原子性——这是"任一 Pod 至多绑定到一个节点"这一核心不变量的最底层保证。
-
-上述三条设计要点为第 4 章的一致性容错机制提供了论证起点：Layer 0 依赖 Pod 与 Node 注解的乐观并发；Layer 1 依赖 etcd 的原子重试；Layer 2 依赖 Informer 的一致性视图；Layer 3 依赖 Dispatcher 的重分发能力。所有四层容错都以本章描述的架构为基础展开。
