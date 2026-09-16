@@ -116,9 +116,9 @@ type BinderInterface interface {
 第 4 章的四层容错机制在 ENO 架构下完整保留且无需修改代码：
 
 - Layer 0（节点归属校验）：`NodeValidator` 只依赖 Node 的注解读取（通过 `NodeGetter` 抽象），与 Binder 是独立进程还是进程内模块无关。校验行为不变；
-- Layer 1（同步重试）：`bindPodToNode` 的重试循环在进程内直接执行，反而降低了重试延迟（无需再经过 gRPC 或 apiserver 事件传递）；
-- Layer 2（异步 Reconciler）：`APICallFailedTaskQueue` 与 Reconciler Worker 现在位于 Scheduler 进程内，`ForgetPod` 直接对共享的 SchedulerCache 调用，效果更直接；
-- Layer 3（跨实例回退）：Layer 3 通过 `PatchPod` 清除 `scheduler-name` 注解触发 Dispatcher 重分发，此过程完全独立于 Binder 部署形态——注解操作对 apiserver 而言就是普通的 Patch。
+- Layer 1（同步重试）：`bindPodToNode` 的线性退避重试循环（第 n 次前等待 `n × 100ms`，累计最多 `MaxBindRetries` 次）在进程内直接执行，无需再经过独立 Binder 的 gRPC 或 apiserver 事件传递；
+- Layer 2（异步 Reconciler）：Bind Reject 阶段的 `ForgetPod`（清 SchedulerCache 中的 Assumed 内存态）与 `APICallFailedTaskQueue` Worker 的 `CleanupPodAnnotations`（清 etcd 中残留的调度注解）现在都位于 Scheduler 进程内。前者直接作用于共享的 SchedulerCache 对象，无需跨进程事件；后者仍通过 apiserver 执行注解 patch，操作语义与独立 Binder 时一致；
+- Layer 3（跨实例回退）：Scheduler 在决定回退时通过一次原子 `PatchPod` 同时清除 `scheduler-name` 注解并将 `pod-state` 设为 `Pending`，随后由 Dispatcher 的 Informer 感知触发重分发。此过程完全独立于 Binder 部署形态——注解操作对 apiserver 而言就是普通的 Patch。
 
 因此 ENO 是一次纯粹的性能优化，其正确性完全建立在第 4 章的论证之上。这也是本文将 ENO 独立成第 5 章而非并入第 4 章的原因——ENO 与容错机制在概念上是解耦的两件事情。
 
