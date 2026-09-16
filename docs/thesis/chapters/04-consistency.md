@@ -126,19 +126,19 @@ Layer 1 在 `embedded_binder.go` 的 `bindPodToNode` 函数中实现，核心逻
 
 ### 4.4.2　Layer 2 的设计
 
-Layer 2 在 `binder_reconciler.go` 中实现，其核心数据结构是 `APICallFailedTaskQueue`——一个持久化的失败任务队列（基于 client-go 的 workqueue<sup>[36]</sup>，具备去重、限流、自动重试能力）。
+Layer 2 在 `binder_reconciler.go` 中实现，其核心数据结构是 `APICallFailedTaskQueue`——基于 client-go workqueue<sup>[36]</sup> 的失败任务队列，具备去重、限流与指数退避重试能力。
 
 流转过程如下：
 
-（1）失败进入队列：Layer 1 在 3 次同步重试后仍失败，将 Pod 加入 `APICallFailedTaskQueue`；
+（1）失败进入队列：Layer 1 在同步重试全部失败后，将 Pod（连同失败原因 `RejectFailed`）加入 `APICallFailedTaskQueue`。此前的 Bind Reject 阶段已经调用 `ForgetPod` 清理了 SchedulerCache 中的 Assumed 状态，Layer 2 只处理 etcd 侧遗留的注解清理；
 
-（2）Worker 消费：后台 goroutine（Reconciler Worker）以并发度 K 从队列中拉取任务；
+（2）Worker 消费：单个 Reconciler Worker goroutine 顺序从队列拉取任务。由于每次操作只涉及一次 etcd 注解 patch，串行处理即可，也避免了并发 patch 引发的 `resourceVersion` 冲突放大；
 
-（3）幂等清理：Worker 首先调用 `ForgetPod(p)` 清理 SchedulerCache 中的 Assumed 状态。`ForgetPod` 对不存在的 Pod 是 no-op，因此可以安全重试；
+（3）幂等注解清理：Worker 调用 `CleanupPodAnnotations` 家族函数移除 Pod 上的调度相关注解（`scheduler-name`、`assumed-node` 等），操作对不存在的 Pod 是 no-op，因此可以安全重试；
 
-（4）判断后续动作：
-- 若节点归属仍属于本 Scheduler 且 Pod 还需要绑定，重新加入 activeQ 进入调度循环；
-- 若节点归属已漂移或 Pod 已被删除，直接放弃并触发 Layer 3。
+（4）判断后续动作。清理动作根据本地重试计数进行分支：
+- 若累计本地失败次数未超过 `maxLocalRetries`，Pod 状态改回 `Dispatched` 保持在本 Scheduler 侧，等待下一轮调度重试；
+- 若累计失败次数超过 `maxLocalRetries`，清除 `scheduler-name` 注解、状态改回 `Pending`、并在 `failed-schedulers` 注解中追加本 Scheduler 名——由 Dispatcher 通过 Informer 感知后重新分发到其他 Scheduler（对应 Layer 3）。
 
 进程崩溃恢复：需要说明的是，`APICallFailedTaskQueue` 基于 client-go 的 workqueue 实现，是内存中的限速队列而非持久化队列，因此 Scheduler 进程 panic 重启后，队列中尚未处理的任务会随之丢失，Layer 2 不能依赖队列本身提供跨崩溃的恢复能力（见 [36] 的 workqueue 说明）。真正提供恢复能力的是 etcd 中持久化的 Pod 状态：进程重启后，Scheduler 通过 Informer 从 etcd 同步 Pod 并重建 SchedulerCache，此时凡 `spec.nodeName` 仍为空、`scheduler-name` 注解指向本实例的 Pod，都会作为待调度 Pod 重新进入调度队列，再次经历 Filter/Score/Reserve 与 Bind 流程。换言之，进程内的 Assumed 状态随进程消失，而 etcd 中的注解状态使这些 Pod 可被重新发现；Layer 2 的最终一致性由 etcd 的持久化与 Informer 的重建共同保证，而不是依赖内存队列的存活。
 
