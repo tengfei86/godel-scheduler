@@ -101,18 +101,13 @@ Layer 0 是四层机制中唯一的前置层——它在 Bind API 之前拦截�
 
 ### 4.3.2　Layer 1 的设计
 
-Layer 1 在 `embedded_binder.go` 的 `bindPodToNode` 函数中实现，核心逻辑是指数退避 + 有限次同步重试：
-
-- 初始退避 `initialBackoff` = 100ms；
-- 退避倍率 `backoffFactor` = 2.0；
-- 最大退避 `maxBackoff` = 5s；
-- 最大重试次数 `MaxBindRetries` = 3。
+Layer 1 在 `embedded_binder.go` 的 `bindPodToNode` 函数中实现，核心逻辑是**线性退避 + 有限次同步重试**：第 n 次重试前等待 `n × 100ms`（首次 100ms、第二次 200ms、第三次 300ms），累计最多 `MaxBindRetries` 次（默认 3，由 `DefaultMaxBindRetries` 定义于 `embedded_binder_config.go`）。重试仅对 `409 Conflict`、`429 Too Many Requests`、`ServerTimeout` 三类瞬态错误生效；其他错误立即返回上层。
 
 每次重试均在当前 goroutine 中同步执行，不涉及跨 goroutine 或跨进程通信。这样设计的原因是：
 
 （1）暂态失败在秒级内自愈的概率很高。API Server 的限流和网络抖动通常持续时间短，一次立即重试往往就能成功；同步重试避免了将失败 Pod 塞入队列后再重新拉起的调度延迟。
 
-（2）失败次数可控。同步重试次数硬编码为 3 次，保证 Scheduler 不会因反复重试单个 Pod 而阻塞后续调度决策——若 3 次都失败，Layer 1 立即将该 Pod 交给 Layer 2 的异步 Reconciler。
+（2）失败次数可控。同步重试上限为 `MaxBindRetries` 次（默认 3），保证 Scheduler 不会因反复重试单个 Pod 而阻塞后续调度决策——若三次仍失败，Layer 1 将错误返回给上层，由 `EmbeddedBinder` 主循环将失败 Pod 加入 Reconciler 队列交由 Layer 2 处理。
 
 （3）幂等性。Bind API 本身是幂等的：若第一次 Bind 已经成功但客户端未收到响应，第二次 Bind 会因 `spec.nodeName` 已被设置而返回 `409 Conflict`，Scheduler 可将其视为成功。
 
@@ -162,11 +157,9 @@ Layer 3 的核心思想是：放弃本实例，交还给 Dispatcher 重新分发
 
 Layer 3 的具体操作序列为：
 
-（1）Scheduler 侧清理：Scheduler A 在决定回退时，通过 `PatchPod` 执行两步原子操作：
-- 先设置 `PodState = Pending`（内存中的状态机字段）；
-- 再清除 Pod 的 `scheduler-name` 注解。
+（1）Scheduler 侧清理：Scheduler A 在决定回退时，通过一次 `PatchPod` 原子提交两个注解修改——将 `pod-state` 注解设为 `Pending`，同时删除 `scheduler-name` 注解；此外将本 Scheduler 名追加到 `failed-schedulers` 注解，避免下一轮 Dispatcher 再次分发到同一实例。
 
-顺序至关重要：先改状态再清注解。若顺序颠倒，Dispatcher 可能会观察到"无 scheduler-name 但 PodState = Dispatched"的中间状态，进而误判为已被分发而跳过。
+由于 `PatchPod` 通过 etcd 事务原子提交，Dispatcher 观察到的必然是 patch 完成后的最终状态，不存在"`scheduler-name` 已清但 `pod-state` 仍为 `Dispatched`"的中间态。
 
 （2）Dispatcher 侧重分发：Dispatcher 通过 Informer 观察到 `scheduler-name` 被清除的 Pod，将其重新纳入 Sorted Queue 参与下一轮分发（对应图 4-2b 中"清理 Scheduler 注解 PodState=Pending → 回到主排序队列 → 下轮重新分发"）。
 
@@ -188,13 +181,9 @@ Layer 3 与 Layer 0 在流程上相互衔接，构成一条可自我修复的回
 
 P1【Bind 唯一性】 来自 Kubernetes 自身的原子性保证。Bind API 是 Pod 资源的子资源，kube-apiserver 通过 etcd 事务保证：当且仅当 Pod 的 `spec.nodeName` 为空时允许原子设置为目标节点；若已设置，返回 `409 Conflict`。这是 Kubernetes 集群层面的性质，本文只引用而不重新证明。
 
-P2【Assumed 状态清理】 由 Layer 2 保证。Bind 失败时 Pod 被加入 `APICallFailedTaskQueue`，Reconciler Worker 周期性调用 `ForgetPod(p)` 清理 SchedulerCache 中的 Assumed 状态。`ForgetPod` 对不存在的 Pod 是 no-op，可安全重试；进程重启后 SchedulerCache 由 Informer 从 etcd 重新构建，Assumed 状态不会作为孤儿数据永久驻留。
+P2【Assumed 状态清理】 由 Bind Reject 阶段与 Layer 2 共同保证。Bind 失败时，SchedulerCache 中的 Assumed 状态由 Reject 阶段调用 `ForgetPod(p)` 清理（对不存在的 Pod 是 no-op，可安全重试）；etcd 中残留的调度注解由 Layer 2 的 `APICallFailedTaskQueue` Worker 通过 `CleanupPodAnnotations` 家族函数清理。进程重启后 SchedulerCache 由 Informer 从 etcd 重新构建，Assumed 状态不会作为孤儿数据永久驻留。
 
-P3【注解清理 → 重分发的时序】 由 Layer 3 的操作顺序保证。Layer 3 全局回退的操作序列必须是：
-1. 先设置 `PodState = Pending`；
-2. 再清除 `scheduler-name` 注解。
-
-反例：若顺序颠倒（先清注解再改状态），Dispatcher 可能在中间态观察到"无 scheduler-name 但 PodState = Dispatched"的 Pod，跳过该 Pod。Dispatcher 的 `selectScheduler` 幂等，因此即使多次触发也不会产生错误的分发结果。
+P3【注解清理 → 重分发的时序】 由 Layer 3 的原子 patch 保证。Layer 3 全局回退通过一次 `PatchPod` 原子提交两个注解修改——将 `pod-state` 注解设为 `Pending`，同时删除 `scheduler-name` 注解。由于 `PatchPod` 通过 etcd 事务原子提交，Dispatcher 观察到的必然是 patch 完成后的最终状态，不存在"`scheduler-name` 已清但 `pod-state` 仍为 `Dispatched`"的中间态。此外 Dispatcher 的 `selectScheduler` 幂等，因此即使多次触发也不会产生错误的分发结果。
 
 P4【时序保证：Layer 0 前置拦截】 由 Node 归属注解的原子写入 + Layer 0 校验共同保证。当 Dispatcher `PatchNode` 修改归属注解时，Kubernetes 通过 `resourceVersion` 保证原子性；Layer 0 在 Bind API 前查询该注解，只有归属与自身匹配的 Scheduler 才能通过校验。虽然 Informer 缓存可能短暂滞后，但即使两个 Scheduler 都通过了 Layer 0，P1 的 Bind API 原子性也能保证最终只有一个 Bind 成功——第二个会因 `nodeName` 已设置而返回 `409 Conflict`，触发 Layer 1 重试，进而 Layer 2/3 清理。
 
@@ -208,7 +197,7 @@ P4【时序保证：Layer 0 前置拦截】 由 Node 归属注解的原子写入
 
 情况 2（T1 触发）：Bind 失败后 Layer 1 同步重试，仍是同一个 Scheduler 试图 Bind 同一个 Pod 到同一个节点。由 P1，重试不会绑定到第二个节点。I 保持。
 
-情况 3（T2 触发）：Bind 半失败或 Scheduler 进程崩溃，Pod 在 SchedulerCache 中残留 Assumed。由 P2，Layer 2 保证 Assumed 状态被 `ForgetPod` 清理，后续调度不受影响。此时 Pod 未被绑定到任何节点（Bind 失败），I 平凡成立。
+情况 3（T2 触发）：Bind 半失败或 Scheduler 进程崩溃，Pod 在 SchedulerCache 中残留 Assumed。由 P2，Bind Reject 阶段与 Layer 2 分别清理内存中的 Assumed 状态与 etcd 中的调度注解，后续调度不受影响。此时 Pod 未被绑定到任何节点（Bind 失败），I 平凡成立。
 
 情况 4（T0/T3 触发）：无论是节点归属漂移（T0）还是本地重试耗尽（T3），Pod 都会经 Layer 3 清除 `scheduler-name` 注解回到 Pending 状态。由 P3，操作时序正确，Dispatcher 会重新分发。分发到新 Scheduler 后走完整流程，再次遇到 Layer 0 校验（P4），归约到情况 1。I 在整个过程中不被破坏。
 
@@ -236,7 +225,7 @@ P4【时序保证：Layer 0 前置拦截】 由 Node 归属注解的原子写入
 分别设计了对应的 4 层容错机制：
 
 - Layer 0：Bind 前置的节点归属校验；
-- Layer 1：指数退避的同步重试；
+- Layer 1：线性退避的同步重试；
 - Layer 2：异步 Reconciler + APICallFailedTaskQueue；
 - Layer 3：跨实例回退，清除 `scheduler-name` 注解触发 Dispatcher 重分发。
 

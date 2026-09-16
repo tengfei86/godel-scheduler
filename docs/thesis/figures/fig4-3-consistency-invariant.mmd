@@ -5,7 +5,7 @@ flowchart TB
     D0["<b>Layer 0：Node 归属校验</b><br/>Bind API 前查节点注解，不匹配则拒绝 Bind"]:::defense
 
     T1["<b>威胁 T1：Bind API 暂态失败</b><br/>kube-apiserver 返回 409 / 429 / 网络 Timeout"]:::threat
-    D1["<b>Layer 1：同步重试</b><br/>指数退避重试 attempt lt MaxBindRetries"]:::defense
+    D1["<b>Layer 1：同步重试</b><br/>线性退避重试 attempt lt MaxBindRetries"]:::defense
 
     T2["<b>威胁 T2：进程内偶发错误</b><br/>Bind 失败后 etcd 注解与内存 Assumed 状态需分别清理"]:::threat
     D2["<b>Layer 2：异步 Reconciler</b><br/>Bind Reject 阶段 ForgetPod 清内存态；<br/>Worker 从 APICallFailedTaskQueue 清 etcd 注解"]:::defense
