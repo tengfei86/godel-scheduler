@@ -149,11 +149,11 @@ Layer 2 在 `binder_reconciler.go` 中实现，其核心数据结构是 `APICall
 
 ### 4.5.2　Layer 3 的设计
 
-Layer 3 的核心思想是：放弃本实例，交还给 Dispatcher 重新分发。图 4-2a 展示了 Dispatcher 侧的主分发流程，图 4-2b 展示了错误恢复逻辑。
+Layer 3 的核心思想是：放弃本实例，交还给 Dispatcher 重新分发。图 4-2a 展示了 Dispatcher 侧的主分发流程；Layer 3 触发后，Pod 因 `scheduler-name` 注解被清空而被 Dispatcher 的 Informer 重新观察到，从图 4-2a 顶端的 `SortedPodsQueue` 重新进入分发。图 4-2b 单列展示 Dispatcher 分发自身失败（`PatchPod` API 调用失败）时的处理，与 Layer 3 是独立的两条错误路径。
 
 ![图 4-2a  Dispatcher 策略分发的决策路径（PodGroup / Owner 亲和 / 负载均衡）](../figures/fig4-2a-dispatcher-main-flow.png)
 
-![图 4-2b  Dispatcher 侧的错误恢复流程（Layer 3 全局回退）](../figures/fig4-2b-dispatcher-error-recovery.png)
+![图 4-2b  Dispatcher 分发失败的处理（`PatchPod` 失败 / Pod 已删除）](../figures/fig4-2b-dispatcher-error-recovery.png)
 
 Layer 3 的具体操作序列为：
 
@@ -161,7 +161,7 @@ Layer 3 的具体操作序列为：
 
 由于 `PatchPod` 通过 etcd 事务原子提交，Dispatcher 观察到的必然是 patch 完成后的最终状态，不存在"`scheduler-name` 已清但 `pod-state` 仍为 `Dispatched`"的中间态。
 
-（2）Dispatcher 侧重分发：Dispatcher 通过 Informer 观察到 `scheduler-name` 被清除的 Pod，将其重新纳入 Sorted Queue 参与下一轮分发（对应图 4-2b 中"清理 Scheduler 注解 PodState=Pending → 回到主排序队列 → 下轮重新分发"）。
+（2）Dispatcher 侧重分发：Dispatcher 通过 Informer 观察到 `scheduler-name` 被清除的 Pod，将其重新纳入 `SortedPodsQueue`（对应图 4-2a 顶端）参与下一轮分发。
 
 （3）幂等重分发：Dispatcher 的 `selectScheduler` 方法是幂等的——多次调用最终会写入同一个 `scheduler-name` 注解（这一注解通过 API Server 的 Patch 语义 + `resourceVersion` 保证并发安全）。因此即使 Layer 3 触发时 Dispatcher 恰好也在处理该 Pod，也不会产生错误的分发结果。
 
