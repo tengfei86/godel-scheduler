@@ -31,6 +31,19 @@ Please refer to the below links for quick start guides on key features. Please n
 - [SubCluster Concurrent Scheduling](./docs/features/concurrent-scheduling.md)
 - [Resource Reservation](./docs/features/resource-reservation.md)
 
+## ENO Extensions
+
+This fork adds an **Embedded Binder / ENO** path with a four-layer fault-tolerance model. Changes on top of upstream Gödel:
+
+- **Layer 0** — Node-ownership pre-check via `NodeValidator` ([pkg/binder/node_validator.go](pkg/binder/node_validator.go)), invoked from `EmbeddedBinder.BindUnit` before any Bind API call.
+- **Layer 1** — Synchronous, error-classified retry inside `bindPodToNode` ([pkg/binder/embedded_binder.go](pkg/binder/embedded_binder.go)); linear 100/200/300 ms backoff, `MaxBindRetries` (default 3), retries only on `409 Conflict` / `429 TooManyRequests` / `ServerTimeout`.
+- **Layer 2** — Asynchronous `BinderTasksReconciler` ([pkg/binder/binder_reconciler.go](pkg/binder/binder_reconciler.go)) with `APICallFailedTaskQueue` (exponential backoff 5 ms → 10 s), constructed via `NewBinderTaskReconcilerWithRetry(...)` in ENO so it is `maxLocalRetries`-aware.
+- **Layer 3** — Cross-instance dispatch fallback via `CleanupPodAnnotationsWithRetryCount` ([pkg/binder/utils/util.go](pkg/binder/utils/util.go)): once accumulated `bind-failure-count` reaches `MaxLocalRetries`, clears `scheduler-name`, sets `PodState = Pending`, appends this scheduler to `failed-schedulers` — Dispatcher re-dispatches to another Scheduler.
+
+### Recent changes
+
+- **L1 → L2 wiring in ENO path**: after `bindPodToNode` fails — whether Layer 1 exhausted its `MaxBindRetries` budget for a transient error, or a non-retriable error short-circuited it on attempt 0 — the pod is now (a) patched to persist the incremented `eno.io/bind-failure-count` annotation to etcd, and (b) enqueued into `eb.reconciler.APICallFailedTaskQueue` with reason `RejectFailed`. Prior to this fix the reconciler was constructed and running but received no tasks (dead code), which prevented Layer 3 from ever triggering under the ENO path. The sentinel `ErrBindRetriesExhausted` is wrapped into the exhaustion-path return value so tests and logs can distinguish the two sub-cases with `errors.Is`. Unit tests: `go test ./pkg/binder/...`.
+
 ## Contribution Guide
 
 Please refer to [Contribution](CONTRIBUTING.md).

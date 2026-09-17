@@ -33,6 +33,17 @@ var (
 
 	// ErrBinderNotRunning is returned when BindUnit is called on a Binder that has not been started.
 	ErrBinderNotRunning = errors.New("binder is not running")
+
+	// ErrBindRetriesExhausted signals that Layer 1's synchronous retry budget
+	// (MaxBindRetries) was exhausted for a single Pod. Callers use
+	// errors.Is(err, ErrBindRetriesExhausted) to distinguish this case from
+	// non-retriable Bind API errors and decide whether to escalate the failure
+	// into the Layer 2 async reconciler queue (which may in turn trigger the
+	// Layer 3 Dispatcher fallback once cumulative failures cross
+	// MaxLocalRetries). Non-retriable errors (400 BadRequest, unclassified
+	// server errors, etc.) short-circuit L1 immediately without wrapping this
+	// sentinel and therefore bypass L2/L3 as per fig 4-1.
+	ErrBindRetriesExhausted = errors.New("bind retries exhausted")
 )
 
 // BinderInterface defines the contract for binding scheduling decisions to the API server.

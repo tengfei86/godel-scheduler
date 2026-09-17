@@ -33,6 +33,7 @@ import (
 	bindermetrics "github.com/kubewharf/godel-scheduler/pkg/binder/metrics"
 	binderutils "github.com/kubewharf/godel-scheduler/pkg/binder/utils"
 	godelcache "github.com/kubewharf/godel-scheduler/pkg/scheduler/cache"
+	godelutil "github.com/kubewharf/godel-scheduler/pkg/util"
 )
 
 // EmbeddedBinder implements BinderInterface for cases where the Binder is
@@ -205,9 +206,41 @@ func (eb *EmbeddedBinder) BindUnit(ctx context.Context, req *BindRequest) (*Bind
 			result.FailedPods[pod.UID] = err
 			bindermetrics.ObserveEmbeddedBindPod(eb.schedulerName, bindermetrics.FailureResult, podDuration)
 
+			// Snapshot before mutation so PatchPod can compute the delta.
+			originalPod := pod.DeepCopy()
+
 			// Increment bind failure count for retry tracking.
 			binderutils.IncrementBindFailureCount(pod)
 			binderutils.SetLastBindFailureReason(pod, err.Error())
+
+			// Persist the bumped bind-failure-count to etcd. The Layer 2 Reconciler
+			// (BinderTasksReconciler) fetches the latest Pod from apiserver / lister
+			// before evaluating ShouldDispatchToAnotherScheduler, so the counter must
+			// be observable via etcd — not just held in this in-memory copy — for the
+			// Layer 3 dispatcher fallback to trigger at MaxLocalRetries.
+			if patchErr := godelutil.PatchPod(eb.client, originalPod, pod); patchErr != nil {
+				klog.V(3).InfoS("Failed to persist bind-failure-count annotation",
+					"scheduler", eb.schedulerName,
+					"pod", klog.KObj(pod),
+					"err", patchErr)
+			}
+
+			// Feed the failed task into the Layer 2 async reconciler.
+			// All L1 failures — whether MaxBindRetries were exhausted (transient
+			// errors kept coming) or an early non-retriable error short-circuited
+			// L1 on attempt 0 — flow into L2 so their cumulative failure count
+			// contributes uniformly to the Layer 3 dispatcher-fallback threshold
+			// (MaxLocalRetries). ErrBindRetriesExhausted is still wrapped by
+			// bindPodToNode when the loop ran to exhaustion; callers/tests can
+			// use errors.Is(err, ErrBindRetriesExhausted) to distinguish the two
+			// sub-cases for observability, but the wiring into L2 does not
+			// depend on it.
+			if eb.reconciler != nil {
+				eb.reconciler.AddFailedTask(&APICallFailedTask{
+					reason: RejectFailed,
+					qpi:    qpi,
+				})
+			}
 		} else {
 			result.SuccessfulPods = append(result.SuccessfulPods, pod.UID)
 			bindermetrics.ObserveEmbeddedBindPod(eb.schedulerName, bindermetrics.SuccessResult, podDuration)
@@ -296,8 +329,11 @@ func (eb *EmbeddedBinder) bindPodToNode(ctx context.Context, pod *v1.Pod, nodeNa
 		return err
 	}
 
-	return fmt.Errorf("failed to bind pod %s/%s after %d attempts: %w",
-		pod.Namespace, pod.Name, maxRetries, lastErr)
+	// Retry budget exhausted: wrap the sentinel so callers can distinguish
+	// "exhausted after N transient retries" (fig 4-1: L1_Retry → L2_Queue)
+	// from "non-retriable error, immediate exit" (bypasses L2).
+	return fmt.Errorf("failed to bind pod %s/%s after %d attempts (last error: %v): %w",
+		pod.Namespace, pod.Name, maxRetries, lastErr, ErrBindRetriesExhausted)
 }
 
 // IsRunning returns true if the EmbeddedBinder has been started and not stopped.

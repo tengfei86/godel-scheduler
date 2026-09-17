@@ -16,8 +16,9 @@ stateDiagram-v2
     Assumed --> L1_Retry: L1 可重试错误 (409/Timeout/429)
     L1_Retry --> Assumed: 退避后重试 (attempt < MaxBindRetries)
 
-    %% Layer 2 — 异步 Reconciler
+    %% Layer 2 — 异步 Reconciler（任何 L1 失败都进队）
     L1_Retry --> L2_Queue: 超同步重试上限 入 APICallFailedTaskQueue
+    Assumed --> L2_Queue: L1 非可重试错误 (400/500/其它)
     L2_Queue --> Dispatched: 未超 maxLocalRetries Worker 清 etcd 注解 保留本地重试
 
     %% Layer 3 — 跨实例回退（三个失败态共同的归宿）

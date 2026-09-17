@@ -18,6 +18,7 @@ package binder
 
 import (
 	"context"
+	stderrors "errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -243,6 +244,95 @@ func TestEmbeddedBinder_BindUnit_APIServerError(t *testing.T) {
 	require.NotNil(t, result)
 	assert.True(t, result.AllFailed())
 	assert.Len(t, result.FailedPods, 1)
+}
+
+// TestEmbeddedBinder_BindUnit_NonRetriable_EnqueuesToL2 verifies that a
+// non-retriable Bind API error (bypasses L1's retry loop on attempt 0) is
+// still fed into the Layer 2 reconciler queue. The failure error must NOT
+// be wrapped with ErrBindRetriesExhausted, since L1 never truly exhausted
+// its budget — but the pod must still enter L2 so the failure count
+// accumulates toward the eventual Layer 3 dispatcher fallback.
+func TestEmbeddedBinder_BindUnit_NonRetriable_EnqueuesToL2(t *testing.T) {
+	eb, client := newTestEmbeddedBinder(t)
+	_ = eb.Start(context.Background())
+	defer eb.Stop()
+
+	client.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		if action.GetSubresource() == "binding" {
+			return true, nil, fmt.Errorf("internal server error") // non-retriable
+		}
+		return false, nil, nil
+	})
+
+	req := makeTestBindRequest("pod-1", "default", "node-1")
+	result, err := eb.BindUnit(context.Background(), req)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Len(t, result.FailedPods, 1)
+
+	// Non-retriable path: L1 never truly exhausted, so the returned error
+	// MUST NOT carry the ErrBindRetriesExhausted sentinel.
+	for _, pErr := range result.FailedPods {
+		assert.False(t, stderrors.Is(pErr, ErrBindRetriesExhausted),
+			"non-retriable error must not be wrapped with ErrBindRetriesExhausted; got: %v", pErr)
+	}
+
+	// But the pod SHOULD still enter Layer 2 — proven by the worker
+	// observing a Patch action on the pod (either the count-persistence
+	// patch from BindUnit or the cleanup patch from the L2 worker).
+	assert.Eventually(t, func() bool {
+		for _, a := range client.Actions() {
+			if a.GetVerb() == "patch" && a.GetResource().Resource == "pods" {
+				return true
+			}
+		}
+		return false
+	}, 2*time.Second, 20*time.Millisecond,
+		"expected a Patch on pods indicating L1→L2 wiring fired")
+}
+
+// TestEmbeddedBinder_BindUnit_Exhaustion_TaggedAndEnqueued verifies that when
+// L1 truly exhausts its MaxBindRetries budget on transient errors, the
+// resulting error is wrapped with ErrBindRetriesExhausted AND the pod flows
+// into Layer 2 for eventual Layer 3 escalation.
+func TestEmbeddedBinder_BindUnit_Exhaustion_TaggedAndEnqueued(t *testing.T) {
+	eb, client := newTestEmbeddedBinder(t)
+	eb.config.MaxBindRetries = 3
+	eb.config.BindTimeout = 10 * time.Second
+	_ = eb.Start(context.Background())
+	defer eb.Stop()
+
+	client.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		if action.GetSubresource() == "binding" {
+			return true, nil, apierrors.NewConflict(
+				schema.GroupResource{Resource: "pods"}, "pod-1", fmt.Errorf("conflict"))
+		}
+		return false, nil, nil
+	})
+
+	req := makeTestBindRequest("pod-1", "default", "node-1")
+	result, err := eb.BindUnit(context.Background(), req)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Len(t, result.FailedPods, 1)
+
+	// Exhaustion path: MUST wrap ErrBindRetriesExhausted so callers/tests
+	// can distinguish this sub-case (aligns with fig 4-1 L1_Retry → L2_Queue).
+	for _, pErr := range result.FailedPods {
+		assert.True(t, stderrors.Is(pErr, ErrBindRetriesExhausted),
+			"exhaustion path should wrap ErrBindRetriesExhausted; got: %v", pErr)
+	}
+
+	// L2 wiring must fire in this case too.
+	assert.Eventually(t, func() bool {
+		for _, a := range client.Actions() {
+			if a.GetVerb() == "patch" && a.GetResource().Resource == "pods" {
+				return true
+			}
+		}
+		return false
+	}, 2*time.Second, 20*time.Millisecond,
+		"expected a Patch on pods indicating L1→L2 wiring fired after exhaustion")
 }
 
 func TestEmbeddedBinder_BindUnit_ConflictRetry(t *testing.T) {
