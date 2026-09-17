@@ -1,10 +1,10 @@
 # 第五章　面向大规模场景的架构优化 —— ENO
 
-第 3、4 章构建的分布式 Kubernetes 调度器架构在正确性与容错性上已经完备，但性能仍然存在优化空间。特别是原架构中独立部署的 Binder 组件，在超高并发场景下会重新成为整个调度流水线的瓶颈。本章提出 ENO——一种将 Binder 合并进 Scheduler 进程的嵌入式绑定器（Embedded Binder）架构改造方案，通过 Cache 零拷贝共享、消除跨进程 API 调用、保持 CLI 开关可切换性等设计要点，在不牺牲一致性保证的前提下取得显著的性能提升。
+第 3、4 章从架构与容错两个维度刻画了分布式 Kubernetes 调度器需要满足的功能与一致性要求。在具体的部署形态上，若沿用"独立 Binder 组件 + 跨进程通信"的经典拆分，其在超高并发场景下会重新成为整个调度流水线的性能瓶颈。本章提出 ENO——一种将绑定执行链路合并进 Scheduler 进程的嵌入式绑定器（Embedded Binder）架构，通过共享缓存零拷贝适配、消除跨进程 API 调用、在四层容错语义上重建进程内调用链、并保留 CLI 开关可切换性等设计要点，在不牺牲一致性保证的前提下取得显著的性能提升。
 
 ## 5.1　独立 Binder 的性能开销分析
 
-在原 Gödel 架构中，Binder 作为独立的 Deployment 部署，与 Scheduler 进程通过 Kubernetes API Server 间接通信。图 5-1a 展示了这一部署形态下 Pod 从被分发到最终绑定的完整跨进程流程。
+在 Dispatcher/Scheduler/Binder 三层解耦的分布式调度架构中，若 Binder 作为独立的 Deployment 部署，则它与 Scheduler 进程之间无直接连接，只能通过 Kubernetes API Server 间接通信。这一部署形态（本文称之为"独立 Binder / Shared-Binder 基线"）是本文 ENO 改造前的对照参照，也是本文 §6 实验中 b 组的评估基线。图 5-1a 展示了该形态下 Pod 从被分发到最终绑定的完整跨进程流程。
 
 ![图 5-1a  独立 Binder（改造前）：5 步跨进程流程](../figures/fig5-1a-shared-binder.png)
 
@@ -20,9 +20,9 @@
 
 （1）序列化 / 反序列化 CPU 开销：每个 Pod 对象大小约 3~10 KB，包含 metadata、spec、status 等字段。以本文实验的 w3 负载（1000 pods/s）为例，稳态吞吐意味着 API Server + Informer 每秒完成 1000 次完整的 Pod 对象序列化/反序列化循环。合并 Binder 后跨进程序列化次数减少约一半，其在总耗时中的实际占比可参见 §6.4.3 中 ENO 相对独立 Binder 的 Pod E2E 延迟改善（P99 降低 40.7%~91.0%）；
 
-（2）Informer 事件延迟：从 API Server 的 Watch 推送到 Binder 的 Informer 处理完成，通常存在数十到数百毫秒的端到端延迟（受批处理、限流、handler 排队影响）。这一延迟直接叠加到 Pod E2E 调度延迟上；ENO 消除步骤 ④ 后，同一场景下的 P99 调度延迟改善数据见 §6.4.2 表 6-5（s3/w3 场景 ENO vs Gödel 降低 47.5%~82.0%），可视为该延迟的定量映射；
+（2）Informer 事件延迟：从 API Server 的 Watch 推送到 Binder 的 Informer 处理完成，通常存在数十到数百毫秒的端到端延迟（受批处理、限流、handler 排队影响）。这一延迟直接叠加到 Pod E2E 调度延迟上；ENO 消除步骤 ④ 后，同一场景下相较独立 Binder 基线的 P99 调度延迟改善数据见 §6.4.2 表 6-5（s3/w3 场景降低 47.5%~82.0%），可视为该延迟的定量映射；
 
-（3）额外的 apiserver 往返：步骤 ④ 是一次完整的 Watch 事件推送（虽然是 apiserver 主动推送，但仍占用 apiserver 的连接与 goroutine 资源）；相当于比"Scheduler 直接调用 Bind API"多了一整个 apiserver 交互周期。该开销在高负载下形成的 pending 队列堆积可参见 §6.5.3 复杂负载对比中 ENO 与 Gödel 的队列长度差异；
+（3）额外的 apiserver 往返：步骤 ④ 是一次完整的 Watch 事件推送（虽然是 apiserver 主动推送，但仍占用 apiserver 的连接与 goroutine 资源）；相当于比"Scheduler 直接调用 Bind API"多了一整个 apiserver 交互周期。该开销在高负载下形成的 pending 队列堆积可参见 §6.5.3 复杂负载对比中 ENO 与独立 Binder 基线的队列长度差异；
 
 （4）独立 Binder 的资源占用：独立 Binder 作为独立 Deployment 需要独立的 CPU / 内存配额、独立的健康探测、独立的日志与监控。在 3-5 副本水平扩展的 Scheduler 集群中，额外的 Binder Deployment 是明显的资源冗余；ENO 部署形态下该 Deployment 被移除（详见 §5.4 图 5-3），运维层面的收益属定性观察，不进入 §6 的定量对比。
 
@@ -69,7 +69,7 @@ CacheAdapter 是本文设计的桥接层，位于 Scheduler 模块与 ENO Binder
 - Dispatcher Deployment：副本数 = 1（+1 Standby），通过 Leader Election 保证单实例活跃，负责节点分区管理与 Pod 分发；
 - Scheduler Deployment：副本数 = N（水平扩展），每个 Pod 内部同时运行 Scheduler 模块 + ENO Binder 模块。
 
-与原 Gödel 架构相比，独立的 Binder Deployment 被彻底移除。这一变化带来的运维层面收益包括：
+相较独立 Binder 部署形态，独立的 Binder Deployment 在 ENO 下被彻底移除。这一拓扑变化带来的运维层面收益包括：
 
 - 减少一个需要维护的 Deployment（配置、镜像、健康探测、日志、监控都少一份）；
 - Scheduler 的资源规格（每 Pod requests: 2 CPU / 4G MEM，limits: 4 CPU / 8G MEM）已经预留了 Binder 合并后的资源需求，无需在合并后调整；
@@ -106,24 +106,24 @@ type BinderInterface interface {
 
 在 [cmd/scheduler/app/options/options.go](cmd/scheduler/app/options/options.go) 中新增了 `--enable-embedded-binder` 布尔开关：
 
-- 默认值 `false`：保持与 Gödel 原架构完全一致，独立 Binder Deployment 承担绑定职责；
+- 默认值 `false`：走独立 Binder 部署形态（Shared-Binder 基线），独立 Binder Deployment 承担绑定职责；
 - 设为 `true`：Scheduler 进程内启动 ENO Binder 模块，独立 Binder Deployment 可被删除（或保持运行但空转）。
 
 这一 CLI 开关的设计遵循运维视角的稳态切换原则——生产环境可以先在小流量集群启用 ENO 验证效果，确认无异常后再扩大到全量集群，全程不需要修改 Scheduler 之外的任何组件。
 
-## 5.6　一致性保证在 ENO 下的接线改造
+## 5.6　ENO 下四层容错的进程内实现
 
-第 4 章描述的四层容错机制在概念层面独立于部署形态，但**运行时接线并不自动继承**——独立 Binder 路径下已有的调用链（`RejectFailedTasks` → `BinderTasksReconciler`；`Layer 0 校验失败 → 主流水线返回 → 重分发`）都发生在 Binder 进程内部，Scheduler 进程原本并不感知这些路径。ENO 将 Binder 合并进 Scheduler 后，需要在新宿主进程内**重新接通**上述调用链。本节梳理四层机制在 ENO 下的具体接线状态。
+第 4 章刻画了分布式调度器需要满足的四层容错语义（Layer 0/1/2/3）。这些语义是**行为约束**，与运行时的进程边界无关；但**具体的调用链落到哪个进程里**是部署形态的选择。独立 Binder 部署形态下调用链跨越两个进程，ENO 将其整体收敛到 Scheduler 进程内。本节按四层顺序说明 ENO 的进程内实现。
 
-Layer 0（节点归属校验）在概念上与部署形态无关——`NodeValidator` 只依赖 Node 注解读取。但**Layer 0 失败后的 L3 回退**在独立 Binder 里由 `RejectFailedTasks` → `binder.reconciler` 承担，ENO 路径必须自行触发。为此在 [pkg/binder/utils/util.go](pkg/binder/utils/util.go) 中新增 `CleanupPodAnnotationsForceDispatch` 辅助函数，在 `EmbeddedBinder.BindUnit` 检测到 L0 校验失败时逐 Pod 调用，无条件清 `selected-scheduler` 注解、追加 `failed-schedulers`、`pod-state` 置回 `pending`，实现图 4-1 中 `L0_Fail → Pending` 的直通路径。
+Layer 0（节点归属前置校验）由 `EmbeddedBinder` 在每次 `BindUnit` 请求进入时统一执行：对请求中出现的每个目标节点调用 `NodeValidator.Validate`（[pkg/binder/node_validator.go](pkg/binder/node_validator.go)），通过 `NodeGetter` 抽象从 Informer 缓存读取节点的 `eno.io/scheduler-name` 注解并与自身匹配。任何一个节点不属于本 Scheduler 分区，都会走 L0 失败分支——ENO 通过 `CleanupPodAnnotationsForceDispatch` 辅助函数（[pkg/binder/utils/util.go](pkg/binder/utils/util.go)）对请求中的每个 Pod 做原子清理：清 `selected-scheduler` 注解、追加 `failed-schedulers`、`pod-state` 置回 `pending`，Dispatcher 的 Informer 感知后立即重新分发。此即图 4-1 中 `L0_Fail → Pending` 的直通路径。
 
-Layer 1（同步重试）在 `bindPodToNode` 内部完整实现——3 次线性退避、错误类型分类（`409/Timeout/429` 触发重试，其它立即返回）。由于 ENO 下 Binder 与 Scheduler 同进程，重试循环无需跨 gRPC 或 apiserver 事件转发，是四层里唯一在架构合并后天然更快的一层。
+Layer 1（同步退避重试）在 `EmbeddedBinder.bindPodToNode` 内部落地。ENO 在此层显式约束了两点：其一，重试仅对确认可自愈的错误类型（`409 Conflict` / `429 TooManyRequests` / `ServerTimeout`）生效，其它类型立即出口；其二，退避策略采用线性 `n × 100ms`，上限为 `MaxBindRetries`（默认 3）。由于绑定动作与 Scheduler 决策同进程，L1 循环无需跨进程事件传递，是 ENO 下运行时开销最小的一层。为便于观测与测试，退避耗尽的失败路径会以 `ErrBindRetriesExhausted` sentinel 包裹返回错误（[pkg/binder/binder_interface.go](pkg/binder/binder_interface.go)），非可重试错误则原样返回。
 
-Layer 2（异步 Reconciler）的机制层面（`APICallFailedTaskQueue`、Worker、`CleanupPodAnnotations` 系列）在 [pkg/binder/binder_reconciler.go](pkg/binder/binder_reconciler.go) 中直接复用，但**任务入口需要重新接通**：独立 Binder 里 `RejectFailedTasks` 在同步清理失败时调用 `binder.reconciler.AddFailedTask`，ENO 路径下这个入口点不存在。为此在 `EmbeddedBinder.BindUnit` 的失败分支加入 `eb.reconciler.AddFailedTask` 调用，将所有 L1 失败（包括退避耗尽和非可重试早退两种子情况）喂入 L2 队列；同时在同分支通过 `util.PatchPod` 将新增的 `eno.io/bind-failure-count` 注解持久化到 etcd，供 L2 Worker 通过 lister 读取以判断是否触发 L3。为便于观测与测试，退避耗尽子情况会以 `ErrBindRetriesExhausted` sentinel 包裹返回错误（[pkg/binder/binder_interface.go](pkg/binder/binder_interface.go)），非可重试子情况原样返回。
+Layer 2（异步 Reconciler）由 `EmbeddedBinder.reconciler` 承载，实例通过 `NewBinderTaskReconcilerWithRetry` 构造（[pkg/binder/binder_reconciler.go](pkg/binder/binder_reconciler.go)），后台单 goroutine Worker 消费 `APICallFailedTaskQueue`。任务入口在 `EmbeddedBinder.BindUnit` 的失败分支：每次 L1 出错（无论退避耗尽还是非可重试早退）都会调用 `eb.reconciler.AddFailedTask`，同时通过 `util.PatchPod` 将新增的 `eno.io/bind-failure-count` 注解持久化到 etcd，供 Worker 稍后读取。Worker 的清理动作幂等——`CleanupPodAnnotations` 家族函数移除调度决策注解并根据本地失败计数选择"回到本 Scheduler 重试"或"上升至 L3"。
 
-Layer 3（跨实例回退）的执行主体是 `CleanupPodAnnotationsWithRetryCount`（清 `scheduler-name`、`pod-state=pending`、追加 `failed-schedulers`），由 L2 Worker 在累计失败次数达到 `MaxLocalRetries` 时调用。ENO 通过 `NewBinderTaskReconcilerWithRetry` 构造 reconciler 并传入 `MaxLocalRetries=5`（[embedded_binder_config.go](pkg/binder/embedded_binder_config.go)），使得 L2→L3 的判据能真正落地。Dispatcher 侧的重分发行为与部署形态无关——它只观察 `scheduler-name` 注解的清除事件。
+Layer 3（跨实例回退）的执行主体是 `CleanupPodAnnotationsWithRetryCount`：一旦 L2 Worker 观察到累计失败次数达到 `MaxLocalRetries`（`EmbeddedBinderConfig` 默认为 5，见 [embedded_binder_config.go](pkg/binder/embedded_binder_config.go)），即执行"清 `selected-scheduler` 注解 + `pod-state=pending` + 追加 `failed-schedulers`"三原子动作，将 Pod 交还给 Dispatcher 重新分发到其它 Scheduler 实例。Dispatcher 侧的重分发行为与 ENO 的进程边界无关——它只依赖 `selected-scheduler` 注解的清除事件被 Informer 感知。
 
-综合起来，ENO 下的四层容错**并非"自动继承"，而是在 Scheduler 进程内重建了原本存在于独立 Binder 内部的调用链**。改造的技术要点是保持 Layer 0/1/2/3 的语义完整（不变量证明依旧成立），同时将 wiring 从跨进程 Informer 通信改为进程内直接调用。这一部分工作与 §5.3 的 CacheAdapter 零拷贝共享共同构成 ENO 的完整实现。
+综合起来，ENO 在单一 Scheduler 进程内完整承载了四层容错的运行时调用链：L0 的前置校验与 L3 直通、L1 的进程内退避、L2 的失败任务异步驱动，以及 L3 的注解级重分发。这一进程内实现与 §5.3 的 CacheAdapter 零拷贝共享共同构成 ENO 完整的架构语义。第 4 章给出的核心不变量（"任一 Pod 至多绑定到一个节点"）与 P1–P4 证明要点在 ENO 下依旧成立——因为它们只依赖 Bind API 的原子性与 etcd 注解写入的 CAS 语义，与 Binder 的部署形态无关。
 
 ## 5.7　本章小结
 
