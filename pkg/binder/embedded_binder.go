@@ -161,6 +161,24 @@ func (eb *EmbeddedBinder) BindUnit(ctx context.Context, req *BindRequest) (*Bind
 					"err", err)
 				bindermetrics.ObserveNodeValidationFailure(eb.schedulerName, "ownership")
 				bindermetrics.ObserveEmbeddedBind(eb.schedulerName, bindermetrics.FailureResult, time.Since(unitStart).Seconds())
+
+				// Layer 0 → Layer 3 fast path (fig 4-1: L0_Fail → Pending).
+				// The target Node's partition ownership has drifted; no amount
+				// of local retry can recover this bind. Force-dispatch every
+				// pod in the unit back to the Dispatcher immediately, appending
+				// this scheduler to failed-schedulers so it is not re-routed here.
+				for _, qpi := range req.Pods {
+					if qpi == nil || qpi.Pod == nil {
+						continue
+					}
+					if fdErr := binderutils.CleanupPodAnnotationsForceDispatch(eb.client, qpi.Pod, eb.schedulerName); fdErr != nil {
+						klog.V(3).InfoS("Failed to force-dispatch pod after Layer 0 failure",
+							"scheduler", eb.schedulerName,
+							"pod", klog.KObj(qpi.Pod),
+							"err", fdErr)
+					}
+				}
+
 				return nil, fmt.Errorf("node validation failed for %q: %w", nodeName, err)
 			}
 		}

@@ -537,6 +537,77 @@ func TestEmbeddedBinder_BindUnit_NodeValidation_OtherNode(t *testing.T) {
 	assert.True(t, IsNodeOwnershipError(err) || containsNodeOwnership(err), "expected NodeOwnershipError")
 }
 
+// TestEmbeddedBinder_BindUnit_L0Fail_ForceDispatch verifies that when Layer 0
+// (Node ownership validation) fails, every pod in the unit is unconditionally
+// force-dispatched back to the Dispatcher: scheduler-name cleared, PodState
+// reset to pending, and the current scheduler appended to failed-schedulers.
+// This is the L0_Fail → Pending fast path in fig 4-1.
+func TestEmbeddedBinder_BindUnit_L0Fail_ForceDispatch(t *testing.T) {
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "pod-l0-fail",
+			Namespace: "default",
+			UID:       types.UID("uid-l0-fail"),
+			Annotations: map[string]string{
+				"eno.io/selected-scheduler": "test-scheduler",
+				"eno.io/pod-state":          "dispatched",
+			},
+		},
+	}
+	client := fake.NewSimpleClientset(pod)
+	crdClient := godelclientfake.NewSimpleClientset()
+	fc := &fakecache.Cache{
+		AssumeFunc:       func(pod *v1.Pod) {},
+		ForgetFunc:       func(pod *v1.Pod) {},
+		IsAssumedPodFunc: func(pod *v1.Pod) bool { return false },
+		IsCachedPodFunc:  func(pod *v1.Pod) bool { return false },
+		GetPodFunc:       func(pod *v1.Pod) *v1.Pod { return pod },
+		UnitStatus:       unitstatus.NewUnitStatusMap(),
+	}
+	// The target node is owned by scheduler-B, not test-scheduler — L0 fails.
+	nodeGetter := NodeGetter(func(nodeName string) (*v1.Node, error) {
+		return &v1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        nodeName,
+				Annotations: map[string]string{"eno.io/scheduler-name": "scheduler-B"},
+			},
+		}, nil
+	})
+	eb := NewEmbeddedBinder(client, crdClient, fc, "test-scheduler", DefaultEmbeddedBinderConfig(), nodeGetter)
+	require.NoError(t, eb.Start(context.Background()))
+	defer eb.Stop()
+
+	req := &BindRequest{
+		Unit:          &framework.QueuedUnitInfo{},
+		Pods:          []*framework.QueuedPodInfo{makeQueuedPodInfo(pod)},
+		NodeName:      "node-other",
+		SchedulerName: "test-scheduler",
+	}
+	result, err := eb.BindUnit(context.Background(), req)
+	assert.Error(t, err, "L0 validation must fail for a foreign node")
+	assert.Nil(t, result)
+
+	// L0 fast path assertions: the pod's annotations should now indicate
+	// that Layer 3 has already reset it for Dispatcher re-dispatch.
+	assert.Eventually(t, func() bool {
+		updated, getErr := client.CoreV1().Pods(pod.Namespace).Get(context.Background(), pod.Name, metav1.GetOptions{})
+		if getErr != nil {
+			return false
+		}
+		if _, hasScheduler := updated.Annotations["eno.io/selected-scheduler"]; hasScheduler {
+			return false
+		}
+		if updated.Annotations["eno.io/pod-state"] != "pending" {
+			return false
+		}
+		if updated.Annotations["eno.io/failed-schedulers"] != "test-scheduler" {
+			return false
+		}
+		return true
+	}, 2*time.Second, 20*time.Millisecond,
+		"expected Layer 3 fast-path to clear scheduler-name, set pod-state=pending, and append failed-schedulers")
+}
+
 func TestEmbeddedBinder_BindUnit_NodeValidation_Disabled(t *testing.T) {
 	// When nodeGetter is nil, node validation is skipped and binding proceeds.
 	pod := &v1.Pod{

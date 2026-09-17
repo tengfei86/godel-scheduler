@@ -65,6 +65,46 @@ func CleanupPodAnnotations(client clientset.Interface, pod *v1.Pod) error {
 	return nil
 }
 
+// CleanupPodAnnotationsForceDispatch is the Layer 3 fast-path used when the
+// caller has already decided — outside of the retry-count logic — that the Pod
+// must move to a different Scheduler. This is the Layer 0 → Pending arrow
+// (fig 4-1): the target Node's partition ownership has drifted, so no amount
+// of local retry can complete the bind. The Pod is unconditionally sent back
+// to the Dispatcher.
+//
+// It clears the scheduling-decision annotations, appends the current
+// Scheduler to failed-schedulers, resets PodState to Pending, and removes
+// the scheduler-name annotation so the Dispatcher's Informer picks it up
+// for re-dispatch.
+func CleanupPodAnnotationsForceDispatch(client clientset.Interface, pod *v1.Pod, schedulerName string) error {
+	podCopy := pod.DeepCopy()
+	if podCopy.Annotations == nil {
+		podCopy.Annotations = map[string]string{}
+	}
+
+	cleanupSchedulingAnnotations(podCopy)
+
+	metrics.ObserveDispatcherFallback(schedulerName)
+	failedSchedulers := podCopy.Annotations[podutil.FailedSchedulersAnnotationKey]
+	if failedSchedulers == "" {
+		failedSchedulers = schedulerName
+	} else {
+		failedSchedulers = failedSchedulers + "," + schedulerName
+	}
+	podCopy.Annotations[podutil.FailedSchedulersAnnotationKey] = failedSchedulers
+	podCopy.Annotations[podutil.PodStateAnnotationKey] = string(podutil.PodPending)
+	delete(podCopy.Annotations, podutil.SchedulerAnnotationKey)
+
+	startTime := time.Now()
+	err := util.PatchPod(client, pod, podCopy)
+	if err != nil {
+		metrics.PodOperatingLatencyObserve(framework.ExtractPodProperty(pod), metrics.FailureResult, metrics.PatchPod, metrics.SinceInSeconds(startTime))
+		return err
+	}
+	metrics.PodOperatingLatencyObserve(framework.ExtractPodProperty(pod), metrics.SuccessResult, metrics.PatchPod, metrics.SinceInSeconds(startTime))
+	return nil
+}
+
 // CleanupPodAnnotationsWithRetryCount behaves like CleanupPodAnnotations but
 // checks the cumulative bind-failure count (stored in the Pod's annotations)
 // against maxLocalRetries. When the threshold is reached or exceeded, the Pod
