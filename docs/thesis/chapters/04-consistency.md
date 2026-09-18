@@ -51,7 +51,7 @@ $$
 
 场景：Scheduler A 通过 Filter/Score 决定将 Pod p 调度到 Node X，但在 Bind API 调用发生之前，Dispatcher 因节点负载重新平衡（`node-shuffler` 触发）将 Node X 从 Scheduler A 的分区剥离，改分给 Scheduler B。
 
-危害：若不加拦截，Scheduler A 仍会发起对 Node X 的 Bind 尝试，与此同时 Scheduler B 也可能在自己的分区变更后开始处理与 Node X 相关的调度请求。虽然 Bind 子资源的原子性最终能防止同一 Pod 被绑定两次（本例中只涉及一个 Pod），但会产生大量无效的 Bind 请求、错误日志、以及 API Server 压力。更严重的是，这种"跨分区的 Bind 尝试"会破坏节点分区语义——每个 Scheduler 只应对自己分区内的节点做写操作。
+危害：若不加拦截，Scheduler A 仍会发起对 Node X 的 Bind 尝试，与此同时 Scheduler B 也可能在自己的分区变更后开始处理与 Node X 相关的调度请求。虽然 Bind 子资源的原子性最终能防止同一 Pod 被绑定两次，但会产生大量无效的 Bind 请求、错误日志、以及 API Server 压力。更严重的是，这种"跨分区的 Bind 尝试"会破坏节点分区语义——每个 Scheduler 只应对自己分区内的节点做写操作。
 
 ### 4.2.2　Layer 0 的设计
 
@@ -81,11 +81,19 @@ func (v *NodeValidator) Validate(nodeName string) error {
 
 上述实现有三个要点。节点信息通过 `nodeGetter` 抽象读取，不硬编码数据来源，由调用方决定从 Informer 缓存还是 API Server 读取，生产环境通常选择前者以降低延迟。归属状态被区分为三种：注解为空表示节点尚未分区，允许 Bind 以兼容单调度器场景；注解与自身一致表示归属正确；注解与自身不一致表示归属漂移，此时返回结构化错误。返回的错误类型为 `NodeOwnershipError`，调用方可通过 `errors.As` 判断类型，进而触发 Layer 3 全局回退。
 
-### 4.2.3　Layer 0 的效果
+### 4.2.3　Layer 0 的效果与作用范围
 
 Layer 0 是四层机制中唯一的前置层——它在 Bind API 之前拦截，避免了跨分区的 API 调用。当两个 Scheduler 因分区状态视图不一致都认为自己拥有 Node X 时，Layer 0 的注解查询确保只有真实持有节点注解的那个 Scheduler 能通过前置校验，另一个会因归属不匹配而被拦截，直接进入 Layer 3 全局回退。
 
-这一层的正确性保证依赖于 etcd 对 Node 注解的原子性写入：当 Dispatcher `PatchNode` 修改归属注解时，任何后续从 Informer 读取到该 Node 的组件，最终都会看到修改后的注解值（Informer 通过 Watch 保证最终一致性）。虽然存在短暂的窗口期（旧值尚未在 Informer 中更新），但这一窗口的处理由 Layer 3 兜底：即使 Scheduler A 通过了 Layer 0（读到旧值）并调用了 Bind API，Bind API 的原子性 + Scheduler B 侧的 Layer 0 校验也能保证最终只有一个 Bind 成功。
+需要明确 Layer 0 的定位：它是应用层的降噪层，而非核心不变量 I 的最终守护者。Layer 0 通过 Informer 缓存读取节点归属注解，缓存与 etcd 的同步存在毫秒到百毫秒级的窗口期——在该窗口内 Scheduler A 可能读到旧值、通过 Layer 0 校验、并成功调用 Bind API 完成绑定。这次绑定在 apiserver 侧无法被节点归属注解拦截（Bind 子资源只检查 `spec.nodeName` 是否为空，不校验自定义注解）。
+
+即便如此，核心不变量 I 依然由三个语义共同保护，不依赖 Layer 0：
+
+- Bind API 的 CAS 语义（对应 P1）：一旦 Scheduler A 的 Bind 落盘，Pod p 的 `spec.nodeName` 就永久设定，任何其它 Scheduler 后续对同一 Pod 的 Bind 都会拿到 `409 Conflict`。同一 Pod 至多绑一个节点由此单点保证，与哪个 Scheduler 完成 Bind 无关；
+- kubelet 的调度器无关性：Node X 上的 kubelet 只依据 `spec.nodeName` 拉起 Pod，不感知 `eno.io/scheduler-name` 这一应用层约定，Pod 的实际运行不受"跨分区 Bind"影响；
+- Informer 的最终一致性：短暂窗口内 A 与 B 对 Node X 的资源核算可能出现分歧（A 因缓存尚未刷新继续按自己分区处理，B 因新注解已生效开始处理），但两侧 Informer 观察到 Pod 事件后，B 侧的资源账本自动纳入 A 已绑定的 Pod，分歧收敛。
+
+Layer 0 的价值因此可以精确描述为：在稳定期显著减少跨分区 Bind 尝试的发生率（因为绝大部分场景 Informer 已经收敛），将残余的跨分区尝试转化为可观测事件（`NodeValidationFailure` 计数），并立即触发 Layer 3 快速回退，避免后续同一 Scheduler 再对已改归属的 Node 做写操作。它不承担、也不必承担对 I 的最终守护责任。
 
 ## 4.3　Layer 1 — 同步重试
 
@@ -197,7 +205,7 @@ P4【时序保证：Layer 0 前置拦截】 由 Node 归属注解的原子写入
 
 情况 2（T1 触发）：Bind 失败后 Layer 1 同步重试，仍是同一个 Scheduler 试图 Bind 同一个 Pod 到同一个节点。由 P1，重试不会绑定到第二个节点。I 保持。
 
-情况 3（T2 触发）：Bind 半失败或 Scheduler 进程崩溃，Pod 在 SchedulerCache 中残留 Assumed。由 P2，Bind Reject 阶段与 Layer 2 分别清理内存中的 Assumed 状态与 etcd 中的调度注解，后续调度不受影响。此时 Pod 未被绑定到任何节点（Bind 失败），I 平凡成立。
+情况 3（T2 触发）：Bind 存在两种子情形。子情形 (a)：Bind API 返回错误，Pod 未被绑定，$|\{node : bound(p, node)\}| = 0$；子情形 (b)：Bind API 服务端已落盘但客户端未收到响应，Pod 已被唯一绑定，$|\{node : bound(p, node)\}| = 1$。两种子情形下 I 均满足 $|\cdot| \leq 1$。Pod 在 SchedulerCache 中残留的 Assumed 状态由 P2 保证被 Bind Reject 阶段与 Layer 2 分别清理（内存态 + etcd 注解），进程崩溃场景由 Informer 从 etcd 重建 SchedulerCache 兜底。
 
 情况 4（T0/T3 触发）：无论是节点归属漂移（T0）还是本地重试耗尽（T3），Pod 都会经 Layer 3 清除 `scheduler-name` 注解回到 Pending 状态。由 P3，操作时序正确，Dispatcher 会重新分发。分发到新 Scheduler 后走完整流程，再次遇到 Layer 0 校验（P4），归约到情况 1。I 在整个过程中不被破坏。
 
