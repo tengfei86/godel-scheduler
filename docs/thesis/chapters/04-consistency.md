@@ -1,6 +1,6 @@
 # 第四章　基于 etcd 语义的一致性容错机制
 
-本章是全文的核心章节之一。第 3 章描述的分布式调度器架构中，多个 Scheduler 实例并发工作时不可避免地会遇到多种故障场景，如何在故障下依然维持"任一 Pod 至多绑定到一个节点"这一核心不变量，是评价一个分布式调度器正确性的最低门槛。本章将围绕四类典型威胁展开，给出对应的四层容错机制，并从形式化的角度论证不变量的维持。
+本章是全文的核心章节之一。第 3 章描述的分布式调度器架构中，多个 Scheduler 实例并发工作时不可避免地会遇到多种故障场景，如何在故障下依然维持"任一 Pod 至多绑定到一个节点"这一核心不变量，是评价一个分布式调度器正确性的最低门槛。本章将围绕四类典型故障场景展开，给出对应的四层容错机制，并从形式化的角度论证不变量的维持。
 
 ## 4.1　一致性挑战与核心不变量
 
@@ -40,14 +40,14 @@ $$
 
 正常路径下，Pod 从新建（Pending）经 Dispatcher 分发（Dispatched）、Scheduler 决策（Assumed）、Bind API 成功（Bound）完成整个流程。图 4-1 中彩色分支展示了各层容错的介入点：
 
-- Layer 0（红色）：Assumed → L0_Fail，节点归属校验在 Bind API 前拦截；
-- Layer 1（黄色）：Assumed → L1_Retry → Assumed，暂态失败的同步重试；
-- Layer 2（橙色）：L1_Retry → L2_Queue → Assumed，超同步重试上限后交由异步 Reconciler；
-- Layer 3（紫色）：L0_Fail / L2_Queue → Pending，回到最初状态触发 Dispatcher 重分发。
+- Layer 0：Assumed → L0_Fail，节点归属校验在 Bind API 前拦截；
+- Layer 1：Assumed → L1_Retry → Assumed，暂态失败的同步重试；
+- Layer 2：L1_Retry → L2_Queue → Dispatched（未超 maxLocalRetries 时保留在本 Scheduler 重试），超同步重试上限后交由异步 Reconciler；
+- Layer 3：L0_Fail / L2_Queue → Pending，回到最初状态触发 Dispatcher 重分发。
 
 ## 4.2　Layer 0 — Node 分区归属前置校验
 
-### 4.2.1　威胁 T0：节点分区归属漂移
+### 4.2.1　故障场景 T0：节点分区归属漂移
 
 场景：Scheduler A 通过 Filter/Score 决定将 Pod p 调度到 Node X，但在 Bind API 调用发生之前，Dispatcher 因节点负载重新平衡（`node-shuffler` 触发）将 Node X 从 Scheduler A 的分区剥离，改分给 Scheduler B。
 
@@ -89,7 +89,7 @@ Layer 0 是四层机制中唯一的前置层——它在 Bind API 之前拦截�
 
 ## 4.3　Layer 1 — 同步重试
 
-### 4.3.1　威胁 T1：Bind API 暂态失败
+### 4.3.1　故障场景 T1：Bind API 暂态失败
 
 场景：Scheduler 通过 Layer 0 校验后调用 Bind API，但 API Server 因如下原因返回错误：
 
@@ -113,7 +113,7 @@ Layer 1 在 `embedded_binder.go` 的 `bindPodToNode` 函数中实现，核心逻
 
 ## 4.4　Layer 2 — 异步 Reconciler
 
-### 4.4.1　威胁 T2：进程内偶发错误
+### 4.4.1　故障场景 T2：进程内偶发错误
 
 场景：Scheduler 在 Reserve 阶段将 Pod 标记为 Assumed（写入 `assumed-node` 注解，同时在 SchedulerCache 中记录节点资源占用），但随后 Bind API 失败且同步重试全部耗尽——甚至在极端情况下 Scheduler 进程本身崩溃/panic。
 
@@ -139,7 +139,7 @@ Layer 2 在 `binder_reconciler.go` 中实现，其核心数据结构是 `APICall
 
 ## 4.5　Layer 3 — 跨实例回退
 
-### 4.5.1　威胁 T3：本地重试耗尽 / 节点长期不可用
+### 4.5.1　故障场景 T3：本地重试耗尽 / 节点长期不可用
 
 场景：一个 Pod 在 Scheduler A 中反复失败——例如 Scheduler A 分区内确实无可用节点、或者 Node X 因硬件故障从集群中移除、或者 apiserver 长期不可达。Layer 1 与 Layer 2 都无法在本实例内解决问题。
 
@@ -173,9 +173,9 @@ Layer 3 与 Layer 0 在流程上相互衔接，构成一条可自我修复的回
 
 ## 4.6　一致性论证
 
-本节给出四层容错机制维持核心不变量 I 的完整论证。图 4-3 综合展示了 4 类威胁、4 层防御、以及 4 项证明要点的对应关系。
+本节给出四层容错机制维持核心不变量 I 的完整论证。图 4-3 综合展示了 4 类故障场景、4 层防御、以及 4 项证明要点的对应关系。
 
-![图 4-3  一致性论证：核心不变量 I 及其 4 层威胁-防御映射](../figures/fig4-3-consistency-invariant.png)
+![图 4-3  一致性论证：核心不变量 I 及其 4 层故障场景-防御映射](../figures/fig4-3-consistency-invariant.png)
 
 ### 4.6.1　证明要点
 
@@ -215,7 +215,7 @@ P4【时序保证：Layer 0 前置拦截】 由 Node 归属注解的原子写入
 
 ## 4.7　本章小结
 
-本章围绕核心不变量 "任一 Pod 至多绑定到一个节点" 展开，识别了分布式调度器场景下的 4 类典型威胁：
+本章围绕核心不变量 "任一 Pod 至多绑定到一个节点" 展开，识别了分布式调度器场景下的 4 类典型故障场景：
 
 - T0：节点分区归属漂移；
 - T1：Bind API 暂态失败；
