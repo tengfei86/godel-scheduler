@@ -76,12 +76,10 @@
 
 [36] KUBERNETES. client-go workqueue[EB/OL]. https://github.com/kubernetes/client-go/tree/master/util/workqueue [2026-08-25].
 
-[37] GOLAB W, LI X, SHAH MA. Analyzing Consistency Properties for Fun and Profit[C]//Proceedings of the 30th Annual ACM SIGACT-SIGOPS Symposium on Principles of Distributed Computing (PODC 2011). 2011: 197-206.
+[37] SIG K. KWOK: Kubernetes WithOut Kubelet[EB/OL]. https://kwok.sigs.k8s.io/ [2026-08-25].
 
-[38] SIG K. KWOK: Kubernetes WithOut Kubelet[EB/OL]. https://kwok.sigs.k8s.io/ [2026-08-25].
+[38] AUTHORS P. Prometheus Documentation[EB/OL]. https://prometheus.io/docs/ [2026-08-25].
 
-[39] AUTHORS P. Prometheus Documentation[EB/OL]. https://prometheus.io/docs/ [2026-08-25].
-
-[40] LABS G. Grafana Documentation[EB/OL]. https://grafana.com/docs/ [2026-08-25].
+[39] LABS G. Grafana Documentation[EB/OL]. https://grafana.com/docs/ [2026-08-25].
 
 :::

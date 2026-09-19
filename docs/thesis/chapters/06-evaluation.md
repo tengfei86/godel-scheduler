@@ -6,7 +6,7 @@
 
 ### 6.1.1　硬件与仿真栈
 
-出于成本与可复现性考虑，本文的评估基于 KWOK（Kubernetes WithOut Kubelet）仿真环境<sup>[38]</sup>，而非真实的物理集群。KWOK 通过在 kind 集群中运行"假 kubelet"控制器模拟真实节点的 Pod 生命周期，能够以极低的资源成本模拟千至万节点级别的集群。这一环境的可复现性较强，任何研究者都可以在中等规格的开发机（例如 32 GB 内存与 16 CPU 核心）上重现本文实验，无需真实物理服务器与云资源开支；同时由于去除了 kubelet 与容器运行时的干扰，所测指标聚焦于调度器本身的性能，而非容器启动、镜像拉取等下游开销。
+出于成本与可复现性考虑，本文的评估基于 KWOK（Kubernetes WithOut Kubelet）仿真环境<sup>[37]</sup>，而非真实的物理集群。KWOK 通过在 kind 集群中运行"假 kubelet"控制器模拟真实节点的 Pod 生命周期，能够以极低的资源成本模拟千至万节点级别的集群。这一环境的可复现性较强，任何研究者都可以在中等规格的开发机（例如 32 GB 内存与 16 CPU 核心）上重现本文实验，无需真实物理服务器与云资源开支；同时由于去除了 kubelet 与容器运行时的干扰，所测指标聚焦于调度器本身的性能，而非容器启动、镜像拉取等下游开销。
 
 已知的局限：KWOK 仿真环境无法完全反映真实节点上的资源竞争、网络延迟、磁盘 IO 等干扰因素，因此本文的绝对数值不能直接外推到生产环境。但在跨调度器对比这一相对场景下，KWOK 提供了公平的评估基准。
 
@@ -18,9 +18,9 @@
 
 关键组件包括：
 
-- Prometheus<sup>[39]</sup>：每 15 秒从各调度器抓取一次指标，本文实验期间 Prometheus 部署为独立 Deployment，配备 2Gi 内存限制、2h 数据保留、WAL 压缩，避免 OOM；
+- Prometheus<sup>[38]</sup>：每 15 秒从各调度器抓取一次指标，本文实验期间 Prometheus 部署为独立 Deployment，配备 2Gi 内存限制、2h 数据保留、WAL 压缩，避免 OOM；
 - 调度器组自定义 recording rules：每个调度器组（a/b/c/d/e）在自己的 Prometheus 中定义了统一的 recording rules，将各调度器的原始指标（如 `scheduler_pod_scheduling_attempts` / `volcano_task_scheduling_latency_milliseconds`）归一化为跨组可比的记录（`{group}:{metric}:{aggregation}`）；
-- Grafana<sup>[40]</sup>：为每个调度器组配置了独立 dashboard，用于实时观察实验进展并事后审阅。
+- Grafana<sup>[39]</sup>：为每个调度器组配置了独立 dashboard，用于实时观察实验进展并事后审阅。
 
 ### 6.1.3　五组调度器部署
 
