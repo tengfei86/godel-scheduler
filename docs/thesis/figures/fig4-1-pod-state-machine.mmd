@@ -21,7 +21,7 @@ stateDiagram-v2
     Assumed --> L2_Queue: L1 非可重试错误 (400/500/其它)
     L2_Queue --> Dispatched: 未超 maxLocalRetries Worker 清 etcd 注解 保留本地重试
 
-    %% Layer 3 — 跨实例回退（三个失败态共同的归宿）
+    %% Layer 3 — 跨 Scheduler 实例回退（三个失败态共同的归宿）
     L0_Fail --> Pending: 清理 Scheduler 注解 L3 全局回退
     L2_Queue --> Pending: 超 maxLocalRetries L3 全局回退
 

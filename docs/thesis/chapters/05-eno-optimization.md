@@ -121,7 +121,7 @@ Layer 1（同步退避重试）在 `EmbeddedBinder.bindPodToNode` 内部落地�
 
 Layer 2（异步 Reconciler）由 `EmbeddedBinder.reconciler` 承载，实例通过 `NewBinderTaskReconcilerWithRetry` 构造（[pkg/binder/binder_reconciler.go](pkg/binder/binder_reconciler.go)），后台单 goroutine Worker 消费 `APICallFailedTaskQueue`。任务入口在 `EmbeddedBinder.BindUnit` 的失败分支：每次 L1 出错（无论退避耗尽还是非可重试早退）都会调用 `eb.reconciler.AddFailedTask`，同时通过 `util.PatchPod` 将新增的 `eno.io/bind-failure-count` 注解持久化到 etcd，供 Worker 稍后读取。Worker 的清理动作幂等——`CleanupPodAnnotations` 家族函数移除调度决策注解并根据本地失败计数选择"回到本 Scheduler 重试"或"上升至 L3"。
 
-Layer 3（跨实例回退）的执行主体是 `CleanupPodAnnotationsWithRetryCount`：一旦 L2 Worker 观察到累计失败次数达到 `MaxLocalRetries`（`EmbeddedBinderConfig` 默认为 5，见 [embedded_binder_config.go](pkg/binder/embedded_binder_config.go)），即执行"清 `selected-scheduler` 注解 + `pod-state=pending` + 追加 `failed-schedulers`"三原子动作，将 Pod 交还给 Dispatcher 重新分发到其它 Scheduler 实例。Dispatcher 侧的重分发行为与 ENO 的进程边界无关——它只依赖 `selected-scheduler` 注解的清除事件被 Informer 感知。
+Layer 3（跨 Scheduler 实例回退）的执行主体是 `CleanupPodAnnotationsWithRetryCount`：一旦 L2 Worker 观察到累计失败次数达到 `MaxLocalRetries`（`EmbeddedBinderConfig` 默认为 5，见 [embedded_binder_config.go](pkg/binder/embedded_binder_config.go)），即执行"清 `selected-scheduler` 注解 + `pod-state=pending` + 追加 `failed-schedulers`"三原子动作，将 Pod 交还给 Dispatcher 重新分发到其它 Scheduler 实例。Dispatcher 侧的重分发行为与 ENO 的进程边界无关——它只依赖 `selected-scheduler` 注解的清除事件被 Informer 感知。
 
 综合起来，ENO 在单一 Scheduler 进程内完整承载了四层容错的运行时调用链：L0 的前置校验与 L3 直通、L1 的进程内退避、L2 的失败任务异步驱动，以及 L3 的注解级重分发。这一进程内实现与 §5.3 的 CacheAdapter 零拷贝共享共同构成 ENO 完整的架构语义。第 4 章给出的核心不变量（"任一 Pod 至多绑定到一个节点"）与 P1–P4 证明要点在 ENO 下依旧成立——因为它们只依赖 Bind API 的原子性与 etcd 注解写入的 CAS 语义，与 Binder 的部署形态无关。
 

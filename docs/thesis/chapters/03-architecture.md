@@ -93,9 +93,9 @@ API Server 是所有组件唯一的通信中介。Dispatcher 与 Scheduler 之�
 
 （7）backoffQ（退避队列）。退避队列采用指数退避策略，Pod 在此等待一段时间后自动回流到 activeQ 进行重试；
 
-（8）多次重试失败。若一个 Pod 在本 Scheduler 内经过若干次退避重试仍然无法完成绑定（例如本分区内确实无可用节点），Pod 将被送回 Dispatcher 分发器，触发跨实例回退（对应第 4 章 Layer 3）。
+（8）多次重试失败。若一个 Pod 在本 Scheduler 内经过若干次退避重试仍然无法完成绑定（例如本分区内确实无可用节点），Pod 将被送回 Dispatcher 分发器，触发跨 Scheduler 实例回退（对应第 4 章 Layer 3）。
 
-需要特别强调的是，图 3-3 中的 "unschedulable pool → 回到 Sorting Policy Manager" 与图 3-4 中的 "多次重试失败 → 回到 Dispatcher" 是同一个跨实例回退机制的两个侧面：Scheduler 侧决定何时放弃本地重试并回退，Dispatcher 侧决定回退回来的 Pod 何时被重新分发。这一双向协作是分布式调度器实现整体高可用的核心机制之一。
+需要特别强调的是，图 3-3 中的 "unschedulable pool → 回到 Sorting Policy Manager" 与图 3-4 中的 "多次重试失败 → 回到 Dispatcher" 是同一个跨 Scheduler 实例回退机制的两个侧面：Scheduler 侧决定何时放弃本地重试并回退，Dispatcher 侧决定回退回来的 Pod 何时被重新分发。这一双向协作是分布式调度器实现整体高可用的核心机制之一。
 
 ## 3.5　本章小结
 

@@ -11,7 +11,7 @@ flowchart TB
     D2["<b>Layer 2：异步 Reconciler</b><br/>Bind Reject 阶段 ForgetPod 清内存态；<br/>Worker 从 APICallFailedTaskQueue 清 etcd 注解"]:::defense
 
     T3["<b>故障场景 T3：本地重试耗尽 / 节点长期不可用</b><br/>failureCount ≥ MaxLocalRetries，该 Scheduler 无法完成绑定"]:::threat
-    D3["<b>Layer 3：跨实例回退</b><br/>清除 scheduler-name 注解，Dispatcher 重新分发"]:::defense
+    D3["<b>Layer 3：跨 Scheduler 实例回退</b><br/>清除 scheduler-name 注解，Dispatcher 重新分发"]:::defense
 
     T0 -->|前置拦截| D0
     T1 -->|暂态可恢复| D1

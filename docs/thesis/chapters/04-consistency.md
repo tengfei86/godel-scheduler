@@ -137,21 +137,23 @@ Layer 2 在 `binder_reconciler.go` 中实现，其核心数据结构是 `APICall
 
 （2）Worker 消费：单个 Reconciler Worker goroutine 顺序从队列拉取任务。由于每次操作只涉及一次 etcd 注解 patch，串行处理即可，也避免了并发 patch 引发的 `resourceVersion` 冲突放大；
 
-（3）幂等注解清理：Worker 调用 `CleanupPodAnnotations` 家族函数移除 Pod 上的调度相关注解（`scheduler-name`、`assumed-node` 等），操作对不存在的 Pod 是 no-op，因此可以安全重试；
+（3）幂等注解清理：Worker 通过 `CleanupPodAnnotations` 家族函数调用 `util.PatchPod` 向 apiserver 提交注解修改，清除 etcd 中 Pod 对象上的调度相关注解（`scheduler-name`、`assumed-node` 等）。清理动作仅涉及 Pod 对象注解字段的 patch，不接触 SchedulerCache 内存态——内存态的 Assumed 记录由 Bind Reject 阶段的 `ForgetPod` 负责（见 §4.6 P2）。对已被删除的 Pod，`PatchPod` 返回 `NotFound`，Worker 直接 Forget 该任务，因此重试安全；
 
 （4）判断后续动作。清理动作根据本地重试计数进行分支：
 - 若累计本地失败次数未超过 `maxLocalRetries`，Pod 状态改回 `Dispatched` 保持在本 Scheduler 侧，等待下一轮调度重试；
 - 若累计失败次数超过 `maxLocalRetries`，清除 `scheduler-name` 注解、状态改回 `Pending`、并在 `failed-schedulers` 注解中追加本 Scheduler 名——由 Dispatcher 通过 Informer 感知后重新分发到其他 Scheduler（对应 Layer 3）。
 
+（5）`PatchPod` 失败的重试与兜底。Worker 处理注解 patch 时可能因 apiserver 短暂不可达、限流、5xx 等原因失败。`APICallFailedWorker` 主循环对失败结果做二分处理：`apierrors.IsNotFound` 表示 Pod 已被删除，清理目标消失，任务直接丢弃；其它错误一律通过 `AddRateLimited` 重新入队，由 workqueue 的指数退避机制在 5ms → 10ms → 20ms → … 最长 1000s 的间隔内持续重试，无显式次数上限。这与 Layer 1 同步重试的"次数受限、超限上抛"形成对照——Layer 2 位于异步 Worker 中，反复失败仅阻塞注解清理路径，不影响 Scheduler 主循环调度新 Pod，因此可以长时间等待 apiserver 自愈。需要强调的是，Layer 3 的触发点在 (4) 步骤中 patch 成功时依据本地失败计数判定，与 Worker 是否曾经 (5) 步骤中反复失败无关：只要 patch 最终成功，就一次性决定 Dispatched 还是 Pending。
+
 进程崩溃恢复：需要说明的是，`APICallFailedTaskQueue` 基于 client-go 的 workqueue 实现，是内存中的限速队列而非持久化队列，因此 Scheduler 进程 panic 重启后，队列中尚未处理的任务会随之丢失，Layer 2 不能依赖队列本身提供跨崩溃的恢复能力（见 [36] 的 workqueue 说明）。真正提供恢复能力的是 etcd 中持久化的 Pod 状态：进程重启后，Scheduler 通过 Informer 从 etcd 同步 Pod 并重建 SchedulerCache，此时凡 `spec.nodeName` 仍为空、`scheduler-name` 注解指向本实例的 Pod，都会作为待调度 Pod 重新进入调度队列，再次经历 Filter/Score/Reserve 与 Bind 流程。换言之，进程内的 Assumed 状态随进程消失，而 etcd 中的注解状态使这些 Pod 可被重新发现；Layer 2 的最终一致性由 etcd 的持久化与 Informer 的重建共同保证，而不是依赖内存队列的存活。
 
-## 4.5　Layer 3 — 跨实例回退
+## 4.5　Layer 3 — 跨 Scheduler 实例回退
 
 ### 4.5.1　故障场景 T3：本地重试耗尽 / 节点长期不可用
 
 场景：一个 Pod 在 Scheduler A 中反复失败——例如 Scheduler A 分区内确实无可用节点、或者 Node X 因硬件故障从集群中移除、或者 apiserver 长期不可达。Layer 1 与 Layer 2 都无法在本实例内解决问题。
 
-危害：若无跨实例回退机制，Scheduler A 会长期卡在这个 Pod 上，本分区内其他新到达的 Pod 也会因此排队等待，最终 Scheduler A 的可用性完全丧失。
+危害：若无跨 Scheduler 实例回退机制，Scheduler A 会长期卡在这个 Pod 上，本分区内其他新到达的 Pod 也会因此排队等待，最终 Scheduler A 的可用性完全丧失。
 
 实例级失效的回收路径：除上述任务级故障外，Scheduler 实例本身失效（进程崩溃或心跳超时失活）时，其名下未完成的任务同样需要全局回收。Dispatcher 的 Scheduler Maintainer 基于实例心跳（Lease/心跳上报）进行失活判定；失效实例名下仍处于 Dispatched 状态的任务，由 PodStateReconciler 将其重置为 Pending 并清理 `scheduler-name` 等注解，随后重新进入分发流程。这是 Layer 3 回收路径在实例级故障场景下的体现，与任务级回退共用同一套"清注解 → 重分发"机制，从而保证失效实例遗留的任务不会成为孤儿数据。
 
@@ -235,6 +237,6 @@ P4【时序保证：Layer 0 前置拦截】 由 Node 归属注解的原子写入
 - Layer 0：Bind 前置的节点归属校验；
 - Layer 1：线性退避的同步重试；
 - Layer 2：异步 Reconciler + APICallFailedTaskQueue；
-- Layer 3：跨实例回退，清除 `scheduler-name` 注解触发 Dispatcher 重分发。
+- Layer 3：跨 Scheduler 实例回退，清除 `scheduler-name` 注解触发 Dispatcher 重分发。
 
 论证过程表明，四层机制的组合能够严格维持核心不变量 I，其可靠性建立在 etcd 的原子性语义（Bind 子资源原子写入、Pod/Node 注解的 `resourceVersion` 乐观并发、Informer 的最终一致性）之上。第 5 章将在本章的一致性保证基础上，进一步优化独立 Binder 的部署形态，提出面向大规模场景的进程内 Binder 架构 ENO。

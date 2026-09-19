@@ -6,7 +6,7 @@
 
 （1）分布式调度器架构的系统性梳理。第 3 章明确了 Dispatcher / Scheduler / Binder 三层架构下 Pod 的完整流转过程，特别指出整个分布式调度器不依赖任何自研的分布式协调机制，而是完全基于 Kubernetes 底层 etcd 通过 kube-apiserver 暴露的三种原子性语义（Pod / Node 注解的 `resourceVersion` 乐观并发、Watch 一致性视图、Bind 子资源的原子写入）。这一分析统一了后续章节的论证起点。
 
-（2）基于 etcd 语义的多层一致性容错机制。第 4 章针对分区归属漂移、Bind API 暂态失败、进程内偶发错误、本地重试耗尽四类典型威胁，设计并实现了包含节点归属前置校验（Layer 0）、同步重试（Layer 1）、异步 Reconciler（Layer 2）、跨实例回退（Layer 3）的四层容错框架，并给出了核心不变量"任一 Pod 至多绑定到一个节点"的完整证明。
+（2）基于 etcd 语义的多层一致性容错机制。第 4 章针对分区归属漂移、Bind API 暂态失败、进程内偶发错误、本地重试耗尽四类典型威胁，设计并实现了包含节点归属前置校验（Layer 0）、同步重试（Layer 1）、异步 Reconciler（Layer 2）、跨 Scheduler 实例回退（Layer 3）的四层容错框架，并给出了核心不变量"任一 Pod 至多绑定到一个节点"的完整证明。
 
 （3）面向大规模场景的 ENO 架构优化。第 5 章提出将原独立部署的 Binder 合并进 Scheduler 进程的架构改造，通过 CacheAdapter 桥接层实现 SchedulerCache 零拷贝共享，消除了跨进程 API 调用与序列化开销。改造保持了第 4 章一致性容错机制的完整性，并通过 CLI 开关 `--enable-embedded-binder=true/false` 支持在两种部署形态之间无缝切换。
 
