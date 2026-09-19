@@ -38,19 +38,19 @@
 
 将 Binder 从独立进程移入 Scheduler 进程后，一个关键的技术挑战是如何让 Binder 与 Scheduler 共享 SchedulerCache。独立 Binder 架构中，两者位于不同进程，Binder 通过 Informer 独立维护自己的资源视图；合并后，若仍采用"Binder 有自己的资源视图"的做法，则内存中会存在两份互相同步的 SchedulerCache，同步延迟与内存开销都不可接受。
 
-本文提出通过 CacheAdapter 桥接层实现零拷贝共享。图 5-2 展示了三方数据流。
+本文的做法是在 ENO Binder 一侧引入 `CacheAdapter` 封装：Scheduler 仍旧直接读写 SchedulerCache，Binder 则透过 CacheAdapter 以自己熟悉的 `BinderCache` 接口访问同一份 SchedulerCache。图 5-2 给出这一数据流。
 
-![图 5-2  CacheAdapter 桥接层实现 SchedulerCache 零拷贝共享](../figures/fig5-2-cache-zero-copy.png)
+![图 5-2  ENO Binder 侧的 CacheAdapter 封装：Scheduler 直读 SchedulerCache，Binder 经 CacheAdapter 访问同一实例](../figures/fig5-2-cache-zero-copy.png)
 
 ### 5.3.1　CacheAdapter 的职责
 
-CacheAdapter 是本文设计的桥接层，位于 Scheduler 模块与 ENO Binder 模块之间。它对上层 ENO Binder 暴露出 Binder 熟悉的接口（例如原独立 Binder 使用的 `GetPod`、`IsAssumedPod`、`AssumePod`、`ForgetPod` 等），但内部实现全部委托给 Scheduler 已经维护的 SchedulerCache——不复制、不缓存、不同步。
+CacheAdapter 是本文为 ENO Binder 侧设计的封装层，包裹 Scheduler 已经维护的 SchedulerCache（Scheduler 自身仍直接访问 SchedulerCache，不经过 CacheAdapter）。它对上层 ENO Binder 暴露出 Binder 熟悉的接口——例如原独立 Binder 使用的 `GetPod`、`IsAssumedPod`、`AssumePod`、`ForgetPod` 等，内部实现则全部委托给 SchedulerCache，不复制、不缓存、不同步。
 
-图 5-2 中的三个子模块划分了 CacheAdapter 的实现。本地状态包括 `assumedPods map` 与 `podMarkers map`，用于记录独属于 Binder 的额外元数据，例如已 Assumed 但尚未 Bind 的 Pod 集合与待清理的 Pod 标记；这类元数据的规模远小于 SchedulerCache 主体，独立维护的开销可以忽略。委托方法包括 `GetPod`、`IsAssumedPod`、`AssumePod`、`ForgetPod` 以及增删改查方法，它们收到调用后直接转发给 SchedulerCache 的对应方法，不做任何数据拷贝。Binder 专属方法则包括 `FinishBinding`、`MarkPodToDelete` 等原 Binder 特有的方法，其中一部分委托给 SchedulerCache（例如 `FinishReserving`），另一部分操作 CacheAdapter 自身的本地状态。
+CacheAdapter 的实现由三部分组成。**本地状态**包括 `assumedPods map` 与 `podMarkers map`，用于记录独属于 Binder 的额外元数据，例如已 Assumed 但尚未 Bind 的 Pod 集合与待清理的 Pod 标记；这类元数据的规模远小于 SchedulerCache 主体，独立维护的开销可以忽略。**委托方法**包括 `GetPod`、`IsAssumedPod`、`AssumePod`、`ForgetPod` 以及增删改查方法，收到调用后直接转发给 SchedulerCache 的对应方法，不做任何数据拷贝。**Binder 专属方法**则包括 `FinishBinding`、`MarkPodToDelete` 等原 Binder 特有的方法，其中一部分委托给 SchedulerCache（例如 `FinishReserving`），另一部分操作 CacheAdapter 自身的本地状态。
 
 ### 5.3.2　零拷贝的技术要点
 
-零拷贝的关键在于 Scheduler 模块与 ENO Binder 模块访问的是同一个 SchedulerCache Go 对象，即同一块内存地址。实现上，Scheduler 与 CacheAdapter 都持有指向同一个 `*Cache` 结构体的指针，共享对象而不拷贝；SchedulerCache 内部通过 `sync.RWMutex` 保护，因此两者的并发访问是安全的。这一方式同时消除了 Informer 同步延迟：独立 Binder 架构中 Binder 需要借助独立的 Informer 观察 Pod 变更，通常存在数十毫秒延迟，合并后 Scheduler 在 Reserve 阶段一旦修改缓存，Binder 立即通过 CacheAdapter 读到最新状态，延迟为零。内存占用也因此下降，整个进程只维护一份 SchedulerCache（数十 MB 到数百 MB，取决于集群规模），而不是 Scheduler 与 Binder 各持一份。
+零拷贝的关键在于 Scheduler 模块与 CacheAdapter 指向的是同一个 SchedulerCache Go 对象，即同一块内存地址。实现上，Scheduler 直接持有 `*Cache` 结构体指针进行读写，CacheAdapter 内部保存同一个指针供 Binder 使用；SchedulerCache 内部通过 `sync.RWMutex` 保护，两条访问路径的并发是安全的。这一方式同时消除了 Informer 同步延迟：独立 Binder 架构中 Binder 需要借助独立的 Informer 观察 Pod 变更，通常存在数十毫秒延迟，合并后 Scheduler 在 Reserve 阶段一旦修改缓存，Binder 立即通过 CacheAdapter 读到最新状态，延迟为零。内存占用也因此下降，整个进程只维护一份 SchedulerCache（数十 MB 到数百 MB，取决于集群规模），而不是 Scheduler 与 Binder 各持一份。
 
 ## 5.4　部署拓扑变化
 
