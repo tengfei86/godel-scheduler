@@ -20,7 +20,7 @@
 
 ### 5.2.1　设计目标
 
-针对 5.1 节分析的四类开销，本文提出四项设计目标。首要目标是消除步骤 ④ 的跨进程事件传递，即由 Scheduler 进程内的 Binder 模块直接完成绑定，不再经 apiserver 中转；与之配套的是 SchedulerCache 的零拷贝共享，Binder 与 Scheduler 使用同一份内存实例，Assumed 状态无需在两个进程之间同步。第三个目标要求第 4 章的四层容错机制在新架构下完整保留，Layer 0 校验、Layer 1/2 重试与 Layer 3 全局回退都不能因部署形态合并而丢失。最后，新架构需要向后兼容，通过 CLI 开关 `--enable-embedded-binder` 即可在两种部署形态之间自由切换，不强制使用者迁移。
+针对 5.1 节分析的四类开销，本文提出三项设计目标。首要目标是消除步骤 ④ 的跨进程事件传递，即由 Scheduler 进程内的 Binder 模块直接完成绑定，不再经 apiserver 中转；与之配套的是 SchedulerCache 的零拷贝共享，Binder 与 Scheduler 使用同一份内存实例，Assumed 状态无需在两个进程之间同步。最后，第 4 章的四层容错机制在新架构下必须完整保留，Layer 0 校验、Layer 1/2 重试与 Layer 3 全局回退都不能因部署形态合并而丢失。
 
 ### 5.2.2　ENO 架构总览
 

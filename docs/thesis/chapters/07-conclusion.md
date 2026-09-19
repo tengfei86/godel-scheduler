@@ -8,7 +8,7 @@
 
 （2）基于 etcd 语义的多层一致性容错机制。第 4 章针对分区归属漂移、Bind API 暂态失败、Bind 失败后的 Assumed 状态残留、本地重试耗尽四类典型威胁，设计并实现了包含节点归属前置校验（Layer 0）、同步重试（Layer 1）、异步 Reconciler（Layer 2）、跨 Scheduler 实例回退（Layer 3）的四层容错框架，并给出了核心不变量"任一 Pod 至多绑定到一个节点"的完整证明。
 
-（3）面向大规模场景的 ENO 架构优化。第 5 章提出将原独立部署的 Binder 合并进 Scheduler 进程的架构改造，通过 CacheAdapter 桥接层实现 SchedulerCache 零拷贝共享，消除了跨进程 API 调用与序列化开销。改造保持了第 4 章一致性容错机制的完整性，并通过 CLI 开关 `--enable-embedded-binder=true/false` 支持在两种部署形态之间无缝切换。
+（3）面向大规模场景的 ENO 架构优化。第 5 章提出将原独立部署的 Binder 合并进 Scheduler 进程的架构改造，通过 CacheAdapter 桥接层实现 SchedulerCache 零拷贝共享，消除了跨进程 API 调用与序列化开销，同时保持了第 4 章一致性容错机制的完整性。
 
 第 6 章通过 KWOK 仿真下主对比与扩展两个批次及后续补测（共 144 次留存的基准 run，覆盖 s1~s4 规模、w1~w7 负载与 1/3 实例配置），对 ENO 与四种主流调度器（Gödel、kube-scheduler、Volcano、Koordinator）在稳态吞吐、调度延迟、绑定成功率、资源开销等维度进行了系统性对比，验证了本文架构改造的性能优势与一致性保证的可靠性。其中，实例数由 1 增至 3 时 ENO 的 P99 调度延迟下降 99.2%、Pod E2E 延迟下降 97.2%（Gödel 分别为 99.5% 与 97.1%），峰值吞吐提升 61.0%；s4（10000 节点）规模下 ENO 的有效吞吐仍领先 Gödel 5.6%、P99 调度延迟低 33.4%。
 

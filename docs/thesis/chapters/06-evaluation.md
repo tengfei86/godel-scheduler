@@ -18,6 +18,8 @@
 - 调度器组自定义 recording rules：每个调度器组（a/b/c/d/e）在自己的 Prometheus 中定义了统一的 recording rules，将各调度器的原始指标（如 `scheduler_pod_scheduling_attempts` / `volcano_task_scheduling_latency_milliseconds`）归一化为跨组可比的记录（`{group}:{metric}:{aggregation}`）；
 - Grafana<sup>[39]</sup>：为每个调度器组配置了独立 dashboard，用于实时观察实验进展并事后审阅。
 
+在此基础上，每个 (scale, workload) 场景都独立跑 3 次 run，然后由 `plot-results.py --stat median` 按时间点对 3 条 run 取中位数，聚合成一条与单次 run 同形状的时序。这一"三次重复 + 逐点中位数"的归一化处理是本章所有数据从原始 JSON 到入表数值的关键一步：单次 run 的 GC 抖动、瞬时排队波动或采样丢点都无法主导结论，同时也保留了完整的时序形态供后续切片。从聚合序列进一步取出标量（延迟分位、峰值吞吐、队列堆积等）的具体规则见 6.3 节。
+
 ### 6.1.3　五组调度器部署
 
 本文对比了 5 个调度器组（表 6-1）：
@@ -27,14 +29,14 @@
 | 组 | 调度器 | 定位 | 版本 / 特点 |
 |---|---|---|---|
 | a | ENO（本文提议）| Gödel 的进程内 Binder 改造 | 由本仓库代码构建（`eno-local` 镜像） |
-| b | Gödel（原生）| 分布式调度器基线 | 同一代码库以 `--enable-embedded-binder=false` 构建 |
-| c | kube-scheduler | K8s 原生单调度器 | Kubernetes v1.29.12 内置 |
+| b | Gödel（原生）| 分布式调度器基线 | 按官方部署清单部署 |
+| c | kube-scheduler | K8s 原生单调度器 | Kubernetes v1.34.8 内置 |
 | d | Volcano | CNCF 批处理调度器 | 按官方部署清单部署 |
 | e | Koordinator | 阿里混部调度器 | 按官方部署清单部署 |
 
-集群与环境版本：kind 集群运行 Kubernetes v1.29.12，独立事件 etcd 容器为 `registry.k8s.io/etcd:3.6.6-0`；ENO 与 Gödel 使用同一份代码库构建的镜像，两者唯一的差异是启动参数中的 `--enable-embedded-binder` 取值。实验代码版本对应仓库提交 `5767a76c`（含基准测试脚本与实验数据）。
+集群与环境版本：kind 集群运行 Kubernetes v1.34.8，独立事件 etcd 容器为 `registry.k8s.io/etcd:3.6.6-0`。
 
-部署公平性说明：为保证跨组公平，本文对所有调度器组的关键组件配置了相同的资源规格——每个 Pod 的 requests 为 2 CPU / 4 GB 内存，limits 为 4 CPU / 8 GB 内存，Scheduler 客户端 QPS 与 Burst 均设为 10000。这一配置定义在 `config.sh` 中通过 `BENCH_SCHED_REQ_CPU` 等环境变量统一注入。ENO 与 Gödel 使用完全相同的镜像基线，唯一差异是启动参数中的 `--enable-embedded-binder=true/false`。
+部署公平性说明：为保证跨组公平，本文对所有调度器组的关键组件配置了相同的资源规格——每个 Pod 的 requests 为 2 CPU / 4 GB 内存，limits 为 4 CPU / 8 GB 内存，Scheduler 客户端 QPS 与 Burst 均设为 10000。这一配置定义在 `config.sh` 中通过 `BENCH_SCHED_REQ_CPU` 等环境变量统一注入。
 
 ## 6.2　工作负载与规模梯度
 
@@ -65,16 +67,11 @@ s2、s3 与 s4 覆盖了从中等到超大规模的集群场景（跨度 10×）
 | w6 | 200 groups/s × 5 pods | 50,000 | 100m / 128Mi | Gang 调度（10,000 组） |
 | w7 | 500 pods/s | 50,000 | 混合 | 异构资源 |
 
-本文实验以 w2（中负载）与 w3（高负载）两组稳态负载为主，用于 ENO 与 Gödel 的定量对比；并补充评估 w1（低负载）、w4（极限负载）、w5（突发洪峰）、w6（Gang 调度）与 w7（异构资源）等场景，以覆盖更复杂的负载形态。其中 w6 早期按 10 000 个 Pod 采集，单次 run 仅数十秒，分位延迟指标在 1 分钟采样窗口内得不到足够数据点，因此将负载扩容至 50 000 个 Pod（10 000 个组）后重新采集。
+本文实验以 w2（中负载）与 w3（高负载）两组稳态负载为主，用于 ENO 与 Gödel 的定量对比；并补充评估 w1（低负载）、w4（极限负载）、w5（突发洪峰）、w6（Gang 调度）与 w7（异构资源）等场景，以覆盖更复杂的负载形态。
 
 ### 6.2.3　实验矩阵
 
-本文的实验分为主对比与扩展两个批次，2026-09 中旬又对部分场景（w6 扩容后的 Gang 负载、s2/w2 等）做了补充采集；`results/` 下留存的对比数据共 144 次 run，同一场景的重跑以最近一次为准：
-
-1. 主对比批次（2026-08）：5 组 × 2 规模（s2/s3）× 2 负载（w2/w3）× 3 重复 = 60 次实验，全部成功完成（见 [test/e2e/benchmark/results/report_2026-08-04_223015.md](test/e2e/benchmark/results/report_2026-08-04_223015.md)，总耗时约 38 小时）；
-2. 扩展批次（2026-09）：在主对比基础上补充了 s4（10000 节点）规模、实例数维度（inst1 / inst3）与复杂负载（w1 / w4 / w5 / w6 / w7），并对部分场景重新采集。
-
-两批次均基于同一套 `run-experiment.sh` 流程与统一观测栈，统计口径一致（6.3 节）。本章全部数据取自 `test/e2e/benchmark/results/compare/` 下的 16 个对比场景，其命名规则为 `{规模}_{负载}[_inst3]`，各场景实际参与的调度器组与实例数见表 6-4。
+本文实验统一由 `run-experiment.sh` 流程驱动，覆盖 5 组调度器（a~e）、4 档规模（s1~s4）、7 类负载（w1~w7）与 1/3 两档实例配置，每个 (scale, workload) 场景重复 3 次；`results/` 下留存的对比数据共 144 次 run，同一场景的重跑以最近一次为准，统计口径与聚合规则统一（6.3 节）。本章全部数据取自 `test/e2e/benchmark/results/compare/` 下的 16 个对比场景，其命名规则为 `{规模}_{负载}[_inst3]`，各场景实际参与的调度器组与实例数见表 6-4。
 
 : 表 6-4  16 个对比场景的参与调度器与实例配置
 
