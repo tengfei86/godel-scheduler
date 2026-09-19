@@ -177,7 +177,7 @@ Layer 3 的具体操作序列为：
 
 ### 4.5.3　Layer 3 与 Layer 0 的相互衔接
 
-Layer 3 与 Layer 0 在流程上相互衔接，构成一条可自我修复的回路：Layer 3 清除 `scheduler-name` 注解后，Pod 被重新分发给另一个 Scheduler B；Scheduler B 在调用 Bind API 之前执行 Layer 0 校验；若 Node X 的归属仍为 Scheduler A（例如本次回退由 Layer 1 重试耗尽触发，与节点归属漂移无关），Layer 0 会拒绝该 Bind 并再次触发 Layer 3；若 Node X 的归属已漂移至 Scheduler B，Layer 0 校验通过，Bind API 随即完成绑定。
+Layer 3 与 Layer 0 相互衔接，构成一条自我修复的回路。Layer 3 清除 `scheduler-name` 注解后，Pod 交由 Dispatcher 重新分发到另一 Scheduler B；Scheduler B 在自己的分区内独立完成 Filter/Score/Reserve，选定的候选节点在 Bind 前接受 Layer 0 校验。稳态下 Scheduler B 只从自身分区内选节点，Layer 0 校验必然通过，Bind API 完成绑定。仅当分区表处于短暂不一致的窗口——例如某节点归属刚被 Dispatcher 修改、Scheduler B 的 Informer 尚未刷新到最新注解——Layer 0 才可能拦截当次 Bind，此时再次进入 Layer 3 回退，Pod 交回 Dispatcher。这一循环受 Informer 最终一致性约束，节点归属稳定后必然终止。
 
 这条回路保证了无论故障如何组合，Pod 最终要么被正确绑定到一个节点，要么持续处于 Pending 状态等待条件改善，不会陷入"错误绑定"或"永久卡死"的中间态。
 
