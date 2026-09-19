@@ -15,7 +15,7 @@ System = { Pod, Node, Dispatcher, Scheduler_1..N, APIServer, etcd }
 其中：
 - Pod 与 Node 是 Kubernetes 集群中的资源对象，其状态最终存储于 etcd；
 - Dispatcher 与 Scheduler_1..N 是本文所研究的调度器组件；
-- APIServer 与 etcd 提供第 2 章 §2.5 所述的三种原子性语义（`resourceVersion` 乐观并发、Watch 一致性、Bind 子资源原子性）。
+- APIServer 与 etcd 提供第 2 章 2.5 节所述的三种原子性语义（`resourceVersion` 乐观并发、Watch 一致性、Bind 子资源原子性）。
 
 ### 4.1.2　核心不变量
 
@@ -137,7 +137,7 @@ Layer 2 在 `binder_reconciler.go` 中实现，其核心数据结构是 `APICall
 
 （2）Worker 消费：单个 Reconciler Worker goroutine 顺序从队列拉取任务。由于每次操作只涉及一次 etcd 注解 patch，串行处理即可，也避免了并发 patch 引发的 `resourceVersion` 冲突放大；
 
-（3）幂等注解清理：Worker 通过 `CleanupPodAnnotations` 家族函数调用 `util.PatchPod` 向 apiserver 提交注解修改，清除 etcd 中 Pod 对象上的调度相关注解（`scheduler-name`、`assumed-node` 等）。清理动作仅涉及 Pod 对象注解字段的 patch，不接触 SchedulerCache 内存态——内存态的 Assumed 记录由 Bind Reject 阶段的 `ForgetPod` 负责（见 §4.6 P2）。对已被删除的 Pod，`PatchPod` 返回 `NotFound`，Worker 直接 Forget 该任务，因此重试安全；
+（3）幂等注解清理：Worker 通过 `CleanupPodAnnotations` 家族函数调用 `util.PatchPod` 向 apiserver 提交注解修改，清除 etcd 中 Pod 对象上的调度相关注解（`scheduler-name`、`assumed-node` 等）。清理动作仅涉及 Pod 对象注解字段的 patch，不接触 SchedulerCache 内存态——内存态的 Assumed 记录由 Bind Reject 阶段的 `ForgetPod` 负责（见 4.6 节 P2）。对已被删除的 Pod，`PatchPod` 返回 `NotFound`，Worker 直接 Forget 该任务，因此重试安全；
 
 （4）判断后续动作。清理动作根据本地重试计数进行分支：
 - 若累计本地失败次数未超过 `maxLocalRetries`，Pod 状态改回 `Dispatched` 保持在本 Scheduler 侧，等待下一轮调度重试；
