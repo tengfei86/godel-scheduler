@@ -77,13 +77,15 @@
 | 编号 | 内容 | 命令片段 |
 |---|---|---|
 | 图 6-2 | 各场景有效吞吐对比（16 场景，ENO vs Gödel，柱状图） | `figures/make-fig6-3.py`（读 `results/compare/` 场景清单与各 run 的 `metadata.txt`） |
-| 图 6-3 | P90 调度延迟对比（箱线图或均值±1σ） | `plot-results.py --compare --metric scheduling_latency_p90` |
-| 图 6-4 | P99 调度延迟对比 | `plot-results.py --compare --metric scheduling_latency_p99` |
-| 图 6-5 | 绑定成功率对比 | `plot-results.py --compare --metric bind_success_rate` |
-| 图 6-6 | Pod E2E 延迟对比（Dispatcher → Bound）| `plot-results.py --compare --metric pod_e2e_latency_p99` |
-| 图 6-7 | goroutines 资源开销对比 | `plot-results.py --compare --metric goroutines` |
-| 图 6-8 | 单调度器 vs Gödel: bind_inflight 并发度对比（可选）| |
-| 图 6-9 | 单调度器 vs Gödel: node_validation_failures / dispatcher_fallback 触发次数（Layer 0/3 触发验证）| |
+| 图 6-3 | 五组调度器有效吞吐对比（全组基线场景 5 个，柱状图） | `figures/make-fig6-3-5group-throughput.py`（读 `results/{a,b,c,d,e}/{s,w}/[inst1/]runN/metadata.txt`） |
+| 图 6-4 | 全场景 ENO 与 Gödel P99 调度延迟对比（15 场景，柱状图，log 纵轴） | `figures/make-fig6-4-latency-p99-all.py`（调 `latency-compare.py --json` 复现表 6-6 数据） |
+| 图 6-5 | P90 调度延迟对比（箱线图或均值±1σ） | `plot-results.py --compare --metric scheduling_latency_p90` |
+| 图 6-6 | P99 调度延迟对比 | `plot-results.py --compare --metric scheduling_latency_p99` |
+| 图 6-7 | 绑定成功率对比 | `plot-results.py --compare --metric bind_success_rate` |
+| 图 6-8 | Pod E2E 延迟对比（Dispatcher → Bound）| `plot-results.py --compare --metric pod_e2e_latency_p99` |
+| 图 6-9 | goroutines 资源开销对比 | `plot-results.py --compare --metric goroutines` |
+| 图 6-10 | 单调度器 vs Gödel: bind_inflight 并发度对比（可选）| |
+| 图 6-11 | 单调度器 vs Gödel: node_validation_failures / dispatcher_fallback 触发次数（Layer 0/3 触发验证）| |
 
 ---
 
@@ -137,7 +139,7 @@ docs/thesis/
     fig5-2-cache-zero-copy.{mmd,pdf,png}
     fig5-3-eno-deployment.{mmd,pdf,png}
     fig6-1-experiment-flow.{mmd,pdf,png}
-    fig6-2~fig6-14-*.png                ← 数据图自动生成
+    fig6-2~fig6-16-*.png                ← 数据图自动生成
   figure-mapping.md            ← 本文件
   chapters/                    ← 各章 Markdown 草稿
     01-introduction.md
@@ -215,7 +217,7 @@ docs/thesis/
 | 图号 | 标题 | 来源 |
 |---|---|---|
 | 图 6-1 | 单次实验流程时序 | mermaid |
-| 图 6-2 ~ 图 6-14 | 各类数据对比图 | plot-results.py 自动生成 |
+| 图 6-2 ~ 图 6-16 | 各类数据对比图 | plot-results.py 自动生成 |
 
 **图表合计**：约 21 张（10 主图 + 2 待画 + 1-2 组合图 + 8 数据图），符合北航规范中"图数适度、每章 1-6 张"的建议。
 
