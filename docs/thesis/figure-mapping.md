@@ -77,7 +77,7 @@
 
 | 编号 | 内容 | 命令片段 |
 |---|---|---|
-| 图 6-3 | 稳态调度吞吐 vs 集群规模（a/b/c/d/e × s2/s3 × w2/w3） | `plot-results.py --compare --metric bind_throughput_pods` |
+| 图 6-3 | 各场景有效吞吐对比（16 场景，ENO vs Gödel，柱状图） | `figures/make-fig6-3.py`（读 `results/compare/` 场景清单与各 run 的 `metadata.txt`） |
 | 图 6-4 | P90 调度延迟对比（箱线图或均值±1σ） | `plot-results.py --compare --metric scheduling_latency_p90` |
 | 图 6-5 | P99 调度延迟对比 | `plot-results.py --compare --metric scheduling_latency_p99` |
 | 图 6-6 | 绑定成功率对比 | `plot-results.py --compare --metric bind_success_rate` |
