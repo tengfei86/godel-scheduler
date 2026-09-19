@@ -58,7 +58,7 @@
 **暂无取消项**。
 
 > 备注：[fig4-2a-dispatcher-main-flow.pdf](docs/performance/figures/fig4-2a-dispatcher-main-flow.pdf) 与你的 dispatcher_flowchart.png 视角略有重叠，先**保留**，写作中若发现叙述重复再决定去留。可能用途：
-> - 放在 §4.5 或附录，作为 Dispatcher **策略分发决策路径**的详细视图（PodGroup / Owner 亲和 / 负载均衡三分支）
+> - 放在 §4.5 或附录，作为 Dispatcher **策略分发嵌套决策路径**的详细视图（PodGroup 优先分流，再由 `SupportRescheduling` FeatureGate 决定 Owner 亲和或默认负载均衡）
 > - 你的 dispatcher_flowchart.png 从"Pod 在数据结构间流转"视角画，这张从"策略选择决策树"视角画，可以互补
 
 ### C. 仍需补画的图

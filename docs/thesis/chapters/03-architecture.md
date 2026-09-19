@@ -59,7 +59,7 @@ API Server 是所有组件唯一的通信中介。Dispatcher 与 Scheduler 之�
 
 （2）进入 Sorted Queue（有序队列）。经排序后的 Pod 进入有序队列，按照策略产出的次序等待分发；
 
-（3）交由 Dispatching Policy Manager。从有序队列中弹出的 Pod 进入分发策略模块，该模块根据 Pod 的 PodGroup 归属、Owner 亲和、以及各 Scheduler 实例的负载状况，选择目标 Scheduler；
+（3）交由 Dispatching Policy Manager。从有序队列中弹出的 Pod 进入分发策略模块。选择顺序为嵌套判定：若 Pod 属于某个 PodGroup，则复用该 PodGroup 已分配的 Scheduler 实例（`selectSchedulerForUnit`）；否则进入 `pickScheduler`，默认走 `loadBalancing`，即通过 `GetMostIdleSchedulerAndAddPodInAdvance` 选出当前处理能力剩余最多者（MaxIdle 加权轮询）。在启用 `SupportRescheduling` FeatureGate（默认关闭，Alpha 阶段）后，则先尝试与同 Owner Pod 复用同一 Scheduler 实例做亲和路由，未命中再回退到 `loadBalancing`；
 
 （4）通过 API Server 传递到目标 Scheduler。分发策略选定 Scheduler 后，通过 `PatchPod` 写入 `scheduler-name` 注解（对应图 3-1 中的 ① dispatching），Pod 从此对该 Scheduler 可见；
 

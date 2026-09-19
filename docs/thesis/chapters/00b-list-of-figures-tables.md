@@ -7,7 +7,7 @@
 - 图 3-3  Dispatcher 内部数据结构流转：Pod 从新建到分发完成的过程
 - 图 3-4  单个 Scheduler 内部：Pod 在活跃队列与退避队列间的流动
 - 图 4-1  Pod 生命周期状态机与 4 层容错机制介入点
-- 图 4-2a  Dispatcher 策略分发的决策路径（PodGroup / Owner 亲和 / 负载均衡）
+- 图 4-2a  Dispatcher 策略分发的嵌套决策路径（先按 PodGroup 分流，再由 SupportRescheduling FeatureGate 决定 Owner 亲和或默认负载均衡）
 - 图 4-2b  Dispatcher 侧的错误恢复流程（Layer 3 全局回退）
 - 图 4-3  一致性论证：核心不变量 I 及其 4 层威胁-防御映射
 - 图 5-1b  ENO 进程内 Binder（改造后）：3 步进程内流程

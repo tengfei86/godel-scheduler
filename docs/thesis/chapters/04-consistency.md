@@ -161,7 +161,7 @@ Layer 2 在 `binder_reconciler.go` 中实现，其核心数据结构是 `APICall
 
 Layer 3 的核心思想是：放弃本实例，交还给 Dispatcher 重新分发。图 4-2a 展示了 Dispatcher 侧的主分发流程；Layer 3 触发后，Pod 因 `scheduler-name` 注解被清空而被 Dispatcher 的 Informer 重新观察到，从图 4-2a 顶端的 `SortedPodsQueue` 重新进入分发。图 4-2b 单列展示 Dispatcher 分发自身失败（`PatchPod` API 调用失败）时的处理，与 Layer 3 是独立的两条错误路径。
 
-![图 4-2a  Dispatcher 策略分发的决策路径（PodGroup / Owner 亲和 / 负载均衡）](../figures/fig4-2a-dispatcher-main-flow.png)
+![图 4-2a  Dispatcher 策略分发的嵌套决策路径（先按 PodGroup 分流，再由 `SupportRescheduling` FeatureGate 决定 Owner 亲和或默认负载均衡）](../figures/fig4-2a-dispatcher-main-flow.png)
 
 ![图 4-2b  Dispatcher 分发失败的处理（`PatchPod` 失败 / Pod 已删除）](../figures/fig4-2b-dispatcher-error-recovery.png)
 
