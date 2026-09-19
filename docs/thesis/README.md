@@ -24,7 +24,7 @@ docs/thesis/
     ├─ 02-related-work.md       第 2 章 相关工作与背景
     ├─ 03-architecture.md       第 3 章 分布式 K8s 调度器系统架构
     ├─ 04-consistency.md        第 4 章 基于 etcd 语义的一致性容错机制
-    ├─ 05-eno-optimization.md   第 5 章 面向大规模场景的架构优化（ENO）
+    ├─ 05-eno-optimization.md   第 5 章 面向大规模场景的进程内 Binder 架构
     ├─ 06-evaluation.md         第 6 章 实验设计与评估
     └─ 07-conclusion.md         第 7 章 总结与展望
 ```
