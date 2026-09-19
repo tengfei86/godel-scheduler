@@ -7,7 +7,7 @@ flowchart TB
     T1["<b>故障场景 T1：Bind API 暂态失败</b><br/>kube-apiserver 返回 409 / 429 / 网络 Timeout"]:::threat
     D1["<b>Layer 1：同步重试</b><br/>线性退避重试 attempt lt MaxBindRetries"]:::defense
 
-    T2["<b>故障场景 T2：进程内偶发错误</b><br/>Bind 失败后 etcd 注解与内存 Assumed 状态需分别清理"]:::threat
+    T2["<b>故障场景 T2：Bind 失败后的 Assumed 状态残留</b><br/>SchedulerCache 内存态与 etcd 注解均可能成为孤儿数据"]:::threat
     D2["<b>Layer 2：异步 Reconciler</b><br/>Bind Reject 阶段 ForgetPod 清内存态；<br/>Worker 从 APICallFailedTaskQueue 清 etcd 注解"]:::defense
 
     T3["<b>故障场景 T3：本地重试耗尽 / 节点长期不可用</b><br/>failureCount ≥ MaxLocalRetries，该 Scheduler 无法完成绑定"]:::threat

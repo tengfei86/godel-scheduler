@@ -121,7 +121,7 @@ Layer 1 在 `embedded_binder.go` 的 `bindPodToNode` 函数中实现，核心逻
 
 ## 4.4　Layer 2 — 异步 Reconciler
 
-### 4.4.1　故障场景 T2：进程内偶发错误
+### 4.4.1　故障场景 T2：Bind 失败后的 Assumed 状态残留
 
 场景：Scheduler 在 Reserve 阶段将 Pod 标记为 Assumed（写入 `assumed-node` 注解，同时在 SchedulerCache 中记录节点资源占用），但随后 Bind API 失败且同步重试全部耗尽——甚至在极端情况下 Scheduler 进程本身崩溃/panic。
 
@@ -149,7 +149,7 @@ Layer 2 在 `binder_reconciler.go` 中实现，其核心数据结构是 `APICall
 
 ## 4.5　Layer 3 — 跨 Scheduler 实例回退
 
-### 4.5.1　故障场景 T3：本地重试耗尽 / 节点长期不可用
+### 4.5.1　故障场景 T3：本地重试耗尽
 
 场景：一个 Pod 在 Scheduler A 中反复失败——例如 Scheduler A 分区内确实无可用节点、或者 Node X 因硬件故障从集群中移除、或者 apiserver 长期不可达。Layer 1 与 Layer 2 都无法在本实例内解决问题。
 
@@ -219,8 +219,8 @@ P4【时序保证：Layer 0 前置拦截】 由 Node 归属注解的原子写入
 
 - T0：节点分区归属漂移；
 - T1：Bind API 暂态失败；
-- T2：进程内偶发错误；
-- T3：本地重试耗尽 / 节点长期不可用。
+- T2：Bind 失败后的 Assumed 状态残留；
+- T3：本地重试耗尽。
 
 分别设计了对应的 4 层容错机制：
 
