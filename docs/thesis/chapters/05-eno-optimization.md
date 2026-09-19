@@ -10,15 +10,11 @@
 
 整条链路上有 5 次 API Server 调用。Dispatcher 首先以 `PatchPod` 写入 `scheduler-name` 注解 ①，随后 Informer 把该事件推送给 Scheduler ②；Scheduler 完成 Filter/Score/Reserve 后再以 `PatchPod` 写入 `assumed-node` 注解 ③，Informer 又将这次修改推送到独立的 Binder 进程 ④；最终由 Binder 通过 Bind API 完成绑定 ⑤。
 
-其中步骤 ④ 是本文特别关注的开销来源：Scheduler 与 Binder 之间没有直接连接，它们通过 API Server + etcd 中转事件，每次事件都涉及序列化（Pod 对象转 protobuf）、网络传输、反序列化、Informer 索引更新等一系列开销。在超高并发场景下，这一步的开销会在如下几个维度累积：
+其中步骤 ④ 是本文特别关注的开销来源：Scheduler 与 Binder 之间没有直接连接，它们通过 API Server + etcd 中转事件，每次事件都涉及序列化（Pod 对象转 protobuf）、网络传输、反序列化、Informer 索引更新等一系列开销，在超高并发场景下会累积成显著的性能损耗。
 
-（1）序列化 / 反序列化 CPU 开销：每个 Pod 对象大小约 3~10 KB，包含 metadata、spec、status 等字段。以本文实验的 w3 负载（1000 pods/s）为例，稳态吞吐意味着 API Server + Informer 每秒完成 1000 次完整的 Pod 对象序列化/反序列化循环。合并 Binder 后跨进程序列化次数减少约一半，其在总耗时中的实际占比可参见 6.4.3 节中 ENO 相对独立 Binder 的 Pod E2E 延迟改善（P99 降低 40.7%~91.0%）；
+序列化 / 反序列化的 CPU 消耗最为直接：每个 Pod 对象约 3~10 KB（含 metadata、spec、status），w3 负载（1000 pods/s）稳态下 API Server + Informer 每秒完成 1000 次完整的 Pod 序列化循环，合并 Binder 后跨进程序列化次数减少约一半，对应的 Pod E2E P99 延迟改善 40.7%~91.0%（见 6.4.3 节）。Informer 事件延迟紧随其后：从 API Server 的 Watch 推送到 Binder 的 Informer 处理完成，受批处理、限流与 handler 排队影响，通常存在数十到数百毫秒的端到端延迟，直接叠加到 Pod E2E 调度延迟上；ENO 消除步骤 ④ 后，s3/w3 场景的 P99 调度延迟相较独立 Binder 基线降低 47.5%~82.0%（见 6.4.2 节表 6-5）。此外，步骤 ④ 本身是一次完整的 Watch 事件推送，仍占用 apiserver 的连接与 goroutine 资源，相当于比"Scheduler 直接调用 Bind API"多了一整个 apiserver 交互周期，高负载下形成的 pending 队列堆积可参见 6.5.3 节复杂负载对比中 ENO 与独立 Binder 基线的队列长度差异。
 
-（2）Informer 事件延迟：从 API Server 的 Watch 推送到 Binder 的 Informer 处理完成，通常存在数十到数百毫秒的端到端延迟（受批处理、限流、handler 排队影响）。这一延迟直接叠加到 Pod E2E 调度延迟上；ENO 消除步骤 ④ 后，同一场景下相较独立 Binder 基线的 P99 调度延迟改善数据见 6.4.2 节表 6-5（s3/w3 场景降低 47.5%~82.0%），可视为该延迟的定量映射；
-
-（3）额外的 apiserver 往返：步骤 ④ 是一次完整的 Watch 事件推送（虽然是 apiserver 主动推送，但仍占用 apiserver 的连接与 goroutine 资源）；相当于比"Scheduler 直接调用 Bind API"多了一整个 apiserver 交互周期。该开销在高负载下形成的 pending 队列堆积可参见 6.5.3 节复杂负载对比中 ENO 与独立 Binder 基线的队列长度差异；
-
-（4）独立 Binder 的资源占用：独立 Binder 作为独立 Deployment 需要独立的 CPU / 内存配额、独立的健康探测、独立的日志与监控。在 3-5 副本水平扩展的 Scheduler 集群中，额外的 Binder Deployment 是明显的资源冗余；ENO 部署形态下该 Deployment 被移除（详见 5.4 节图 5-3），运维层面的收益属定性观察，不进入第 6 章的定量对比。
+上述均为运行时开销；除此之外，独立 Binder 作为独立 Deployment 还带来运维层面的资源冗余——额外的 CPU / 内存配额、健康探测、日志与监控在 3~5 副本水平扩展的 Scheduler 集群中体量明显。ENO 部署下该 Deployment 被移除（详见 5.4 节图 5-3），这部分属定性收益，不进入第 6 章的定量对比。
 
 ## 5.2　ENO 架构：进程内 Binder 合并
 
@@ -79,6 +75,6 @@ Layer 1（同步退避重试）在 `EmbeddedBinder.bindPodToNode` 内部落地�
 
 Layer 2（异步 Reconciler）由 `EmbeddedBinder.reconciler` 承载，实例通过 `NewBinderTaskReconcilerWithRetry` 构造（[pkg/binder/binder_reconciler.go](pkg/binder/binder_reconciler.go)），后台单 goroutine Worker 消费 `APICallFailedTaskQueue`。任务入口在 `EmbeddedBinder.BindUnit` 的失败分支：每次 L1 出错（无论退避耗尽还是非可重试早退）都会调用 `eb.reconciler.AddFailedTask`，同时通过 `util.PatchPod` 将新增的 `eno.io/bind-failure-count` 注解持久化到 etcd，供 Worker 稍后读取。内存态与 etcd 态的清理分工与 4.4.2 节一致：SchedulerCache 中的 Assumed 状态由 Bind Reject 阶段的 `ForgetPod` 清理（ENO 下 `ForgetPod` 直接作用于 Scheduler 与 Binder 共享的 SchedulerCache 对象，无需跨进程事件）；Worker 只负责 etcd 侧调度注解的清理——通过 `CleanupPodAnnotations` 家族函数调用 `util.PatchPod` 移除调度决策注解，并根据本地失败计数选择"回到本 Scheduler 重试"或"上升至 L3"。
 
-Layer 3（跨 Scheduler 实例回退）的执行主体是 `CleanupPodAnnotationsWithRetryCount`：一旦 L2 Worker 观察到累计失败次数达到 `MaxLocalRetries`（`EmbeddedBinderConfig` 默认为 5，见 [embedded_binder_config.go](pkg/binder/embedded_binder_config.go)），即执行"清 `selected-scheduler` 注解 + `pod-state=pending` + 追加 `failed-schedulers`"三原子动作，将 Pod 交还给 Dispatcher 重新分发到其它 Scheduler 实例。Dispatcher 侧的重分发行为与 ENO 的进程边界无关——它只依赖 `selected-scheduler` 注解的清除事件被 Informer 感知。
+Layer 3（跨 Scheduler 实例回退）的执行主体是 `CleanupPodAnnotationsWithRetryCount`：一旦 L2 Worker 观察到累计失败次数达到 `MaxLocalRetries`（`EmbeddedBinderConfig` 默认为 5，见 [embedded_binder_config.go](pkg/binder/embedded_binder_config.go)），即通过一次 `util.PatchPod` 同时更新三个注解字段（清 `selected-scheduler`、`pod-state=pending`、追加 `failed-schedulers`），将 Pod 交还给 Dispatcher 重新分发到其它 Scheduler 实例。Dispatcher 侧的重分发行为与 ENO 的进程边界无关——它只依赖 `selected-scheduler` 注解的清除事件被 Informer 感知。
 
 综合起来，ENO 在单一 Scheduler 进程内完整承载了四层容错的运行时调用链：L0 的前置校验与 L3 直通、L1 的进程内退避、L2 的失败任务异步驱动，以及 L3 的注解级重分发。这一进程内实现与 5.3 节的 CacheAdapter 零拷贝共享共同构成 ENO 完整的架构语义。第 4 章给出的核心不变量（"任一 Pod 至多绑定到一个节点"）与 P1–P4 证明要点在 ENO 下依旧成立——因为它们只依赖 Bind API 的原子性与 etcd 注解写入的 CAS 语义，与 Binder 的部署形态无关。ENO 的性能改进将在第 6 章通过 KWOK 仿真下的大规模基准测试进行定量评估。
