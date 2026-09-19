@@ -12,7 +12,7 @@
 
 其中步骤 ④ 是本文特别关注的开销来源：Scheduler 与 Binder 之间没有直接连接，它们通过 API Server + etcd 中转事件，每次事件都涉及序列化（Pod 对象转 protobuf）、网络传输、反序列化、Informer 索引更新等一系列开销，在超高并发场景下会累积成显著的性能损耗。
 
-序列化 / 反序列化的 CPU 消耗最为直接：每个 Pod 对象约 3~10 KB（含 metadata、spec、status），w3 负载（1000 pods/s）稳态下 API Server + Informer 每秒完成 1000 次完整的 Pod 序列化循环，合并 Binder 后跨进程序列化次数减少约一半，对应的 Pod E2E P99 延迟改善 40.7%~91.0%（见 6.4.3 节）。Informer 事件延迟紧随其后：从 API Server 的 Watch 推送到 Binder 的 Informer 处理完成，受批处理、限流与 handler 排队影响，通常存在数十到数百毫秒的端到端延迟，直接叠加到 Pod E2E 调度延迟上；ENO 消除步骤 ④ 后，s3/w3 场景的 P99 调度延迟相较独立 Binder 基线降低 47.5%~82.0%（见 6.4.2 节表 6-5）。此外，步骤 ④ 本身是一次完整的 Watch 事件推送，仍占用 apiserver 的连接与 goroutine 资源，相当于比"Scheduler 直接调用 Bind API"多了一整个 apiserver 交互周期，高负载下形成的 pending 队列堆积可参见 6.5.3 节复杂负载对比中 ENO 与独立 Binder 基线的队列长度差异。
+序列化 / 反序列化的 CPU 消耗最为直接：每个 Pod 对象约 3~10 KB（含 metadata、spec、status），高负载下 API Server + Informer 每秒需要完成大量完整的 Pod 序列化循环，合并 Binder 后跨进程序列化次数至少可减半。Informer 事件延迟紧随其后：从 API Server 的 Watch 推送到 Binder 的 Informer 处理完成，受批处理、限流与 handler 排队影响，通常存在数十到数百毫秒的端到端延迟，直接叠加到 Pod E2E 调度延迟上。此外，步骤 ④ 本身是一次完整的 Watch 事件推送，仍占用 apiserver 的连接与 goroutine 资源，相当于比"Scheduler 直接调用 Bind API"多了一整个 apiserver 交互周期，在高负载下会显著加剧 pending 队列堆积。这三类开销 ENO 通过消除步骤 ④ 一并规避；相应的量化收益留待第 6 章基准测试给出。
 
 上述均为运行时开销；除此之外，独立 Binder 作为独立 Deployment 还带来运维层面的资源冗余——额外的 CPU / 内存配额、健康探测、日志与监控在 3~5 副本水平扩展的 Scheduler 集群中体量明显。ENO 部署下该 Deployment 被移除（详见 5.4 节图 5-3），这部分属定性收益，不进入第 6 章的定量对比。
 
