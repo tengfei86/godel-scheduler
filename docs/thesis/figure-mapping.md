@@ -66,8 +66,7 @@
 | 论文编号 | 用途 | 现状 | 建议来源 |
 |---|---|---|---|
 | 图 3-2 | §3.2 基于 etcd 的三步事务时序图 | ✅ 已完成（2026-08-25） | [figures/fig3-2-etcd-three-step-txn.{mmd,png}](figures/fig3-2-etcd-three-step-txn.png) |
-| 图 6-1 | §6.1 实验环境拓扑（kind + KWOK + Prometheus + 5 组调度器）| ✅ 已完成（2026-08-25） | [figures/fig6-1-experiment-env.{mmd,png}](figures/fig6-1-experiment-env.png) |
-| 图 6-2 | §6.1 单次实验流程时序图 | ✅ 已完成（2026-08-25） | [figures/fig6-2-experiment-flow.{mmd,png}](figures/fig6-2-experiment-flow.png) |
+| 图 6-1 | §6.2.3 单次实验流程时序图 | ✅ 已完成（2026-08-25） | [figures/fig6-1-experiment-flow.{mmd,png}](figures/fig6-1-experiment-flow.png) |
 
 ### D. 数据图（第 6 章，从实验结果自动生成）
 
@@ -77,14 +76,14 @@
 
 | 编号 | 内容 | 命令片段 |
 |---|---|---|
-| 图 6-3 | 各场景有效吞吐对比（16 场景，ENO vs Gödel，柱状图） | `figures/make-fig6-3.py`（读 `results/compare/` 场景清单与各 run 的 `metadata.txt`） |
-| 图 6-4 | P90 调度延迟对比（箱线图或均值±1σ） | `plot-results.py --compare --metric scheduling_latency_p90` |
-| 图 6-5 | P99 调度延迟对比 | `plot-results.py --compare --metric scheduling_latency_p99` |
-| 图 6-6 | 绑定成功率对比 | `plot-results.py --compare --metric bind_success_rate` |
-| 图 6-7 | Pod E2E 延迟对比（Dispatcher → Bound）| `plot-results.py --compare --metric pod_e2e_latency_p99` |
-| 图 6-8 | goroutines 资源开销对比 | `plot-results.py --compare --metric goroutines` |
-| 图 6-9 | 单调度器 vs Gödel: bind_inflight 并发度对比（可选）| |
-| 图 6-10 | 单调度器 vs Gödel: node_validation_failures / dispatcher_fallback 触发次数（Layer 0/3 触发验证）| |
+| 图 6-2 | 各场景有效吞吐对比（16 场景，ENO vs Gödel，柱状图） | `figures/make-fig6-3.py`（读 `results/compare/` 场景清单与各 run 的 `metadata.txt`） |
+| 图 6-3 | P90 调度延迟对比（箱线图或均值±1σ） | `plot-results.py --compare --metric scheduling_latency_p90` |
+| 图 6-4 | P99 调度延迟对比 | `plot-results.py --compare --metric scheduling_latency_p99` |
+| 图 6-5 | 绑定成功率对比 | `plot-results.py --compare --metric bind_success_rate` |
+| 图 6-6 | Pod E2E 延迟对比（Dispatcher → Bound）| `plot-results.py --compare --metric pod_e2e_latency_p99` |
+| 图 6-7 | goroutines 资源开销对比 | `plot-results.py --compare --metric goroutines` |
+| 图 6-8 | 单调度器 vs Gödel: bind_inflight 并发度对比（可选）| |
+| 图 6-9 | 单调度器 vs Gödel: node_validation_failures / dispatcher_fallback 触发次数（Layer 0/3 触发验证）| |
 
 ---
 
@@ -137,9 +136,8 @@ docs/thesis/
     fig5-1-shared-vs-eno.{mmd,pdf,png}  ← 由现有 3-1a/3-1b 组合
     fig5-2-cache-zero-copy.{mmd,pdf,png}
     fig5-3-eno-deployment.{mmd,pdf,png}
-    fig6-1-experiment-env.{mmd,pdf,png}  ← 待画
-    fig6-2-experiment-flow.{mmd,pdf,png} ← 待画
-    fig6-3~fig6-10-*.pdf                 ← 数据图自动生成
+    fig6-1-experiment-flow.{mmd,pdf,png}
+    fig6-2~fig6-14-*.png                ← 数据图自动生成
   figure-mapping.md            ← 本文件
   chapters/                    ← 各章 Markdown 草稿
     01-introduction.md
@@ -179,9 +177,8 @@ docs/thesis/
 
 **待补**：
 - 图 3-2 基于 etcd 三步事务时序图（**✅ 已完成 2026-08-25**，fig3-2-etcd-three-step-txn）
-- 图 6-1 实验环境拓扑（**✅ 已完成 2026-08-25**，fig6-1-experiment-env）
-- 图 6-2 单次实验流程时序（**✅ 已完成 2026-08-25**，fig6-2-experiment-flow）
-- 图 6-3 ~ 6-10 数据图（**✅ 已完成 2026-08-25**，从 `results/compare/` 归档）
+- 图 6-1 单次实验流程时序（**✅ 已完成 2026-08-25**，fig6-1-experiment-flow）
+- 图 6-2 ~ 6-14 数据图（**✅ 已完成 2026-08-25**，从 `results/compare/` 归档）
 
 ---
 
@@ -217,9 +214,8 @@ docs/thesis/
 
 | 图号 | 标题 | 来源 |
 |---|---|---|
-| 图 6-1 | 实验环境拓扑 | **待画（mermaid）**|
-| 图 6-2 | 单次实验流程时序 | **待画（mermaid）**|
-| 图 6-3 ~ 图 6-10 | 各类数据对比图 | plot-results.py 自动生成 |
+| 图 6-1 | 单次实验流程时序 | mermaid |
+| 图 6-2 ~ 图 6-14 | 各类数据对比图 | plot-results.py 自动生成 |
 
 **图表合计**：约 21 张（10 主图 + 2 待画 + 1-2 组合图 + 8 数据图），符合北航规范中"图数适度、每章 1-6 张"的建议。
 
