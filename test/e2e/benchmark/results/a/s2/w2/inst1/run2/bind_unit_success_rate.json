@@ -1,1 +1,1 @@
-{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"eno:binder_embedded_bind_units:success_rate1m"},"values":[[1789435819,"1"],[1789435834,"1"],[1789435849,"1"],[1789435864,"1"],[1789435879,"1"],[1789435894,"1"],[1789435909,"1"],[1789435924,"1"],[1789435939,"1"]]}]}}
+{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"eno:binder_embedded_bind_units:success_rate1m"},"values":[[1789824099,"1"],[1789824114,"1"],[1789824129,"1"],[1789824144,"1"],[1789824159,"1"],[1789824174,"1"],[1789824189,"1"],[1789824204,"1"]]}]}}
