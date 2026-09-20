@@ -18,7 +18,7 @@ kube-scheduler 2019 年引入的 Scheduling Framework<sup>[2,13]</sup> 通过插
 
 Volcano 是 CNCF 孵化的 Kubernetes 批处理调度器<sup>[5]</sup>，主要面向 AI 训练、大数据、HPC 等场景。相比 kube-scheduler，其关键差异有三处。最突出的是 Gang 调度：批处理任务（例如分布式训练）通常要求"要么全部 Pod 都被调度，要么全部不调度"，Volcano 通过 PodGroup 抽象与 gang 插件在决策阶段整体判断是否满足 Gang 约束<sup>[14]</sup>。其次是 Session-based 调度周期，Volcano 将一次调度周期封装为 Session，在 Session 内维护该周期看到的资源视图与 job 队列，周期结束时统一提交决策。最后是多维公平共享，Volcano 通过 DRF（Dominant Resource Fairness）<sup>[15]</sup> 等算法在多个租户或队列之间实现公平资源分配。
 
-Volcano 的架构上仍然沿用了 kube-scheduler 的单实例调度，其扩展性主要通过 Session 内的批处理决策与插件化实现，而非水平扩展多个调度器实例。这一设计使 Volcano 在批处理场景下具备较好的策略表达能力，但在需要极高稳态吞吐的场景下同样受制于单实例的处理能力。
+Volcano 的架构上仍然沿用了 kube-scheduler 的单实例调度，其扩展性主要通过 Session 内的批处理决策与插件化实现，而非水平扩展多个调度器实例。这一设计使 Volcano 在批处理场景下具备较好的策略表达能力，但在需要极高有效吞吐的场景下同样受制于单实例的处理能力。
 
 ## 2.3　混部调度器 Koordinator
 
