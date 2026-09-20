@@ -34,13 +34,12 @@ _HERE = Path(__file__).resolve()
 RESULTS = _HERE.parent.parent / "results"
 FIGURES = _HERE.parents[4] / "docs" / "thesis" / "figures"
 
-# (label_for_x_axis, path_suffix under results/{group}) — all 16 compare
-# scenarios listed under results/compare/, in natural (scale, workload, inst)
-# order. Scenarios with no valid peak-throughput samples after 6.3 trim
-# are rendered as zero-height bars with "n/a" markers so the reader can
-# see the coverage matrix at a glance.
+# (label_for_x_axis, path_suffix under results/{group}) — 15 of the 16
+# compare scenarios; s1/w1 is excluded because its single-run duration is
+# shorter than the trim window and produces no valid peak-throughput
+# sample under the 6.3 median-trim convention. The exclusion is noted
+# in the figure caption in 6.4.
 SCENARIOS = [
-    ("s1/w1\ninst1",     "s1/w1/inst1"),
     ("s2/w2\ninst1",     "s2/w2/inst1"),
     ("s2/w3\ninst1",     "s2/w3/inst1"),
     ("s3/w2\ninst1",     "s3/w2/inst1"),
