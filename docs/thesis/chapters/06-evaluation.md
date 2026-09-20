@@ -14,7 +14,7 @@
 
 本文实验的观测栈由 Prometheus + Grafana 组成：负载注入器按 w2/w3 速率创建 Pod；kind 集群内包含 kube-apiserver/etcd 控制平面、KWOK 仿真的 1000/5000 个节点、以及 a~e 五组调度器；各组调度器指标经 Prometheus（15 秒抓取 + recording rules 归一化）采集，由 Grafana 可视化。关键组件包括：
 
-- Prometheus<sup>[38]</sup>：每 15 秒从各调度器抓取一次指标，本文实验期间 Prometheus 部署为独立 Deployment，配备 2Gi 内存限制、2h 数据保留、WAL 压缩，避免 OOM；
+- Prometheus<sup>[38]</sup>：每 15 秒从各调度器抓取一次指标，本文实验期间 Prometheus 部署为独立 Deployment，配备 16Gi 内存限制、2h 数据保留、WAL 压缩，避免 OOM；
 - 调度器组自定义 recording rules：每个调度器组（a/b/c/d/e）在自己的 Prometheus 中定义了统一的 recording rules，将各调度器的原始指标（如 `scheduler_pod_scheduling_attempts` / `volcano_task_scheduling_latency_milliseconds`）归一化为跨组可比的记录（`{group}:{metric}:{aggregation}`）；
 - Grafana<sup>[39]</sup>：为每个调度器组配置了独立 dashboard，用于实时观察实验进展并事后审阅。
 
