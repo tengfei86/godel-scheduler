@@ -326,6 +326,12 @@ s2、s3 与 s4 覆盖了从中等到超大规模的集群场景（跨度 10×）
 
 ![图 6-15  五调度器稳态吞吐对比（s4, w5 突发洪峰, inst3，中位数聚合，n=3）](../figures/fig6-15-throughput-s4-w5-inst3.png)
 
+上述 ENO 与 Gödel 的 Gang 对比均在两种分布式调度架构之间进行；作为对照，本节额外将 Volcano（组 d，单实例架构，业界广泛采用的 Gang 调度实现之一）纳入 s3/w6/inst1 的三组对比。图 6-17 与图 6-18 汇总了三组调度器在该场景下的有效吞吐与 P99 调度延迟。有效吞吐方面，ENO 251.3 pods/s、Gödel 211.0 pods/s、Volcano 47.8 pods/s——两种分布式方案的完成时间口径吞吐均达到 Volcano 单实例架构的 4~5 倍；P99 调度延迟方面，Volcano 为 3.182 s，比 ENO（0.428 s）与 Gödel（0.175 s）分别高出约 6.4 倍与 17.2 倍。ENO 与 Gödel 之间在 Gang 场景下的方向差异已在上文讨论，此处 Volcano 的对照数据用于说明分区独立处理 PodGroup 的分布式架构相比集中式单实例架构在完成时间与尾延迟两个维度上的量级差异，不构成对 Volcano 本身架构选择的否定评价——Volcano 面向的场景与其提供的公平共享、队列语义并非本文 w6 负载所直接考察的目标。
+
+![图 6-17  a/b/d 三组调度器 w6 有效吞吐对比（s3, inst1）](../figures/fig6-17-w6-throughput-bar.png)
+
+![图 6-18  a/b/d 三组调度器 w6 P99 调度延迟对比（s3, inst1）](../figures/fig6-18-w6-latency-p99-bar.png)
+
 ## 6.6　资源开销对比
 
 
