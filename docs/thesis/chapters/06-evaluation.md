@@ -341,25 +341,52 @@ s2、s3 与 s4 覆盖了从中等到超大规模的集群场景（跨度 10×）
 
 ## 6.7　一致性容错机制的专项验证
 
-除性能对比外，本文还对第 4 章设计的 4 层容错机制进行了专项验证。
+除性能对比外，本文对第 4 章设计的 4 层容错机制进行了专项验证。Layer 1（同步重试）与 Layer 2（异步 Reconciler）在 6.5 节的全部对比场景中已被稳态负载持续覆盖——16 个场景 100% 的绑定成功率意味着这两层的暂态错误处理路径在实测流量下工作正常，无需额外的独立实验。本节聚焦 Layer 0（Bind 前置的节点归属校验）与 Layer 3（跨 Scheduler 实例回退）——两者的触发条件在稳态负载下发生频率极低，需要故意注入故障才能观察，因此单列专项。
+
+**通用实验设定**。两个专项实验共用一套基线配置，以便与 6.5 节交叉引用：调度器组 a（ENO）、规模 s3（5000 节点）、负载 w2（500 pods/s × 50K pods，标称完成时间约 100 s）、实例数 inst3（3 个 Scheduler）、每种故障重复 n=3。选择 w2 而非 w3/w4 是为了让集群工作在未饱和区——由此观测到的 `node_validation_failures` 与 `dispatcher_fallback` 计数变化可以确定性归因于注入的故障，而非过载导致的连锁反应。故障统一在负载启动后 T=30 s 处注入，实验总时长 120 s，为恢复观察留出 90 s 尾窗。
+
+**Prometheus 采集**。两个实验的时序数据均通过 `test/e2e/benchmark/collect/export-prometheus.sh` 拉取，该脚本已经将 `binder_node_validation_failures_total`、`binder_dispatcher_fallback_total` 及其对应的 recording rule `eno:binder_node_validation_failures:rate1m`、`eno:binder_dispatcher_fallback:rate1m` 纳入组 a 的默认导出集（详见 `manifests/monitoring/overlays/group-a/prometheus-config.yaml`）。核心不变量 I 的实测验证通过后处理脚本直接查询 kube-apiserver 完成——遍历目标命名空间下的全部 Pod，断言 `spec.nodeName` 非空且每个 Pod 只出现一次。
 
 ### 6.7.1　Layer 0 触发验证
 
-通过 `node_validation_failures` 指标观察。受实验排期限制，本文未能在论文写作前完成故障注入专项实验，以下场景设计留作未来工作（见 7.3 节）：
+**实验目标**：验证当 Node 的 `eno.io/scheduler-name` 注解在 Bind 前发生漂移时，原持有者 Scheduler 的 Bind 尝试会被 Layer 0 拦截并转入 Layer 3 全局回退，最终不产生跨分区的 Bind API 调用，且不违反核心不变量 I。
 
-TODO(实验)：设计如下故障注入场景验证 Layer 0：
+**故障注入方式**。在 T=30 s 时刻，对当前分配给 Scheduler A 的节点中随机抽取 10%（约 500/5000），通过 `kubectl patch node --type=merge` 将其 `eno.io/scheduler-name` 注解改为 Scheduler B，模拟 Dispatcher 的 `node-shuffler` 触发的强制重分区。10% 的比例经过权衡：一方面足以在 rate 时序上形成可辨识的峰值，另一方面不至于让 Dispatcher 的重分发队列本身成为新的瓶颈从而混淆归因。注入操作由脚本 `test/e2e/benchmark/faultinject/inject-layer0.sh` 完成，脚本记录被 patch 的节点列表与精确时间戳，写入实验元数据以供事后对齐。
 
-- 触发 Dispatcher 的 `node-shuffler` 强制重分区，观察在 shuffle 前后 Scheduler A 的 Bind 尝试是否被 Layer 0 拦截（`node_validation_failures` 计数上升）；
-- 验证 Layer 0 拦截的 Pod 是否被 Layer 3 正确回收并重新分发。
+**观测指标**（表 6-9 列出各指标的 PromQL 与观测预期）：
+
+| 指标 | PromQL | 预期观测 |
+|---|---|---|
+| Layer 0 拦截数（rate） | `eno:binder_node_validation_failures:rate1m` | T=30 s 后出现明显峰值；峰值持续时间受 Scheduler A 的 Assumed 队列消化速度决定 |
+| Layer 3 回退数（rate） | `eno:binder_dispatcher_fallback:rate1m` | 与 Layer 0 拦截同步上升；累计计数应与 Layer 0 拦截数在同一量级 |
+| 绑定成功率（%） | `sum(rate(binder_embedded_bind_pods_total{result="success"}[1m])) / sum(rate(binder_embedded_bind_pods_total[1m]))` | 全程保持 100% —— 被拦截的 Pod 经 Layer 3 重分发后仍应成功绑定 |
+| Layer 1 重试数（rate） | `eno:binder_embedded_bind_retries:rate1m` | 应无显著变化，用于排除"拦截来自 API Server 冲突"这一竞争解释 |
+| 挂起 Pod 数 | `sum(scheduler_pending_pods)` | 注入后短暂上涨，随重分发完成回落 |
+
+**事后校验**：（1）导出全部 Pod 的 `{name, spec.nodeName}` 并断言无重复、无空值，直接对不变量 I 做实测验证；（2）对比"注入实验"与 6.5 节 s3/w2/inst3 无故障基线的总完成时间，量化 Layer 0/3 对性能的一次性开销。呈现方式为一张 `node_validation_failures:rate1m` 与 `dispatcher_fallback:rate1m` 的双轴时序图（图 6-20a，注入时刻用竖线标注），以及一张分注入前 30 s / 注入期 30 s / 恢复期 60 s 三段累计计数与成功率的对照表。
 
 ### 6.7.2　Layer 3 触发验证
 
-通过 `dispatcher_fallback` 指标观察：
+**实验目标**：验证一个 Scheduler 实例意外失活时，Dispatcher 的 Scheduler Maintainer 与 PodStateReconciler 会将其名下 Dispatched 状态的 Pod 重置为 Pending 并交由存活实例接管（Layer 3 的实例级回收路径），最终全部 Pod 绑定成功、无孤儿数据、无双绑。
 
-TODO(实验)：
+**故障注入方式**。在 T=30 s 时刻，对 3 个 Scheduler 实例中的一个执行 `kubectl delete pod --grace-period=0 --force`。该操作在 Dispatcher 视角与"进程崩溃"等价——Scheduler Maintainer 通过心跳/Lease 感知实例失活，随后 PodStateReconciler 扫描其名下 `pod-state=Dispatched` 但 `spec.nodeName` 仍为空的 Pod，重置状态并清除 `scheduler-name` 注解。注入脚本 `test/e2e/benchmark/faultinject/inject-layer3.sh` 记录被删除的实例名与时间戳，同时保留 Deployment 的 replicas 不变，让被删实例在数秒内被 kube-controller-manager 重建，以便观察"恢复期"是否有二次回退。
 
-- 通过 kill 某个 Scheduler 实例，强制其 Pod 触发 Layer 3 回退，观察 Dispatcher 是否将这些 Pod 重新分发到其他实例；
-- 验证被回退的 Pod 最终能够被绑定，且没有出现"同一 Pod 绑定到两个节点"的情况（后者可通过 kube-apiserver 直接查询验证）。
+**观测指标**：
+
+| 指标 | PromQL | 预期观测 |
+|---|---|---|
+| Layer 3 回退数（rate） | `eno:binder_dispatcher_fallback:rate1m` | T=30 s 后出现阶跃，随被回收 Pod 的重新分发完毕而回落 |
+| Layer 3 回退总量（分实例） | `sum by (scheduler) (increase(binder_dispatcher_fallback_total[120s]))` | 主要增量来自被杀实例；存活实例仅在极小比例上出现（源于短暂的信息滞后） |
+| 挂起 Pod 数 | `sum(scheduler_pending_pods)` | 注入后应出现明显上涨（被回收的 Pod 回到 Pending），随后回落 |
+| 分实例绑定量 | `sum by (scheduler) (increase(binder_embedded_bind_pods_total{result="success"}[120s]))` | 被杀实例绑定量在 T=30 s 后停止增长；两个存活实例的增速上升，总量之和 = 50K |
+| Layer 0 拦截数 | `eno:binder_node_validation_failures:rate1m` | 副作用观察——若节点归属随实例失活而重分配，此处会有联动 |
+| 实例存活探针 | `up{job="scheduler-a"}` | 用于对齐时间轴，精确定位实例被删与被重建的两个时刻 |
+
+**事后校验**：（1）不变量 I 的 apiserver 断言（同 6.7.1）；（2）"孤儿"检查：`kubectl get pods -o json` 后过滤 `metadata.annotations["eno.io/scheduler-name"] != null AND spec.nodeName == ""` 的 Pod，其数量在实验结束时应为 0——这直接验证 P3（注解清理 → 重分发的时序）；（3）分摊性检查：三实例的绑定量增量之和等于总工作量 50K，且被杀实例的绑定量在注入后不再增长。呈现方式为一张 `dispatcher_fallback:rate1m` 与 `scheduler_pending_pods` 的双轴时序图（图 6-20b，标注注入点与实例恢复点），以及一张分实例绑定量分布与总完成时间对比的表格。
+
+### 6.7.3　实验编排与可复现性
+
+两个专项实验复用 `test/e2e/benchmark/run-experiment.sh` 的主流程，只在其上包一层 `run-fault-experiment.sh a s3 w2 <run_id> --inject {layer0|layer3} --inject-at 30`——该外层脚本在负载生成器启动后按 `--inject-at` 指定的秒数触发对应的注入脚本，其余环节（Prometheus 时段导出、元数据落盘、`avg/median` 聚合）与 6.5 节完全一致。全部实验产物（PromQL 时序 JSON、Pod 状态快照、注入事件时间戳）落在 `test/e2e/benchmark/results/faultinject/`，命名规范与 `compare/` 目录一致，以便复用现有的 `plot-results.py` 与 `latency-compare.py` 完成绘图与统计。
 
 ## 6.8　讨论：局限性与威胁效力
 
