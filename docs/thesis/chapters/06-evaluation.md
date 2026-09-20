@@ -178,15 +178,17 @@ s2、s3 与 s4 覆盖了从中等到超大规模的集群场景（跨度 10×）
 
 ![图 6-4  全场景 ENO 与 Gödel P99 调度延迟对比（scheduling_latency_p99，n=3 中位数，log 纵轴）](../figures/fig6-4-latency-p99-all.png)
 
-图 6-5 与图 6-6 给出 s3/w3 场景下 P90 与 P99 的具体分布形态；图 6-11 补充 s2/w3 场景的 P99 走势，作为最高负载的另一处 drill-down。
+表 6-5 已给出全部 15 个场景 P90/P99 的标量对比；此处以 s3/w3 单实例（本文主评估场景，P99 差距最大）与 s2/w3 单实例（同一 w3 负载在中等规模下的对照，P99 改善幅度最大）两个代表性场景做时序 drill-down，展示延迟随负载运行的分布形态。
 
-![图 6-5  P90 调度延迟对比（s3, w3，中位数聚合，n=3）](../figures/fig6-5-latency-p90-s3-w3.png)
+**主对比场景：s3/w3, inst1**——图 6-5 与图 6-6 分别展示该场景下 P90 与 P99 调度延迟随时间的走势。
 
+![图 6-5  P90 调度延迟对比（s3, w3, inst1，中位数聚合，n=3）](../figures/fig6-5-latency-p90-s3-w3.png)
 
-![图 6-6  P99 调度延迟对比（s3, w3，中位数聚合，n=3）](../figures/fig6-6-latency-p99-s3-w3.png)
+![图 6-6  P99 调度延迟对比（s3, w3, inst1，中位数聚合，n=3）](../figures/fig6-6-latency-p99-s3-w3.png)
 
+**中等规模对照：s2/w3, inst1**——图 6-11 切换到 1000 节点规模同一 w3 负载，补充 P99 走势。
 
-![图 6-11  P99 调度延迟对比（s2, w3，中位数聚合，n=3）](../figures/fig6-11-latency-p99-s2-w3.png)
+![图 6-11  P99 调度延迟对比（s2, w3, inst1，中位数聚合，n=3）](../figures/fig6-11-latency-p99-s2-w3.png)
 
 表 6-6 给出 ENO 与 Gödel 的调度延迟（秒，聚合序列剔除首尾各 2 个采样点后的中位数，口径见 6.3 节）：
 
@@ -217,7 +219,7 @@ s2、s3 与 s4 覆盖了从中等到超大规模的集群场景（跨度 10×）
 ### 6.4.3　Pod E2E 延迟（Dispatcher → Bound）
 
 
-![图 6-8  Pod E2E 延迟 P99 对比（s3, w3，中位数聚合，n=3）](../figures/fig6-8-e2e-latency-p99-s3-w3.png)
+![图 6-8  Pod E2E 延迟 P99 对比（s3, w3, inst1，中位数聚合，n=3）](../figures/fig6-8-e2e-latency-p99-s3-w3.png)
 
 表 6-7 给出 ENO 与 Gödel 的 E2E 延迟对比（`pod_e2e_latency_p99`，从 Pod 被 Dispatcher 观察到直至绑定完成，秒，取值口径同表 6-6）：
 
@@ -246,7 +248,7 @@ s2、s3 与 s4 覆盖了从中等到超大规模的集群场景（跨度 10×）
 ### 6.4.4　绑定成功率
 
 
-![图 6-7  绑定成功率对比（s3, w3，中位数聚合，n=3）](../figures/fig6-7-bind-success-rate-s3-w3.png)
+![图 6-7  绑定成功率对比（s3, w3, inst1，中位数聚合，n=3）](../figures/fig6-7-bind-success-rate-s3-w3.png)
 
 结论：在全部已测场景（s1~s4、w1~w7、inst1/inst3）下，ENO 与 Gödel 的绑定成功率均为 100%，未出现绑定失败或请求丢失。绑定成功率用于验证正确性而非性能：在 1000~2000 pods/s 的高压注入下两组均保持全量绑定成功，说明第 4 章的分层容错机制在已测规模下正确工作，ENO 的架构改造未引入任何正确性回退。
 
@@ -333,7 +335,7 @@ s2、s3 与 s4 覆盖了从中等到超大规模的集群场景（跨度 10×）
 ## 6.6　资源开销对比
 
 
-![图 6-9  峰值吞吐对比（s3, w3，中位数聚合，n=3）](../figures/fig6-9-peak-throughput-s3-w3.png)
+![图 6-9  峰值吞吐对比（s3, w3, inst1，中位数聚合，n=3）](../figures/fig6-9-peak-throughput-s3-w3.png)
 
 数据说明：goroutines 指标在 ENO 与 Gödel 两组的 `avg/` 汇总中记录不完整（部分场景缺失），且无法横跨 Scheduler 与 Binder 两个 Deployment 累加，难以得到公平的全系统对比，故本节不以 goroutines 作为对比指标（局限见 6.8 节）。
 
