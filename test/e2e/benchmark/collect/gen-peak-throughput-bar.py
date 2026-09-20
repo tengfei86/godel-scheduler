@@ -34,13 +34,26 @@ _HERE = Path(__file__).resolve()
 RESULTS = _HERE.parent.parent / "results"
 FIGURES = _HERE.parents[4] / "docs" / "thesis" / "figures"
 
-# (label_for_x_axis, path_suffix under results/{group})
+# (label_for_x_axis, path_suffix under results/{group}) — all 16 compare
+# scenarios listed under results/compare/, in natural (scale, workload, inst)
+# order. Scenarios with no valid peak-throughput samples after 6.3 trim
+# are rendered as zero-height bars with "n/a" markers so the reader can
+# see the coverage matrix at a glance.
 SCENARIOS = [
+    ("s1/w1\ninst1",     "s1/w1/inst1"),
+    ("s2/w2\ninst1",     "s2/w2/inst1"),
     ("s2/w3\ninst1",     "s2/w3/inst1"),
+    ("s3/w2\ninst1",     "s3/w2/inst1"),
     ("s3/w3\ninst1",     "s3/w3/inst1"),
+    ("s3/w6\ninst1",     "s3/w6/inst1"),
+    ("s3/w3\ninst3",     "s3/w3/inst3"),
+    ("s3/w4\ninst3",     "s3/w4/inst3"),
     ("s3/w5\ninst3",     "s3/w5/inst3"),
     ("s3/w6\ninst3",     "s3/w6/inst3"),
+    ("s3/w7\ninst3",     "s3/w7/inst3"),
     ("s4/w3\ninst3",     "s4/w3/inst3"),
+    ("s4/w4\ninst3",     "s4/w4/inst3"),
+    ("s4/w5\ninst3",     "s4/w5/inst3"),
     ("s4/w6\ninst3",     "s4/w6/inst3"),
     ("s4/w7\ninst3",     "s4/w7/inst3"),
 ]
@@ -89,37 +102,52 @@ def load_peak_throughput(group: str, path_suffix: str) -> float | None:
     return statistics.median(trimmed)
 
 
-def render(labels: list[str], eno: list[float], godel: list[float], out_path: Path) -> None:
+def render(labels: list[str], eno: list[float | None], godel: list[float | None],
+           out_path: Path) -> None:
     x = np.arange(len(labels))
     width = 0.38
 
-    fig, ax = plt.subplots(figsize=(11, 5.2))
-    bars_a = ax.bar(x - width / 2, eno,   width, label="ENO (a)",   color="#2196F3", edgecolor="black", linewidth=0.5)
-    bars_b = ax.bar(x + width / 2, godel, width, label="Godel (b)", color="#FF5722", edgecolor="black", linewidth=0.5)
+    # Substitute None with 0 for plotting, keep the None indicator for label rendering.
+    eno_plot   = [v if v is not None else 0.0 for v in eno]
+    godel_plot = [v if v is not None else 0.0 for v in godel]
+
+    fig, ax = plt.subplots(figsize=(15, 5.6))
+    bars_a = ax.bar(x - width / 2, eno_plot,   width, label="ENO (a)",   color="#2196F3", edgecolor="black", linewidth=0.5)
+    bars_b = ax.bar(x + width / 2, godel_plot, width, label="Godel (b)", color="#FF5722", edgecolor="black", linewidth=0.5)
 
     ax.set_xticks(x)
-    ax.set_xticklabels(labels, fontsize=10)
+    ax.set_xticklabels(labels, fontsize=9)
     ax.set_ylabel("Peak throughput (pods/s)", fontsize=12)
-    ax.set_title("Peak scheduling throughput: ENO vs Godel across 7 scenarios (median-trim aggregation, n=3)", fontsize=12)
+    ax.set_title(
+        f"Peak scheduling throughput: ENO vs Godel across {len(labels)} scenarios "
+        "(median-trim aggregation, n=3)",
+        fontsize=12,
+    )
     ax.grid(True, axis="y", alpha=0.3)
     ax.legend(loc="upper left", fontsize=10)
 
-    ymax = max(max(eno), max(godel))
+    valid_vals = [v for v in eno_plot + godel_plot if v > 0]
+    ymax = max(valid_vals) if valid_vals else 1.0
     ax.set_ylim(0, ymax * 1.22)
 
-    for bars in (bars_a, bars_b):
-        for bar in bars:
-            h = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width() / 2, h,
-                    f"{h:.0f}", ha="center", va="bottom", fontsize=9)
+    for i, (bar_a, bar_b, a, b) in enumerate(zip(bars_a, bars_b, eno, godel)):
+        # Individual bar height labels (or "n/a")
+        for bar, val in ((bar_a, a), (bar_b, b)):
+            if val is None:
+                ax.text(bar.get_x() + bar.get_width() / 2, ymax * 0.02,
+                        "n/a", ha="center", va="bottom", fontsize=8,
+                        color="#666666", rotation=90)
+            else:
+                ax.text(bar.get_x() + bar.get_width() / 2, val,
+                        f"{val:.0f}", ha="center", va="bottom", fontsize=8)
 
-    # Annotate the relative difference on top of each pair.
-    for i, (a, b) in enumerate(zip(eno, godel)):
-        if b > 0:
+        # Relative delta only when both values are available
+        if a is not None and b is not None and b > 0:
             delta = (a - b) / b * 100
             sign = "+" if delta >= 0 else ""
-            ax.text(x[i], max(a, b) + ymax * 0.06, f"{sign}{delta:.1f}%",
-                    ha="center", va="bottom", fontsize=9,
+            top = max(a, b)
+            ax.text(x[i], top + ymax * 0.06, f"{sign}{delta:.1f}%",
+                    ha="center", va="bottom", fontsize=8,
                     color=("#0b5394" if delta >= 0 else "#7f2704"))
 
     plt.tight_layout()
@@ -128,31 +156,29 @@ def render(labels: list[str], eno: list[float], godel: list[float], out_path: Pa
 
 
 def main() -> int:
-    labels: list[str] = []
-    eno_vals: list[float] = []
-    god_vals: list[float] = []
+    plot_labels: list[str] = []
+    eno_vals: list[float | None] = []
+    god_vals: list[float | None] = []
 
     print(f"{'scenario':20s}  {'ENO':>10s}  {'Godel':>10s}  {'delta':>10s}")
     for label, suffix in SCENARIOS:
         a = load_peak_throughput("a", suffix)
         b = load_peak_throughput("b", suffix)
-        if a is None or b is None:
-            print(f"{label:20s}  {'n/a' if a is None else f'{a:.1f}':>10s}  {'n/a' if b is None else f'{b:.1f}':>10s}  (skipped)")
-            continue
-        labels.append(label.replace("\n", " "))
+        flat = label.replace("\n", " ")
+        a_str = "n/a" if a is None else f"{a:.1f}"
+        b_str = "n/a" if b is None else f"{b:.1f}"
+        if a is not None and b is not None and b > 0:
+            delta = (a - b) / b * 100
+            d_str = f"{delta:+.1f}%"
+        else:
+            d_str = "n/a"
+        print(f"{flat:20s}  {a_str:>10s}  {b_str:>10s}  {d_str:>10s}")
+        plot_labels.append(label)
         eno_vals.append(a)
         god_vals.append(b)
-        delta = (a - b) / b * 100 if b > 0 else float("nan")
-        print(f"{label.replace(chr(10), ' '):20s}  {a:10.1f}  {b:10.1f}  {delta:+9.1f}%")
-
-    if not labels:
-        print("no data available; nothing to render")
-        return 1
 
     FIGURES.mkdir(parents=True, exist_ok=True)
     out = FIGURES / "fig6-19-peak-throughput-a-vs-b-all.png"
-    # Restore multi-line labels for the plot
-    plot_labels = [s.replace(" ", "\n", 1) if " " in s else s for s in labels]
     render(plot_labels, eno_vals, god_vals, out)
     print(f"\nSaved: {out}")
     return 0
