@@ -12,18 +12,22 @@
 # metadata.txt 则跳过；analyze 每次都重跑（成本低）。
 #
 # 用法:
-#   ./run-6.6-all.sh                     # 4 phase 全跑（默认 N=3, s3/w2/inst3, 论文配置）
+#   ./run-6.6-all.sh                     # 4 phase 全跑（默认 N=3, s2/w2/inst3）
 #   ./run-6.6-all.sh --phase inject      # 仅跑注入
 #   ./run-6.6-all.sh --phase preflight   # 仅前置检查
 #   ./run-6.6-all.sh --repeats 5         # 每层跑 5 次
 #   ./run-6.6-all.sh --fraction 0.2      # Layer 0 用 20% 漂移
 #   ./run-6.6-all.sh --skip-baseline     # 不跑/不检查基线
 #
-# 降规冒烟（用于 Mac 或资源受限环境，验证脚本能跑通，不作论文数据）:
+# 论文默认场景是 s3/w2/inst3（5000 节点）；本脚本默认 s2/w2/inst3（1000 节点），
+# 便于在中等 VM (≥32 GiB) 上直接复现。要跑论文完整场景请显式指定：
+#   FI_SCALE=s3 FI_WORKLOAD=w2 FI_INSTANCES=3 ./run-6.6-all.sh
+#
+# 降规冒烟（用于 Mac 或更小机器，验证脚本能跑通）:
 #   FI_SCALE=s1 FI_WORKLOAD=w1 FI_INSTANCES=3 ./run-6.6-all.sh --repeats 1
 #
 #   环境变量:
-#     FI_SCALE      s1|s2|s3|s4  (默认 s3)
+#     FI_SCALE      s1|s2|s3|s4  (默认 s2)
 #     FI_WORKLOAD   w1..w7       (默认 w2)
 #     FI_INSTANCES  1|2|3|5      (默认 3)
 #
@@ -49,7 +53,7 @@ PHASE="all"
 REPEATS=3
 SKIP_BASELINE=false
 INJECT_ARGS=""
-FI_SCALE="${FI_SCALE:-s3}"
+FI_SCALE="${FI_SCALE:-s2}"
 FI_WORKLOAD="${FI_WORKLOAD:-w2}"
 FI_INSTANCES="${FI_INSTANCES:-3}"
 while [[ $# -gt 0 ]]; do
@@ -103,7 +107,7 @@ phase_preflight() {
                 --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l | tr -d ' ')
   if (( sched_pods < FI_INSTANCES )); then
     log_error "eno-scheduler Running 副本数 = ${sched_pods}, 期望 ≥ ${FI_INSTANCES}"
-    log_error "  修复: bash schedulers/scale-schedulers.sh a ${FI_INSTANCES}"
+    log_error "  修复: bash schedulers/deploy-group-a.sh --instances ${FI_INSTANCES}"
     fail=1
   else
     log_info "✓ eno-scheduler 副本 = ${sched_pods}"
@@ -235,7 +239,7 @@ phase_analyze() {
 # ── 主流程 ──
 log_info "配置: scale=${FI_SCALE} workload=${FI_WORKLOAD} instances=${FI_INSTANCES} repeats=${REPEATS}"
 if [[ "${FI_SCALE}/${FI_WORKLOAD}/${FI_INSTANCES}" != "s3/w2/3" ]]; then
-  log_warn "非论文默认配置 (s3/w2/inst3)，产出数据仅用于脚本验证，不作论文数据"
+  log_warn "当前配置为 ${FI_SCALE}/${FI_WORKLOAD}/inst${FI_INSTANCES}，非论文 6.6 节的 s3/w2/inst3；若要写入论文请补跑 s3"
 fi
 
 case "$PHASE" in

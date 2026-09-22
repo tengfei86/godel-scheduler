@@ -10,12 +10,12 @@ bash faultinject/run-6.6-all.sh          # 4 phase 全跑
 bash faultinject/run-6.6-all.sh --help   # 参数与幂等语义
 ```
 
-[run-6.6-all.sh](run-6.6-all.sh) 是 6.6 节的**单一入口**。它把整套实验切成四个幂等 phase：
+[run-6.6-all.sh](run-6.6-all.sh) 是 6.6 节的**单一入口**。默认配置 s2/w2/inst3（1000 节点，便于中等 VM 复现）；论文原始场景 s3/w2/inst3 由 `FI_SCALE=s3` 覆盖。四个幂等 phase：
 
 | Phase | 做什么 | 幂等策略 |
 |---|---|---|
-| `preflight` | 校验集群通、KWOK 节点 = 5000、组 a 三副本 Running 且实例名唯一、Prometheus by-pod recording rule 已加载、inject 脚本可执行 | 每次重跑；失败直接 exit 2 |
-| `baseline` | 补跑 `a/s3/w2/inst3/run{1,2,3}` 无故障基线（供 duration 对比） | 若 `metadata.txt` 已存在则跳过 |
+| `preflight` | 校验集群通、KWOK 节点数与 `$FI_SCALE` 匹配、组 a `$FI_INSTANCES` 副本 Running 且实例名唯一、Prometheus by-pod recording rule 已加载、inject 脚本可执行 | 每次重跑；失败直接 exit 2 |
+| `baseline` | 补跑 `a/${FI_SCALE}/${FI_WORKLOAD}/inst${FI_INSTANCES}/run{1,2,3}` 无故障基线 | 若 `metadata.txt` 已存在则跳过 |
 | `inject` | `layer0 × N` + `layer3 × N`（N 默认为 3） | 若 `run<N>/metadata.txt` 已存在则跳过 |
 | `analyze` | 对每个 run 目录跑 `fault-plot.py` + `fault-summary.py` | 每次重跑（成本低） |
 
@@ -77,16 +77,15 @@ results/faultinject/
 
 ## 前置一次性搭建
 
-`run-6.6-all.sh preflight` 会告诉你缺什么；下面是完整的从零到就绪：
+`run-6.6-all.sh preflight` 会告诉你缺什么；下面是完整的从零到就绪（默认场景 s2）：
 
 ```bash
 cd test/e2e/benchmark
-bash setup-cluster.sh s3                             # kind + KWOK 5000 节点 + Prometheus
-bash schedulers/deploy-group-a.sh                    # 部署组 a
-bash schedulers/scale-schedulers.sh a 3              # 扩到 3 实例，且实例名唯一
-kubectl apply -f ../../../manifests/monitoring/overlays/group-a/prometheus-config.yaml
-kubectl -n monitoring rollout restart deploy/prometheus
+bash setup-cluster.sh s2                             # kind + KWOK 1000 节点 + Prometheus 基础栈
+bash schedulers/deploy-group-a.sh --instances 3      # 部署组 a 三实例（含 Prometheus overlay）
 ```
+
+想跑论文原始场景 s3（5000 节点），把上面 `s2` 换成 `s3` 即可。
 
 ## 预期观测
 
