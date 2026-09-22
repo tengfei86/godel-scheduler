@@ -198,11 +198,18 @@ func Run(ctx context.Context, cc schedulerserverconfig.CompletedConfig) error {
 			return nodeLister.Get(nodeName)
 		})
 
+		// The embedded binder must be keyed by the per-instance EnoSchedulerName
+		// (e.g. "eno-scheduler-0"), not the union SchedulerName ("eno-scheduler").
+		// NodeValidator compares against the node's eno.io/scheduler-name annotation
+		// which the Dispatcher writes at instance granularity; using the union name
+		// would reject every partitioned node. Similarly, failed-schedulers must
+		// record the specific instance so the Dispatcher can re-route to a different
+		// instance next time.
 		eb := binder.NewEmbeddedBinder(
 			cc.Client,
 			cc.EnoCrdClient,
 			sched.GetCache(),
-			*cc.ComponentConfig.SchedulerName,
+			cc.ComponentConfig.EnoSchedulerName,
 			&cc.EmbeddedBinderConfig,
 			nodeGetter,
 		)
