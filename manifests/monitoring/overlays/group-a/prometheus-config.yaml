@@ -142,6 +142,17 @@ data:
           - record: eno:binder_node_validation_failures:rate1m
             expr: sum(rate(binder_node_validation_failures_total[1m]))
 
+          # ── Fault-injection专项 (6.6节) ──
+          # 按 Scheduler Pod 拆分，用于 Layer 3 实验观察哪个实例继续绑定
+          - record: eno:binder_embedded_bind_pods:success_rate1m_by_pod
+            expr: sum by (pod) (rate(binder_embedded_bind_pods_total{result="success"}[1m]))
+
+          - record: eno:binder_dispatcher_fallback:rate1m_by_pod
+            expr: sum by (pod) (rate(binder_dispatcher_fallback_total[1m]))
+
+          - record: eno:binder_node_validation_failures:rate1m_by_pod
+            expr: sum by (pod) (rate(binder_node_validation_failures_total[1m]))
+
           # ── Concurrency ──
           # Query directly: binder_embedded_bind_inflight
 

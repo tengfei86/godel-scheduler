@@ -55,14 +55,31 @@ shift 4
 SETUP_NODES=false
 SKIP_COLLECT=false
 SCHEDULER_INSTANCES=""
+INJECT_SCENARIO=""     # layer0 | layer3 | ""
+INJECT_AT=""           # 相对负载启动的秒数
+INJECT_ARGS=""         # 透传给 inject-<layer>.sh 的额外参数
 while [[ $# -gt 0 ]]; do
   case $1 in
     --setup-nodes)  SETUP_NODES=true; shift ;;
     --skip-collect) SKIP_COLLECT=true; shift ;;
     --instances)    SCHEDULER_INSTANCES="$2"; shift 2 ;;
+    --inject)       INJECT_SCENARIO="$2"; shift 2 ;;
+    --inject-at)    INJECT_AT="$2"; shift 2 ;;
+    --inject-args)  INJECT_ARGS="$2"; shift 2 ;;
     *)              log_error "未知参数: $1"; exit 1 ;;
   esac
 done
+
+if [[ -n "$INJECT_SCENARIO" ]]; then
+  if [[ ! "$INJECT_SCENARIO" =~ ^layer[03]$ ]]; then
+    log_error "无效的注入场景: ${INJECT_SCENARIO} (可选: layer0|layer3)"
+    exit 1
+  fi
+  if [[ -z "$INJECT_AT" ]]; then
+    log_error "使用 --inject 时必须同时提供 --inject-at <sec>"
+    exit 1
+  fi
+fi
 
 # ── 验证参数 ──
 if [[ ! "$GROUP" =~ ^[a-e]$ ]]; then
@@ -92,7 +109,10 @@ GROUP_LABEL="${GROUP_LABELS[$GROUP]}"
 NODE_COUNT="${SCALE_NODES[$SCALE]}"
 
 # ── 结果目录 (含 scale 和 instances 维度) ──
-if [[ -n "$SCHEDULER_INSTANCES" ]]; then
+if [[ -n "$INJECT_SCENARIO" ]]; then
+  # 故障注入实验落到独立目录，避免污染 compare/ 数据集
+  EXP_RESULTS_DIR="${RESULTS_DIR}/faultinject/${INJECT_SCENARIO}/${GROUP}_${SCALE}_${WORKLOAD}_inst${SCHEDULER_INSTANCES:-1}/run${RUN_ID}"
+elif [[ -n "$SCHEDULER_INSTANCES" ]]; then
   EXP_RESULTS_DIR="${RESULTS_DIR}/${GROUP}/${SCALE}/${WORKLOAD}/inst${SCHEDULER_INSTANCES}/run${RUN_ID}"
 else
   EXP_RESULTS_DIR="${RESULTS_DIR}/${GROUP}/${SCALE}/${WORKLOAD}/run${RUN_ID}"
@@ -233,6 +253,24 @@ START_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 log_info "开始时间: ${START_ISO} (ts=${START_TIME})"
 
 # ═══════════════════════════════════════════════
+# Step 6b: 可选 — 后台调度故障注入
+# ═══════════════════════════════════════════════
+INJECT_PID=""
+if [[ -n "$INJECT_SCENARIO" ]]; then
+  log_step "Step 6b/12: 调度故障注入 (${INJECT_SCENARIO} @ T+${INJECT_AT}s)"
+  (
+    sleep "$INJECT_AT"
+    # shellcheck disable=SC2086
+    bash "${SCRIPT_DIR}/faultinject/inject-${INJECT_SCENARIO}.sh" \
+      "${EXP_RESULTS_DIR}" ${INJECT_ARGS} \
+      > "${EXP_RESULTS_DIR}/inject.log" 2>&1
+    echo $? > "${EXP_RESULTS_DIR}/inject.rc"
+  ) &
+  INJECT_PID=$!
+  log_info "  后台注入 PID=${INJECT_PID}"
+fi
+
+# ═══════════════════════════════════════════════
 # Step 7: 执行负载
 # ═══════════════════════════════════════════════
 log_step "Step 7/12: 执行负载 (${WDESC})"
@@ -244,6 +282,23 @@ bash "${SCRIPT_DIR}/workloads/create-pods.sh" \
 # ═══════════════════════════════════════════════
 log_step "Step 8/12: 等待所有 Pod 调度完成（严格 ${TOTAL}/100%）"
 wait_all_scheduled "$BENCH_NAMESPACE" "$WAIT_SCHEDULE_TIMEOUT" "$TOTAL"
+
+# 若有后台注入进程，等其收尾
+if [[ -n "$INJECT_PID" ]]; then
+  wait "$INJECT_PID" 2>/dev/null || true
+  if [[ -f "${EXP_RESULTS_DIR}/inject.rc" ]]; then
+    INJECT_RC=$(cat "${EXP_RESULTS_DIR}/inject.rc")
+    log_info "注入脚本退出码: ${INJECT_RC} (日志见 ${EXP_RESULTS_DIR}/inject.log)"
+  fi
+fi
+
+# 事后不变量 I 断言（仅 inject 场景下执行）
+if [[ -n "$INJECT_SCENARIO" ]]; then
+  log_step "Step 8b/12: 校验不变量 I (spec.nodeName 非空且唯一)"
+  bash "${SCRIPT_DIR}/faultinject/assert-invariant-i.sh" \
+    "$BENCH_NAMESPACE" > "${EXP_RESULTS_DIR}/invariant-i.txt" \
+    || log_error "不变量 I 断言失败，详情见 ${EXP_RESULTS_DIR}/invariant-i.txt"
+fi
 
 # ═══════════════════════════════════════════════
 # Step 9: 记录实验结束时间
@@ -316,6 +371,9 @@ final_total_pods=${FINAL_TOTAL_PODS}
 final_scheduled_pods=${FINAL_SCHEDULED_PODS}
 final_pending_pods=${FINAL_PENDING_PODS}
 schedule_completion_rate=$(awk "BEGIN{printf \"%.4f\", ${FINAL_SCHEDULED_PODS}/${TOTAL}}")
+inject_scenario=${INJECT_SCENARIO:-}
+inject_at=${INJECT_AT:-}
+inject_args=${INJECT_ARGS:-}
 EOF
 
 separator "实验完成"

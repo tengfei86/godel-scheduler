@@ -131,6 +131,11 @@ declare -A ENO_EMBEDDED_QUERIES=(
   [node_validation_failures]='eno:binder_node_validation_failures:rate1m'
   [bind_inflight]='sum(binder_embedded_bind_inflight)'
 
+  # 故障注入专项 (6.6 节): 按 Scheduler Pod 拆分的时序
+  [bind_success_by_pod]='eno:binder_embedded_bind_pods:success_rate1m_by_pod'
+  [dispatcher_fallback_by_pod]='eno:binder_dispatcher_fallback:rate1m_by_pod'
+  [node_validation_failures_by_pod]='eno:binder_node_validation_failures:rate1m_by_pod'
+
   # Pod E2E 延迟（dispatcher → scheduler → binder → done）
   [pod_e2e_latency_p50]='eno:pod_e2e_duration:p50'
   [pod_e2e_latency_p90]='eno:pod_e2e_duration:p90'
