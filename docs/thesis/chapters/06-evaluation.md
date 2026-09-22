@@ -475,7 +475,17 @@ s3/w3（5000 节点，1000 pods/s，100 000 pods）为本文的主评估场景�
 
 （4）ENO 与 Gödel 的资源公平性：ENO 因合并 Binder，单个 Scheduler Pod 的负载可能高于原 Gödel 的 Scheduler Pod；但同时 ENO 集群整体少了 Binder Deployment。为公平对比，本文采用每 Deployment 的资源规格保持一致这一策略，即两者的 Scheduler Pod 均按 2 CPU / 4 GB 分配。这一策略对 ENO 略不利（ENO 单个 Pod 要同时跑 Scheduler + Binder），但确保了单 Pod 层面的对比公平；ENO 由于不需要额外的 Binder Deployment，在集群总资源开销层面的优势本文未展开量化。
 
-（5）Volcano 指标口径的差异：Volcano 的 `volcano_task_scheduling_latency_milliseconds` 与其他调度器的 `scheduler_scheduling_attempt_duration_seconds` 在语义上并不完全等价，本文在 6.1.2 节中通过 recording rules 尽力对齐了口径，但仍难以做到 100% 严格等价的对比。这在结论中会予以说明。
+（5）Volcano 指标口径的差异：Volcano 的调度延迟指标与其他调度器（kube-scheduler、Koordinator、ENO、Gödel）在**测量对象、起止边界与统计粒度**三个方面均不完全等价，本文通过 recording rules 尽力对齐单位与量纲，但语义上的差异无法完全消解，下面按维度展开。
+
+**指标家族**：其他调度器统一使用 `scheduler_scheduling_attempt_duration_seconds` 单一 histogram，度量"Pod 从 activeQ 出队 → Filter/Score/Reserve/Bind 全部完成"的一次调度尝试耗时；Volcano 则暴露一组相互重叠又互不等价的指标：`volcano_task_scheduling_latency_milliseconds`（单个 Task 在一次 Session 内的调度耗时）、`volcano_action_scheduling_latency_milliseconds`（每个 Action，如 Enqueue/Allocate/Preempt/Reclaim 的耗时）、`volcano_plugin_scheduling_latency_microseconds`（单个 Plugin，如 Gang/DRF/Priority 的耗时）以及 `volcano_e2e_scheduling_latency_milliseconds`（一整个 Session 从开始到结束的总耗时）。四者之和并不等于任何一个总量，因为它们在时间维度上互相嵌套（Task ⊂ Action ⊂ Session）。
+
+**起止边界不同**：kube-scheduler 系的 `scheduling_attempt_duration_seconds` 明确起于 activeQ 出队（`schedulingCycle` 进入），止于 Bind API 返回；Volcano 的 `task_scheduling_latency` 起于 Task 被选入本轮 Session 处理队列，止于 Task 完成 Assume（并非 Bind——Volcano 的 Bind 是异步批量提交的，Bind 完成时间进入独立的 `bind_latency`，而不在 task_latency 内）；两者的"开始"事件差了一个 Session 排队时间，"结束"事件也差了一个 Bind 阶段。此外 Volcano 的 Session 触发是周期性的（默认 1 s 间隔），在低压时 Task 需要额外等待到下一个 Session 才被处理，这段"等 Session"的排队时间既不在 task_latency 中也不在 activeQ 出队等待中，属于第三方等待。
+
+**统计粒度不同**：kube-scheduler 系的直方图以"一次 Pod 调度尝试"为一个样本，同一 Pod 若被 requeue 则会记录多次；Volcano 的 task_latency 直方图以"一次 Session 内一个 Task 的调度"为一个样本，未被 Session 选中的 Task 完全不进入样本空间。这与 6.3.1 节讨论的"幸存者偏差"相似——过载时 Volcano 的分位数只覆盖能进入 Session 的 Task 子集，而不覆盖仍在待入 Session 的 Task；不同的是这里的偏差来自 Session 门控本身，而不是 activeQ 深度。
+
+**本文的对齐处理**：在 recording rules 层（`manifests/monitoring/overlays/group-d/prometheus-config.yaml`）本文做了三件事——一是把毫秒换算为秒（除以 1000）以匹配 `_seconds` 后缀的量纲；二是把 `volcano_task_scheduling_latency` 作为与 `scheduler_scheduling_attempt_duration` 最接近的对应指标（记为 `volcano:task_scheduling_latency:pXX_seconds`）；三是把 Session E2E 与 Action 级别的延迟单独记录（`volcano:e2e_scheduling_latency`、`volcano:action_scheduling_latency`）供参考。上述对齐仅保证了量纲一致与单位可比，无法消除前述三个语义层面的差异。
+
+**在结论中的处理**：本章 6.4.2 节以吞吐（完成时间口径）与 P99 延迟同时列出 Volcano 数据，用于说明分布式与单实例架构在数量级上的差异，而不作为对 Volcano 单调度器实现的精细评价；6.4.3.3 节的 P99 对比表明确只保留 ENO 与 Gödel 两组（同源指标、口径完全一致），Volcano 的 latency 分位数不进入该表；6.7 节第（6）条对 c/d/e 的 latency 分位数直接引用给出了统一的方法学限定。
 
 （6）延迟指标的跨调度器可比性：kube-scheduler（c）、Volcano（d）、Koordinator（e）上报的 P99 延迟数值本身都是真实采样，并不存在失真；但在 1000 pods/s 及以上的过载场景下，其 histogram **仅覆盖"已被 pop 出队处理的少数 Pod"**——大量长时间堵塞在 activeQ 中的 Pod 从未进入 latency histogram 的采样窗口。这属于统计学上的幸存者偏差（Survivor Bias），使 c/d/e 与 a/b 的 P99 数值代表不同的样本群体，直接对齐分位数在语义上并不严格。本文在 6.3.1 节已明确该方法学立场，并在数值对比中回避了对 c/d/e 的 latency 数值直接引用。将来的研究若希望做严格的跨调度器 latency 数值对比，可在负载生成端记录每个 Pod 的入队与绑定时间戳，从外部计算覆盖全部 Pod 的用户感知 P99。
 
