@@ -9,10 +9,17 @@
 set -eu
 NS="${1:?用法: assert-invariant-i.sh <namespace>}"
 
-kubectl get pods -n "$NS" -o json | python3 - "$NS" <<'PY'
+# 注意：Python heredoc 用 python3 - 会占用 stdin，因此把 kubectl JSON
+# 先写到临时文件，再用 arg 传给脚本读取。
+JSON=$(mktemp)
+trap 'rm -f "$JSON"' EXIT
+kubectl get pods -n "$NS" -o json > "$JSON"
+
+python3 - "$NS" "$JSON" <<'PY'
 import json, sys, collections
-ns = sys.argv[1]
-data = json.load(sys.stdin)
+ns, path = sys.argv[1], sys.argv[2]
+with open(path) as f:
+    data = json.load(f)
 total, bound, unbound, dup, empty_name = 0, 0, 0, 0, 0
 seen = collections.Counter()
 unbound_names, dup_names = [], []
@@ -36,7 +43,6 @@ if unbound_names:
 if dup_names:
     print("DUPLICATE:", ", ".join(dup_names[:20]))
 
-# 违反不变量：unbound > 0 或 dup > 0
 if unbound > 0 or dup > 0 or empty_name > 0:
     sys.exit(1)
 sys.exit(0)

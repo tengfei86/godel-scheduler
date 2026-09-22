@@ -47,16 +47,18 @@ mkdir -p "$OUT_DIR"
 MANIFEST="${OUT_DIR}/inject-manifest.json"
 EVENTS="${OUT_DIR}/inject-events.log"
 NODES_FILE="$(mktemp)"
-trap 'rm -f "$NODES_FILE"' EXIT
 
 log_info "Layer0 注入: from=${FROM_SCHED} → to=${TO_SCHED}, fraction=${FRACTION}"
 
 # ── 收集当前归属 = FROM_SCHED 的节点，写入 NODES_FILE ──
-kubectl get nodes -l fake.byted.org/node -o json \
-  | python3 - "$FROM_SCHED" "$FRACTION" > "$NODES_FILE" <<'PY'
+NODES_JSON="$(mktemp)"
+trap 'rm -f "$NODES_FILE" "$NODES_JSON"' EXIT
+kubectl get nodes -l fake.byted.org/node -o json > "$NODES_JSON"
+python3 - "$FROM_SCHED" "$FRACTION" "$NODES_JSON" > "$NODES_FILE" <<'PY'
 import json, os, random, sys
 from_sched, frac = sys.argv[1], float(sys.argv[2])
-data = json.load(sys.stdin)
+with open(sys.argv[3]) as f:
+    data = json.load(f)
 owned, unowned = [], []
 for item in data.get("items", []):
     ann = (item.get("metadata", {}).get("annotations") or {})
