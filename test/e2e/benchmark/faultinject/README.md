@@ -15,8 +15,8 @@ bash faultinject/run-6.6-all.sh --help   # 参数与幂等语义
 | Phase | 做什么 | 幂等策略 |
 |---|---|---|
 | `preflight` | 校验集群通、KWOK 节点数与 `$FI_SCALE` 匹配、组 a `$FI_INSTANCES` 副本 Running 且实例名唯一、Prometheus by-pod recording rule 已加载、inject 脚本可执行 | 每次重跑；失败直接 exit 2 |
-| `baseline` | 补跑 `a/${FI_SCALE}/${FI_WORKLOAD}/inst${FI_INSTANCES}/run{1,2,3}` 无故障基线 | 若 `metadata.txt` 已存在则跳过 |
-| `inject` | `layer0 × N` + `layer3 × N`（N 默认为 3） | 若 `run<N>/metadata.txt` 已存在则跳过 |
+| `baseline` | 补跑 `a/${FI_SCALE}/${FI_WORKLOAD}/inst${FI_INSTANCES}/run{1,2,3}` 无故障基线（固定 3 次，取中位数） | 若 `metadata.txt` 已存在则跳过；3 个全在则整个 phase 早退 |
+| `inject` | `layer0 × N` + `layer3 × N`（N 由 `--repeats` 控制，默认 3） | 若 `run<N>/metadata.txt` 已存在则跳过；N 个全在则整个 phase 早退 |
 | `analyze` | 对每个 run 目录跑 `fault-plot.py` + `fault-summary.py` | 每次重跑（成本低） |
 
 只跑某个 phase：`--phase preflight | baseline | inject | analyze`。
@@ -26,7 +26,7 @@ bash faultinject/run-6.6-all.sh --help   # 参数与幂等语义
 | 参数 | 默认 | 说明 |
 |---|---|---|
 | `--phase all\|preflight\|baseline\|inject\|analyze` | `all` | 只跑指定 phase |
-| `--repeats N` | 3 | inject 阶段每层跑 N 次 |
+| `--repeats N` | 3 | 每个 inject layer 跑 N 次（baseline 固定 3 次） |
 | `--skip-baseline` | 关 | 跳过 Phase 2（假设你已有基线） |
 | `--fraction F` | 0.1 | Layer 0 抽取的节点比例 |
 | `--from X` `--to Y` | eno-scheduler-0 → eno-scheduler-1 | Layer 0 漂移起止实例 |

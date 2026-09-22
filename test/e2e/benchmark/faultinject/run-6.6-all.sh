@@ -163,14 +163,25 @@ phase_preflight() {
 # Phase 2: baseline
 # ═══════════════════════════════════════════════
 phase_baseline() {
-  separator "Phase 2/4: baseline — 无故障基线 (a/${FI_SCALE}/${FI_WORKLOAD}/inst${FI_INSTANCES})"
+  local base="${RESULTS_DIR}/a/${FI_SCALE}/${FI_WORKLOAD}/inst${FI_INSTANCES}"
+  # 早退：所有 3 个 run 都已完成时，phase 整体跳过（不打 separator，不打扰）
+  local have=0
+  for n in 1 2 3; do
+    [[ -f "${base}/run${n}/metadata.txt" ]] && have=$((have + 1))
+  done
+  if (( have == 3 )); then
+    log_info "Phase 2/4: baseline — 全部 3 个 run 已存在于 ${base}，跳过整个 phase"
+    return 0
+  fi
+
+  separator "Phase 2/4: baseline — 无故障基线 (a/${FI_SCALE}/${FI_WORKLOAD}/inst${FI_INSTANCES}, 已有 ${have}/3)"
   if [[ "$SKIP_BASELINE" == "true" ]]; then
     log_info "  --skip-baseline 已指定，跳过"
     return 0
   fi
   local n
-  for n in $(seq 1 3); do
-    local d="${RESULTS_DIR}/a/${FI_SCALE}/${FI_WORKLOAD}/inst${FI_INSTANCES}/run${n}"
+  for n in 1 2 3; do
+    local d="${base}/run${n}"
     if [[ -f "${d}/metadata.txt" ]]; then
       log_info "  ✓ run${n} 已存在，跳过 (${d})"
       continue
@@ -188,8 +199,19 @@ phase_baseline() {
 # ═══════════════════════════════════════════════
 phase_inject() {
   local suffix="a_${FI_SCALE}_${FI_WORKLOAD}_inst${FI_INSTANCES}"
-  separator "Phase 3/4: inject — 故障注入 (${suffix}, layer0 + layer3, ${REPEATS} 次)"
-  local layer n d
+  # 早退：所有 layer × N 都已完成
+  local total=$((REPEATS * 2)) have=0 layer n d
+  for layer in layer0 layer3; do
+    for n in $(seq 1 "$REPEATS"); do
+      [[ -f "${RESULTS_DIR}/faultinject/${layer}/${suffix}/run${n}/metadata.txt" ]] && have=$((have + 1))
+    done
+  done
+  if (( have == total )); then
+    log_info "Phase 3/4: inject — 全部 ${total} 个 run 已存在，跳过整个 phase"
+    return 0
+  fi
+
+  separator "Phase 3/4: inject — 故障注入 (${suffix}, layer0 + layer3, ${REPEATS} 次；已有 ${have}/${total})"
   for layer in layer0 layer3; do
     for n in $(seq 1 "$REPEATS"); do
       d="${RESULTS_DIR}/faultinject/${layer}/${suffix}/run${n}"
