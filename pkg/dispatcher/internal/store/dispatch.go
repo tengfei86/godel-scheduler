@@ -100,6 +100,11 @@ type DispatchInfo interface {
 	AddPodInAdvance(pod *v1.Pod, scheduler string)
 	UpdatePodInAdvance(pod *v1.Pod, scheduler string)
 	GetMostIdleSchedulerAndAddPodInAdvance(pod *v1.Pod) string
+	// GetMostIdleSchedulerAndAddPodInAdvanceExcluding picks the most idle
+	// scheduler while skipping the given set. Returns "" if every scheduler is
+	// excluded or none registered. Callers pass the pod's failed-schedulers
+	// annotation set so Layer 3 fallback routes the pod to a different instance.
+	GetMostIdleSchedulerAndAddPodInAdvanceExcluding(pod *v1.Pod, exclude sets.String) string
 	AddScheduler(schedulerName string)
 	DeleteScheduler(schedulerName string)
 	GetPodsOfOneScheduler(schedulerName string) []string
@@ -228,29 +233,55 @@ func (dq *dispatchInfo) UpdatePodInAdvance(pod *v1.Pod, scheduler string) {
 }
 
 func (dq *dispatchInfo) GetMostIdleSchedulerAndAddPodInAdvance(pod *v1.Pod) string {
+	return dq.getMostIdleSchedulerLocked(pod, nil)
+}
+
+// GetMostIdleSchedulerAndAddPodInAdvanceExcluding is the exclusion-aware variant.
+// Callers pass the pod's failed-schedulers set so Layer 3 fallback routes a
+// re-dispatched pod to a scheduler instance that hasn't failed on it yet.
+// If every registered scheduler is excluded, falls back to the base behavior
+// (pick from full set) so the pod isn't stuck forever when all instances have
+// tried at least once (e.g., across a full rotation).
+func (dq *dispatchInfo) GetMostIdleSchedulerAndAddPodInAdvanceExcluding(pod *v1.Pod, exclude sets.String) string {
+	return dq.getMostIdleSchedulerLocked(pod, exclude)
+}
+
+func (dq *dispatchInfo) getMostIdleSchedulerLocked(pod *v1.Pod, exclude sets.String) string {
 	dq.lock.Lock()
 	defer dq.lock.Unlock()
 
-	result := ""
-	max := math.MaxInt32
-	// Ref: https://en.wikipedia.org/wiki/reservoir_sampling for more details about Reservoir Sampling.
-	var randomPoolSize int
-	for schedulerName := range dq.Schedulers {
-		cnt := 0
-		if dq.SchedulerToPods[schedulerName] != nil {
-			cnt = dq.SchedulerToPods[schedulerName].Len()
-		}
-
-		if cnt < max {
-			randomPoolSize = 1
-			max = cnt
-			result = schedulerName
-		} else if cnt == max {
-			randomPoolSize++
-			if rand.Intn(randomPoolSize) == 0 {
-				result = schedulerName
+	pick := func(considerExclude bool) string {
+		out := ""
+		max := math.MaxInt32
+		randomPoolSize := 0
+		for schedulerName := range dq.Schedulers {
+			if considerExclude && exclude != nil && exclude.Has(schedulerName) {
+				continue
+			}
+			cnt := 0
+			if dq.SchedulerToPods[schedulerName] != nil {
+				cnt = dq.SchedulerToPods[schedulerName].Len()
+			}
+			if cnt < max {
+				randomPoolSize = 1
+				max = cnt
+				out = schedulerName
+			} else if cnt == max {
+				randomPoolSize++
+				if rand.Intn(randomPoolSize) == 0 {
+					out = schedulerName
+				}
 			}
 		}
+		return out
+	}
+
+	result := pick(true)
+	if result == "" && exclude != nil && exclude.Len() > 0 {
+		// All schedulers excluded — allow re-picking from the full set so the
+		// pod eventually gets scheduled (single-instance clusters, or full
+		// rotation where every instance has failed once).
+		result = pick(false)
 	}
 	if result != "" {
 		dq.addPod(pod, result)

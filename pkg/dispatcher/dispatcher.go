@@ -450,7 +450,12 @@ func (d *Dispatcher) selectSchedulerBasedOnOwner(pod *v1.Pod) (string, error) {
 }
 
 func (d *Dispatcher) loadBalancing(pod *v1.Pod) (string, error) {
-	if schedulerName := d.DispatchInfo.GetMostIdleSchedulerAndAddPodInAdvance(pod); len(schedulerName) == 0 {
+	// Exclude schedulers that have already failed on this pod (recorded in the
+	// eno.io/failed-schedulers annotation by Layer 0/3 fallback). This ensures
+	// re-dispatched pods route to a different instance next time; falls back to
+	// the full set only if every registered scheduler is excluded.
+	excluded := podutil.GetFailedSchedulersNames(pod)
+	if schedulerName := d.DispatchInfo.GetMostIdleSchedulerAndAddPodInAdvanceExcluding(pod, excluded); len(schedulerName) == 0 {
 		return "", fmt.Errorf("no scheduler registered")
 	} else {
 		return schedulerName, nil
