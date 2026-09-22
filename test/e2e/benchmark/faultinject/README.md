@@ -17,7 +17,7 @@ bash faultinject/run-6.6-all.sh --help   # 参数与幂等语义
 | `preflight` | 校验集群通、KWOK 节点数与 `$FI_SCALE` 匹配、组 a `$FI_INSTANCES` 副本 Running 且实例名唯一、Prometheus by-pod recording rule 已加载、inject 脚本可执行 | 每次重跑；失败直接 exit 2 |
 | `baseline` | 补跑 `a/${FI_SCALE}/${FI_WORKLOAD}/inst${FI_INSTANCES}/run{1,2,3}` 无故障基线（固定 3 次，取中位数） | 若 `metadata.txt` 已存在则跳过；3 个全在则整个 phase 早退 |
 | `inject` | `layer0 × N` + `layer3 × N`（N 由 `--repeats` 控制，默认 3） | 若 `run<N>/metadata.txt` 已存在则跳过；N 个全在则整个 phase 早退 |
-| `analyze` | 对每个 run 目录跑 `fault-plot.py` + `fault-summary.py` | 每次重跑（成本低） |
+| `analyze` | 对每个 run 目录跑 `fault-plot.py` + `fault-summary.py` + `verify.py`（判定容错 PASS/FAIL） | 若 `plots/verify.txt` 已存在则直接引用旧结果；`--force-analyze` 强制重跑 |
 
 只跑某个 phase：`--phase preflight | baseline | inject | analyze`。
 
@@ -28,6 +28,7 @@ bash faultinject/run-6.6-all.sh --help   # 参数与幂等语义
 | `--phase all\|preflight\|baseline\|inject\|analyze` | `all` | 只跑指定 phase |
 | `--repeats N` | 3 | 每个 inject layer 跑 N 次（baseline 固定 3 次） |
 | `--skip-baseline` | 关 | 跳过 Phase 2（假设你已有基线） |
+| `--force-analyze` | 关 | analyze phase 无视缓存重跑 fault-plot/fault-summary/verify |
 | `--fraction F` | 0.1 | Layer 0 抽取的节点比例 |
 | `--from X` `--to Y` | eno-scheduler-0 → eno-scheduler-1 | Layer 0 漂移起止实例 |
 | `--target POD` | 自动挑 | Layer 3 要杀的 Pod 名 |
@@ -45,7 +46,36 @@ bash run-experiment.sh a s3 w2 1 --instances 3 --inject layer0 --inject-at 30
 python3 faultinject/fault-plot.py    results/faultinject/layer0/a_s3_w2_inst3/run1
 python3 faultinject/fault-summary.py results/faultinject/layer0/a_s3_w2_inst3/run1 \
   --baseline results/a/s3/w2/inst3/run1
+python3 faultinject/verify.py        results/faultinject/layer0/a_s3_w2_inst3/run1
 ```
+
+## 容错验证输出示例
+
+`verify.py` 会在每个 run 目录下产出 `plots/verify.txt`，形如（Layer 0）：
+
+```
+容错验证报告 — layer0
+判据 (每一条给出 PromQL / 观测窗口 / 实测值 / 阈值 / 结论)
+  [L0-1] ✅ PASS  NodeValidator 识别到节点归属漂移
+       PromQL   : sum(rate(binder_node_validation_failures_total[1m]))
+       Window   : [inject, inject+30s]
+       Measured : 1200
+       Threshold: 积分 > 0
+
+  [L0-2] ✅ PASS  拦截 → Dispatcher 回退联动
+  [L0-3] ✅ PASS  不变量 I：所有 Pod bound 且唯一
+  [L0-4] ✅ PASS  拦截规模与 patched 节点数量级一致
+  [L0-5] ✅ PASS  Layer 1 重试不异常上涨（排除 API 冲突这一竞争解释）
+  [L0-6] ✅ PASS  全程绑定成功率保持 100%
+
+通过 6 / 6 项  →  ✅ Layer 0 容错机制在此次实验中验证通过
+```
+
+**Layer 0 判据**（6 项）：拦截数上涨、拦截 → 回退联动、不变量 I、拦截规模、Layer 1 重试不异常、绑定成功率 = 100%
+
+**Layer 3 判据**（6 项）：Dispatcher 回退阶跃、被杀实例停止绑定、存活实例接管、pending 尖峰后回落、总绑定量守恒、不变量 I
+
+退出码：全通过 → `exit 0`；任意 FAIL → `exit 1`。orchestrator 的 `analyze` phase 汇总每个 run 的通过情况：`容错判定 pass=X fail=Y`。
 
 ## 文件清单
 
@@ -58,6 +88,7 @@ python3 faultinject/fault-summary.py results/faultinject/layer0/a_s3_w2_inst3/ru
 | `assert-invariant-i.sh` | 遍历 apiserver 断言不变量 I（`spec.nodeName` 非空且无重复） |
 | `fault-plot.py` | 生成双轴时序图（Layer 0 / Layer 3 各一张） |
 | `fault-summary.py` | 分段计数 + per-instance 绑定量 + 不变量断言汇总 |
+| `verify.py` | **判定容错是否验证通过**：给出 PASS/FAIL 判据表，每一条附 PromQL / 观测窗口 / 实测值 / 阈值 |
 
 ## 结果目录结构
 

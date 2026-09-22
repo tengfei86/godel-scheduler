@@ -15,6 +15,8 @@
 #   ./run-6.6-all.sh                     # 4 phase 全跑（默认 N=3, s2/w2/inst3）
 #   ./run-6.6-all.sh --phase inject      # 仅跑注入
 #   ./run-6.6-all.sh --phase preflight   # 仅前置检查
+#   ./run-6.6-all.sh --phase analyze     # 仅分析（已有结果直接引用，不重跑）
+#   ./run-6.6-all.sh --phase analyze --force-analyze  # 强制重跑分析
 #   ./run-6.6-all.sh --repeats 5         # 每层跑 5 次
 #   ./run-6.6-all.sh --fraction 0.2      # Layer 0 用 20% 漂移
 #   ./run-6.6-all.sh --skip-baseline     # 不跑/不检查基线
@@ -52,6 +54,7 @@ source "${BENCHMARK_DIR}/lib/utils.sh"
 PHASE="all"
 REPEATS=3
 SKIP_BASELINE=false
+FORCE_ANALYZE=false
 INJECT_ARGS=""
 FI_SCALE="${FI_SCALE:-s2}"
 FI_WORKLOAD="${FI_WORKLOAD:-w2}"
@@ -61,6 +64,7 @@ while [[ $# -gt 0 ]]; do
     --phase)         PHASE="$2"; shift 2 ;;
     --repeats)       REPEATS="$2"; shift 2 ;;
     --skip-baseline) SKIP_BASELINE=true; shift ;;
+    --force-analyze) FORCE_ANALYZE=true; shift ;;
     --fraction|--from|--to|--target)
       INJECT_ARGS+="${INJECT_ARGS:+ }$1 $2"; shift 2 ;;
     -h|--help) grep -E '^# ' "$0" | sed 's/^# //'; exit 0 ;;
@@ -237,25 +241,65 @@ phase_inject() {
 # Phase 4: analyze
 # ═══════════════════════════════════════════════
 phase_analyze() {
-  separator "Phase 4/4: analyze — 出图 + 汇总"
+  separator "Phase 4/4: analyze — 出图 + 汇总 + 容错判定"
   local baseline="${RESULTS_DIR}/a/${FI_SCALE}/${FI_WORKLOAD}/inst${FI_INSTANCES}/run1"
   local baseline_arg=""
   [[ -f "${baseline}/metadata.txt" ]] && baseline_arg="--baseline ${baseline}"
 
-  local ok=0 fail=0 d
+  local ran=0 cached=0 verify_pass=0 verify_fail=0 rc=0 d
   shopt -s nullglob
   for d in "${RESULTS_DIR}"/faultinject/*/*/run*/; do
     [[ -f "${d}/inject-manifest.json" ]] || continue
-    log_step "analyze ${d}"
-    if python3 "${SCRIPT_DIR}/fault-plot.py"    "$d" \
-       && python3 "${SCRIPT_DIR}/fault-summary.py" "$d" $baseline_arg; then
-      ok=$((ok + 1))
-    else
-      fail=$((fail + 1)); RC=3
+    local vfile="${d}plots/verify.txt"
+
+    # 幂等: plots/verify.txt 已存在且未强制重跑 → 直接引用旧结果
+    if [[ -f "$vfile" && "$FORCE_ANALYZE" != "true" ]]; then
+      cached=$((cached + 1))
+      # 从 verify.txt 尾部取最终判定行
+      if grep -q '✅' "$vfile" 2>/dev/null && ! grep -q '❌ FAIL' "$vfile" 2>/dev/null; then
+        verify_pass=$((verify_pass + 1))
+        log_info "  ✅ ${d} 已有分析 (cached)"
+      else
+        verify_fail=$((verify_fail + 1)); RC=3
+        log_error "  ❌ ${d} 已有分析 (cached, 未通过)"
+      fi
+      continue
     fi
+
+    log_step "analyze ${d}"
+    python3 "${SCRIPT_DIR}/fault-plot.py"    "$d"               || rc=3
+    python3 "${SCRIPT_DIR}/fault-summary.py" "$d" $baseline_arg || rc=3
+    if python3 "${SCRIPT_DIR}/verify.py" "$d" >/dev/null; then
+      verify_pass=$((verify_pass + 1))
+      log_info "  ✅ 容错验证通过 (见 ${d}plots/verify.txt)"
+    else
+      verify_fail=$((verify_fail + 1)); RC=3
+      log_error "  ❌ 容错验证未通过 (见 ${d}plots/verify.txt)"
+    fi
+    ran=$((ran + 1))
   done
   shopt -u nullglob
-  log_info "analyze 完成: ok=${ok} fail=${fail}"
+
+  if (( cached > 0 && ran == 0 && verify_fail == 0 )); then
+    log_info "全部 ${cached} 个 run 都已有分析结果，直接引用（用 --force-analyze 强制重跑）"
+  else
+    log_info "analyze 完成: 新跑 ${ran}，复用 ${cached}；容错判定 pass=${verify_pass} fail=${verify_fail}"
+  fi
+
+  # 汇总: 逐个 run 打印一行结论
+  if (( cached + ran > 0 )); then
+    echo ""
+    log_info "── 各 run 容错判定 ──"
+    for d in "${RESULTS_DIR}"/faultinject/*/*/run*/; do
+      local vf="${d}plots/verify.txt"
+      [[ -f "$vf" ]] || continue
+      local rel="${d#${RESULTS_DIR}/faultinject/}"; rel="${rel%/}"
+      local verdict
+      verdict=$(grep -E '^最终判定' "$vf" 2>/dev/null | head -1 | sed 's/^最终判定: //')
+      echo "  ${rel}: ${verdict:-(missing verdict)}"
+    done
+  fi
+  [[ $rc -eq 3 ]] && RC=3
 }
 
 # ── 主流程 ──
