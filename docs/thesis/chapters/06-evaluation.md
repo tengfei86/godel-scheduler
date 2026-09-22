@@ -359,7 +359,7 @@ s3/w3（5000 节点，1000 pods/s，100 000 pods）为本文的主评估场景�
 
 ### 6.5.5　复杂负载场景（w4 极限 / w5 突发）
 
-表 6-12 汇总极限负载与突发洪峰两类复杂负载下的有效吞吐与延迟对比（w6 Gang 场景已在 6.4.2 节独立展示，w7 异构资源无独立时序图，数据见表 6-7~6-9 相应行）。图 6-21~6-24 给出 s3/w4（极限）与 s4/w5（突发）两场景下的调度吞吐与 P99 延迟时序，各两张一组。
+表 6-12 汇总极限负载与突发洪峰两类复杂负载下的有效吞吐与延迟对比（w6 Gang 场景已在 6.4.2 节独立展示，w7 异构资源无独立时序图，数据见表 6-7~6-9 相应行）。图 6-21~6-28 给出 w4/w5 在 s3、s4 两档规模下共 4 个场景的调度吞吐与 P99 延迟时序，先按负载分组（w4 极限 → w5 突发），组内先 s3 再 s4。
 
 : 表 6-12  复杂负载场景对比（有效吞吐单位 pods/s，延迟单位秒）
 
@@ -383,13 +383,29 @@ s3/w3（5000 节点，1000 pods/s，100 000 pods）为本文的主评估场景�
 
 ![图 6-22  ENO 与 Gödel P99 调度延迟时序（s3, w4 极限负载, inst3，n=3 中位数）](../figures/fig6-latency-p99-s3-w4-inst3.png)
 
-**（3）调度吞吐 — s4/w5 · inst3（突发洪峰）**
+**（3）调度吞吐 — s4/w4 · inst3（极限负载）**
 
-![图 6-23  ENO 与 Gödel 调度吞吐时序（s4, w5 突发洪峰, inst3，n=3 中位数）](../figures/fig6-15-throughput-s4-w5-inst3.png)
+![图 6-23  ENO 与 Gödel 调度吞吐时序（s4, w4 极限负载, inst3，n=3 中位数）](../figures/fig6-throughput-s4-w4-inst3.png)
 
-**（4）P99 调度延迟 — s4/w5 · inst3（突发洪峰）**
+**（4）P99 调度延迟 — s4/w4 · inst3（极限负载）**
 
-![图 6-24  ENO 与 Gödel P99 调度延迟时序（s4, w5 突发洪峰, inst3，n=3 中位数）](../figures/fig6-latency-p99-s4-w5-inst3.png)
+![图 6-24  ENO 与 Gödel P99 调度延迟时序（s4, w4 极限负载, inst3，n=3 中位数）](../figures/fig6-latency-p99-s4-w4-inst3.png)
+
+**（5）调度吞吐 — s3/w5 · inst3（突发洪峰）**
+
+![图 6-25  ENO 与 Gödel 调度吞吐时序（s3, w5 突发洪峰, inst3，n=3 中位数）](../figures/fig6-throughput-s3-w5-inst3.png)
+
+**（6）P99 调度延迟 — s3/w5 · inst3（突发洪峰）**
+
+![图 6-26  ENO 与 Gödel P99 调度延迟时序（s3, w5 突发洪峰, inst3，n=3 中位数）](../figures/fig6-latency-p99-s3-w5-inst3.png)
+
+**（7）调度吞吐 — s4/w5 · inst3（突发洪峰）**
+
+![图 6-27  ENO 与 Gödel 调度吞吐时序（s4, w5 突发洪峰, inst3，n=3 中位数）](../figures/fig6-15-throughput-s4-w5-inst3.png)
+
+**（8）P99 调度延迟 — s4/w5 · inst3（突发洪峰）**
+
+![图 6-28  ENO 与 Gödel P99 调度延迟时序（s4, w5 突发洪峰, inst3，n=3 中位数）](../figures/fig6-latency-p99-s4-w5-inst3.png)
 
 结论：
 
@@ -422,7 +438,7 @@ s3/w3（5000 节点，1000 pods/s，100 000 pods）为本文的主评估场景�
 | Layer 1 重试数（rate） | `eno:binder_embedded_bind_retries:rate1m` | 应无显著变化，用于排除"拦截来自 API Server 冲突"这一竞争解释 |
 | 挂起 Pod 数 | `sum(scheduler_pending_pods)` | 注入后短暂上涨，随重分发完成回落 |
 
-**事后校验**：（1）导出全部 Pod 的 `{name, spec.nodeName}` 并断言无重复、无空值，直接对不变量 I 做实测验证；（2）对比"注入实验"与 6.5 节 s3/w2/inst3 无故障基线的总完成时间，量化 Layer 0/3 对性能的一次性开销。呈现方式为一张 `node_validation_failures:rate1m` 与 `dispatcher_fallback:rate1m` 的双轴时序图（图 6-25a，注入时刻用竖线标注），以及一张分注入前 30 s / 注入期 30 s / 恢复期 60 s 三段累计计数与成功率的对照表。
+**事后校验**：（1）导出全部 Pod 的 `{name, spec.nodeName}` 并断言无重复、无空值，直接对不变量 I 做实测验证；（2）对比"注入实验"与 6.5 节 s3/w2/inst3 无故障基线的总完成时间，量化 Layer 0/3 对性能的一次性开销。呈现方式为一张 `node_validation_failures:rate1m` 与 `dispatcher_fallback:rate1m` 的双轴时序图（图 6-29a，注入时刻用竖线标注），以及一张分注入前 30 s / 注入期 30 s / 恢复期 60 s 三段累计计数与成功率的对照表。
 
 ### 6.6.2　Layer 3 触发验证
 
@@ -441,7 +457,7 @@ s3/w3（5000 节点，1000 pods/s，100 000 pods）为本文的主评估场景�
 | Layer 0 拦截数 | `eno:binder_node_validation_failures:rate1m` | 副作用观察——若节点归属随实例失活而重分配，此处会有联动 |
 | 实例存活探针 | `up{job="scheduler-a"}` | 用于对齐时间轴，精确定位实例被删与被重建的两个时刻 |
 
-**事后校验**：（1）不变量 I 的 apiserver 断言（同 6.6.1）；（2）"孤儿"检查：`kubectl get pods -o json` 后过滤 `metadata.annotations["eno.io/scheduler-name"] != null AND spec.nodeName == ""` 的 Pod，其数量在实验结束时应为 0——这直接验证 P3（注解清理 → 重分发的时序）；（3）分摊性检查：三实例的绑定量增量之和等于总工作量 50K，且被杀实例的绑定量在注入后不再增长。呈现方式为一张 `dispatcher_fallback:rate1m` 与 `scheduler_pending_pods` 的双轴时序图（图 6-25b，标注注入点与实例恢复点），以及一张分实例绑定量分布与总完成时间对比的表格。
+**事后校验**：（1）不变量 I 的 apiserver 断言（同 6.6.1）；（2）"孤儿"检查：`kubectl get pods -o json` 后过滤 `metadata.annotations["eno.io/scheduler-name"] != null AND spec.nodeName == ""` 的 Pod，其数量在实验结束时应为 0——这直接验证 P3（注解清理 → 重分发的时序）；（3）分摊性检查：三实例的绑定量增量之和等于总工作量 50K，且被杀实例的绑定量在注入后不再增长。呈现方式为一张 `dispatcher_fallback:rate1m` 与 `scheduler_pending_pods` 的双轴时序图（图 6-29b，标注注入点与实例恢复点），以及一张分实例绑定量分布与总完成时间对比的表格。
 
 ### 6.6.3　实验编排与可复现性
 
