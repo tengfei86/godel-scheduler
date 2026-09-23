@@ -328,7 +328,12 @@ func (sched *Scheduler) createDataSet(idx int, subCluster string, switchType fra
 		godelqueue.WithSubCluster(subCluster),
 		godelqueue.WithClock(sched.clock),
 	)
-	reconciler := reconciler.NewFailedTaskReconciler(sched.client, sched.informerFactory.Core().V1().Pods().Lister(), sched.commonCache, *sched.SchedulerName)
+	// Use the per-instance EnoSchedulerName (e.g. "eno-scheduler-0") not the union
+	// SchedulerName ("eno-scheduler"), so checkPodState can precisely detect when
+	// the Dispatcher has re-routed the pod to a different instance after a bind
+	// failure — otherwise this reconciler would re-patch pods with stale assumed
+	// annotations even after Dispatcher has handed them off (Layer 3 fallback).
+	reconciler := reconciler.NewFailedTaskReconciler(sched.client, sched.informerFactory.Core().V1().Pods().Lister(), sched.commonCache, sched.Name)
 	unitScheduler := unitscheduler.NewUnitScheduler(
 		sched.Name,
 		switchType,

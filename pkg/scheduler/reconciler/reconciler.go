@@ -139,9 +139,15 @@ func (re *FailedTaskReconciler) checkPodState(latestPod *v1.Pod, err error, fpt 
 		return false
 	}
 
-	if !podutil.DispatchedPodOfEno(latestPod, re.schedulerName) {
-		// pod is not in dispatched state, we need to forget the pod from cache no matter what state it is now.
-		// if it is assumed or bound now, the pod will be added to cache and removed from assumed pods map
+	// re.schedulerName is the per-instance EnoSchedulerName (e.g. "eno-scheduler-0").
+	// DispatchedPodOfThisScheduler checks Pod.metadata.annotations[selected-scheduler]
+	// against this instance name AND state==Dispatched — so once the Dispatcher
+	// re-routes the pod to another instance (Layer 3 fallback), this reconciler
+	// no longer considers it "mine" and won't re-patch stale assumed annotations.
+	if !podutil.DispatchedPodOfThisScheduler(latestPod, re.schedulerName) {
+		// pod is not dispatched to me any more, we need to forget the pod from
+		// cache no matter what state it is now. If it is assumed or bound now,
+		// the pod will be added to cache and removed from assumed pods map;
 		// if it is pending now, we need to remove this pod from assumed pod map too.
 		assumed, err := re.schedulerCache.IsAssumedPod(fpt.podInfo.Pod)
 		if err != nil {

@@ -35,7 +35,10 @@ func cleanupSchedulingAnnotations(podCopy *v1.Pod) {
 	delete(podCopy.Annotations, podutil.AssumedNodeAnnotationKey)
 	delete(podCopy.Annotations, podutil.AssumedCrossNodeAnnotationKey)
 	delete(podCopy.Annotations, podutil.NominatedNodeAnnotationKey)
-	delete(podCopy.Annotations, podutil.FailedSchedulersAnnotationKey)
+	// NOTE: FailedSchedulersAnnotationKey is intentionally preserved across
+	// cleanup calls so the Dispatcher can accumulate failure history and
+	// exclude all failed instances (Layer 3 fallback). Callers append the
+	// current scheduler after this cleanup runs.
 	delete(podCopy.Annotations, podutil.MicroTopologyKey)
 	delete(podCopy.Annotations, podutil.MovementNameKey)
 	delete(podCopy.Annotations, podutil.MatchedReservationPlaceholderKey)

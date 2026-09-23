@@ -842,6 +842,13 @@ func (gs *unitScheduler) persistViaEmbeddedBinder(ctx context.Context,
 		klog.InfoS("Embedded binder BindUnit call failed",
 			"switchType", switchType, "subCluster", subCluster,
 			"unitKey", unitInfo.UnitKey, "err", err)
+		// Layer 0 NodeValidator failure has already been handled inside
+		// embedded_binder (ForgetPod + CleanupPodAnnotationsForceDispatch).
+		// Enqueueing a FailedPatchTask here would race with the cleanup and
+		// re-patch the pod back to state=assumed, undoing Layer 3 fallback.
+		if binder.IsNodeOwnershipError(err) {
+			return
+		}
 		// Treat all pods as failed – add to reconciler for retry.
 		for _, podKey := range result.SuccessfulPods {
 			gs.Reconciler.AddFailedTask(reconciler.NewFailedPatchTask(

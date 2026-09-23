@@ -25,24 +25,30 @@ data:
 
     scrape_configs:
       # ── ENO Scheduler (includes embedded binder metrics) ──
+      # 三副本部署在 hostNetwork 下端口互不相同 (10251/11251/12251)，用 role: pod
+      # + 从 pod container ports 拿实际端口，避免所有 endpoint 共享 service.targetPort
+      # 导致 Prometheus 抓到重复的 scheduler-0 数据。
       - job_name: "eno-scheduler"
         kubernetes_sd_configs:
-          - role: endpoints
+          - role: pod
             namespaces:
               names: ["eno-system"]
         relabel_configs:
-          - source_labels: [__meta_kubernetes_service_name]
+          - source_labels: [__meta_kubernetes_pod_label_app]
             action: keep
-            regex: eno-scheduler-metrics
-          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            regex: eno-scheduler
+          - source_labels: [__meta_kubernetes_pod_container_port_name]
             action: keep
             regex: metrics
+          - source_labels: [__address__, __meta_kubernetes_pod_container_port_number]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
           - source_labels: [__meta_kubernetes_namespace]
             target_label: namespace
           - source_labels: [__meta_kubernetes_pod_name]
             target_label: pod
-          - source_labels: [__meta_kubernetes_service_name]
-            target_label: service
 
       # ── ENO Dispatcher ──
       - job_name: "eno-dispatcher"

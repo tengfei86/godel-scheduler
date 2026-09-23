@@ -32,8 +32,10 @@ import (
 	godelclient "github.com/kubewharf/godel-scheduler-api/pkg/client/clientset/versioned"
 	bindermetrics "github.com/kubewharf/godel-scheduler/pkg/binder/metrics"
 	binderutils "github.com/kubewharf/godel-scheduler/pkg/binder/utils"
+	frameworkapi "github.com/kubewharf/godel-scheduler/pkg/framework/api"
 	godelcache "github.com/kubewharf/godel-scheduler/pkg/scheduler/cache"
 	godelutil "github.com/kubewharf/godel-scheduler/pkg/util"
+	podutil "github.com/kubewharf/godel-scheduler/pkg/util/pod"
 )
 
 // EmbeddedBinder implements BinderInterface for cases where the Binder is
@@ -167,9 +169,35 @@ func (eb *EmbeddedBinder) BindUnit(ctx context.Context, req *BindRequest) (*Bind
 				// of local retry can recover this bind. Force-dispatch every
 				// pod in the unit back to the Dispatcher immediately, appending
 				// this scheduler to failed-schedulers so it is not re-routed here.
+				//
+				// CRITICAL: also ForgetPod from the local scheduler cache. Otherwise
+				// the assumed reservation persists in cache and when Dispatcher
+				// re-routes the pod back to this instance, unit_framework's
+				// skipPodSchedule detects the cached pod and skips scheduling
+				// forever (pod is stuck in state=Pending with no scheduling loop).
 				for _, qpi := range req.Pods {
 					if qpi == nil || qpi.Pod == nil {
 						continue
+					}
+					if eb.cacheAdapter != nil {
+						// PodStore.ForgetPod compares the pod's assumed-node
+						// annotation against the cached copy and crashes the
+						// process on mismatch. Recreate the annotation from
+						// req.NodeNames so the lookup matches.
+						podCopy := qpi.Pod.DeepCopy()
+						if podCopy.Annotations == nil {
+							podCopy.Annotations = map[string]string{}
+						}
+						if nodeName := req.NodeNameFor(qpi.Pod.UID); nodeName != "" {
+							podCopy.Annotations[podutil.AssumedNodeAnnotationKey] = nodeName
+						}
+						podInfo := frameworkapi.MakeCachePodInfoWrapper().Pod(podCopy).Obj()
+						if forgetErr := eb.cacheAdapter.ForgetPod(podInfo); forgetErr != nil {
+							klog.V(3).InfoS("Failed to forget pod from cache after Layer 0 failure",
+								"scheduler", eb.schedulerName,
+								"pod", klog.KObj(qpi.Pod),
+								"err", forgetErr)
+						}
 					}
 					if fdErr := binderutils.CleanupPodAnnotationsForceDispatch(eb.client, qpi.Pod, eb.schedulerName); fdErr != nil {
 						klog.V(3).InfoS("Failed to force-dispatch pod after Layer 0 failure",
