@@ -1,0 +1,15 @@
+{
+  "layer": "layer3",
+  "target_pod": "scheduler-0-759b9fbb9f-7rsss",
+  "target_deployment": "scheduler-0",
+  "target_scheduler": "eno-scheduler-0",
+  "inject_start_ts": 1790151769,
+  "killed_ts": 1790151770,
+  "restored_ts": 1790151844,
+  "restored_pod": "scheduler-0-759b9fbb9f-8j49p",
+  "inject_end_ts": 1790151844,
+  "siblings": [
+    "scheduler-1-cdc6cbdf8-llqmq",
+    "scheduler-2-ff8689dbf-gbmf6"
+  ]
+}

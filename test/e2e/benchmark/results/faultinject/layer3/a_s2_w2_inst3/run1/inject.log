@@ -1,0 +1,8 @@
+[config] loaded — project_root=/root/dev/godel-scheduler, cluster=eno-bench
+[0;32m[INFO][0m  16:22:47 Layer3 注入: 目标 Pod=scheduler-0-759b9fbb9f-7rsss (deploy=scheduler-0, sched=eno-scheduler-0)
+[0;32m[INFO][0m  16:22:49   ✓ Deployment scheduler-0 已 scale 到 0
+[0;32m[INFO][0m  16:22:50   ✓ Pod 已删除: scheduler-0-759b9fbb9f-7rsss (计划 outage=60s)
+[0;32m[INFO][0m  16:23:50   ✓ Deployment scheduler-0 已 scale 回 1，等待新 Pod Running...
+[0;32m[INFO][0m  16:24:04   ✓ 实例重建: scheduler-0-759b9fbb9f-8j49p (耗时 74s)
+/root/dev/godel-scheduler/test/e2e/benchmark/results/faultinject/layer3/a_s2_w2_inst3/run1/inject-manifest.json
+[0;32m[INFO][0m  16:24:04   ✓ manifest: /root/dev/godel-scheduler/test/e2e/benchmark/results/faultinject/layer3/a_s2_w2_inst3/run1/inject-manifest.json

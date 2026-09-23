@@ -1,0 +1,1 @@
+namespace=bench total=50000 bound=50000 unbound=0 dup=0 empty_name=0
