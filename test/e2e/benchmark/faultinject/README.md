@@ -73,7 +73,7 @@ python3 faultinject/verify.py        results/faultinject/layer0/a_s3_w2_inst3/ru
 
 **Layer 0 判据**（6 项）：拦截数上涨、拦截 → 回退联动、不变量 I、拦截规模、Layer 1 重试不异常、绑定成功率 = 100%
 
-**Layer 3 判据**（6 项）：Dispatcher 回退阶跃、被杀实例停止绑定、存活实例接管、pending 尖峰后回落、总绑定量守恒、不变量 I
+**Layer 3 判据**（6 项）：Reconciler 触发孤儿 pod 重置（`dispatcher_orphan_pods_reset_total`）、被杀实例停止绑定、存活实例接管、pending 尖峰后回落、总绑定量守恒、不变量 I
 
 退出码：全通过 → `exit 0`；任意 FAIL → `exit 1`。orchestrator 的 `analyze` phase 汇总每个 run 的通过情况：`容错判定 pass=X fail=Y`。
 
@@ -127,7 +127,7 @@ Layer 0：
 - 不变量 I: bound=50000, unbound=0, dup=0
 
 Layer 3：
-- `eno:binder_dispatcher_fallback:rate1m` 在 T+30s 出现阶跃
+- `sum(rate(dispatcher_orphan_pods_reset_total{reason="stale_dispatched"}[1m]))` 在 T+inject 后出现阶跃（Reconciler 重置死实例名下 Dispatched pod）
 - `sum(scheduler_pending_pods)` 明显上涨随后回落
 - `eno:binder_embedded_bind_pods:success_rate1m_by_pod` 中被杀实例的曲线归零、存活实例上升
 - 三实例 [inject, inject+90s] 累积 ≈ 50 000

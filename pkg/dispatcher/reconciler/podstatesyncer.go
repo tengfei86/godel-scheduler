@@ -33,6 +33,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/kubewharf/godel-scheduler/pkg/dispatcher/internal/store"
+	dispatchermetrics "github.com/kubewharf/godel-scheduler/pkg/dispatcher/metrics"
 	schemaintainer "github.com/kubewharf/godel-scheduler/pkg/dispatcher/scheduler-maintainer"
 	podutil "github.com/kubewharf/godel-scheduler/pkg/util/pod"
 )
@@ -150,7 +151,11 @@ func (psr *PodStateReconciler) updateStaleDispatchedStatePod(pod *corev1.Pod) er
 		schedulerName := pod.Annotations[podutil.SchedulerAnnotationKey]
 		if psr.schedulerMaintainer.IsSchedulerInInactiveQueue(schedulerName) || !psr.schedulerMaintainer.SchedulerExist(schedulerName) {
 			klog.V(3).InfoS("Reset the dispatched pod to Pending state on inactive/nonexistent scheduler", "pod", klog.KObj(pod), "schedulerName", schedulerName)
-			return psr.resetPodToPendingState(pod)
+			if err := psr.resetPodToPendingState(pod); err != nil {
+				return err
+			}
+			dispatchermetrics.OrphanPodsResetInc("stale_dispatched")
+			return nil
 		}
 		return nil
 	}
@@ -212,7 +217,11 @@ func (psr *PodStateReconciler) updateAbnormalStatePod(pod *corev1.Pod) error {
 		// pod is still abnormal
 		// blindly resetting to pending state
 		// TODO: add more fine-grained checking and resetting operations
-		return psr.resetPodToPendingState(pod)
+		if err := psr.resetPodToPendingState(pod); err != nil {
+			return err
+		}
+		dispatchermetrics.OrphanPodsResetInc("abnormal")
+		return nil
 	}
 	// pod returns back to normal state, return directly
 	return nil

@@ -141,15 +141,17 @@ def plot_layer3(run_dir, out_dir, fmt):
     inject_rel = m["killed_ts"] - t0
     restored_rel = (m.get("restored_ts") or 0) - t0 if m.get("restored_ts") else None
 
-    dfb = series_total(load_series(run_dir / "dispatcher_fallback.json"))
+    # Layer 3 的"回退阶跃"由 orphan_pods_reset_total 驱动（Reconciler 触发），
+    # 而不是 Layer 0 里的 dispatcher_fallback_total（MaxLocalRetries）。
+    orphan = series_total(load_series(run_dir / "orphan_pods_reset.json"))
     pending = series_total(load_series(run_dir / "pending_pods.json"))
     per_pod = load_series(run_dir / "bind_success_by_pod.json")
 
     fig, ax1 = plt.subplots(figsize=(10, 4.2))
     ax2 = ax1.twinx()
 
-    xs, ys = zip(*rel_time(dfb, t0)) if any(v for _, v in dfb) else ([], [])
-    ax1.plot(xs, ys, color="#ff7f0e", label="dispatcher_fallback (rate1m)", linewidth=2)
+    xs, ys = zip(*rel_time(orphan, t0)) if any(v for _, v in orphan) else ([], [])
+    ax1.plot(xs, ys, color="#ff7f0e", label="orphan_pods_reset (rate1m)", linewidth=2)
 
     xs, ys = zip(*rel_time(pending, t0)) if any(v for _, v in pending) else ([], [])
     ax2.plot(xs, ys, color="#1f77b4", label="pending_pods", linewidth=1.5, alpha=0.85)

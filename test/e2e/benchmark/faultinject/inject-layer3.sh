@@ -1,18 +1,25 @@
 #!/usr/bin/env bash
 # inject-layer3.sh — Layer 3 触发注入器：Scheduler 实例失活
 #
-# 场景：force-delete 一个 Scheduler Pod 使其在 Dispatcher 视角上等价于
-#       "进程崩溃"。Scheduler Maintainer 通过心跳/Lease 感知失活，
+# 场景：先把目标 scheduler Deployment scale 到 0 阻止重建，再 force-delete
+#       它当前的 Pod，让其在 Lease 超时窗口(DefaultLeaseDuration=45s)以上
+#       完全不可达。SchedulerMaintainer 通过心跳/Lease 感知失活，
 #       PodStateReconciler 扫描其名下 Dispatched-但-未 Bind 的 Pod，
-#       重置为 Pending 并交由存活实例接管。Deployment 会在数秒内重建
-#       被杀 Pod，供观测恢复期。
+#       重置为 Pending 并交由存活实例接管（这一步产出 orphan_pods_reset_total
+#       计数）。OUTAGE 结束后把 Deployment scale 回 1 恢复常态，观测新 Pod
+#       就绪。
+#
+#       注：如果只 delete pod 不 scale 到 0, Deployment 会在 1s 内重建同
+#       label 的新 pod, Lease 从未过期, Reconciler 不会触发, 也就无法验证
+#       论文声称的失活感知机制。
 #
 # 用法：
 #   inject-layer3.sh <out_dir> [--target <pod|deployment>] [--namespace <ns>]
 #
-# out_dir      实验结果目录
-# --target     被删除对象的 label 或 Deployment/Pod 名（默认: 挑选一个 running scheduler pod）
-# --namespace  ENO Scheduler 所在命名空间（默认: config.sh 中的 ENO_NAMESPACE）
+# out_dir             实验结果目录
+# --target            被删除对象的 label 或 Deployment/Pod 名（默认: 挑选一个 running scheduler pod）
+# --namespace         ENO Scheduler 所在命名空间（默认: config.sh 中的 ENO_NAMESPACE）
+# 环境变量 LAYER3_OUTAGE_SEC   outage 时长，默认 60s (> DefaultLeaseDuration 45s)
 #
 # 输出：
 #   ${out_dir}/inject-manifest.json  被删除对象 + 起止时间 + 重建时间戳
@@ -72,6 +79,32 @@ START_TS=$(date +%s)
 START_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 echo "[$START_ISO] inject.begin pod=${TARGET} deploy=${DEPLOY:-?} sched=${SCHED_LABEL:-?}" >> "$EVENTS"
 
+# 若纯粹 delete pod, Deployment 会在 1s 内重建同 label 的新 pod，Lease 还没超过
+# DefaultLeaseDuration(45s), SchedulerMaintainer 从头到尾不会把 scheduler-0 标为
+# inactive, PodStateReconciler 也就不会走 orphan reset 路径 —— 也就是根本没测到
+# 论文声称的"Reconciler 感知失活 + 主动重分派"。
+#
+# 所以先把 Deployment scale 到 0 阻断重建, 让 Lease 真正过期; sleep 完再 scale 回
+# 1 恢复常态。OUTAGE_SEC 默认 60s > DefaultLeaseDuration(45s) + 一点余量。
+OUTAGE_SEC="${LAYER3_OUTAGE_SEC:-60}"
+
+# 无论后续任何路径退出, 都要把 Deployment 拉回来, 别把集群留在 replicas=0
+rescale_up() {
+  if [[ -n "${DEPLOY:-}" ]]; then
+    kubectl scale deploy/"$DEPLOY" -n "$NS" --replicas=1 >/dev/null 2>&1 || true
+  fi
+}
+trap rescale_up EXIT
+
+if [[ -n "$DEPLOY" ]]; then
+  if ! kubectl scale deploy/"$DEPLOY" -n "$NS" --replicas=0 >/dev/null 2>&1; then
+    log_error "scale deploy/${DEPLOY} 到 0 失败"
+    echo "[$(date -u +%FT%TZ)] inject.scale_down_failed deploy=${DEPLOY}" >> "$EVENTS"
+    exit 1
+  fi
+  log_info "  ✓ Deployment ${DEPLOY} 已 scale 到 0"
+fi
+
 # ── force-delete ──
 if ! kubectl delete pod "$TARGET" -n "$NS" --grace-period=0 --force >/dev/null 2>&1; then
   log_error "删除 Pod 失败: ${TARGET}"
@@ -80,14 +113,22 @@ if ! kubectl delete pod "$TARGET" -n "$NS" --grace-period=0 --force >/dev/null 2
 fi
 KILLED_TS=$(date +%s)
 KILLED_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-echo "[$KILLED_ISO] inject.killed pod=${TARGET}" >> "$EVENTS"
-log_info "  ✓ Pod 已删除: ${TARGET}"
+echo "[$KILLED_ISO] inject.killed pod=${TARGET} outage=${OUTAGE_SEC}s" >> "$EVENTS"
+log_info "  ✓ Pod 已删除: ${TARGET} (计划 outage=${OUTAGE_SEC}s)"
 
-# ── 等待 Deployment 重建（最多 90 秒）──
+# ── 让 Lease 真正过期, 触发 Reconciler ──
+sleep "$OUTAGE_SEC"
+echo "[$(date -u +%FT%TZ)] inject.outage_elapsed sec=${OUTAGE_SEC}" >> "$EVENTS"
+
+# ── 恢复 Deployment 副本 ──
 RESTORED_TS=""
 RESTORED_POD=""
 if [[ -n "$DEPLOY" ]]; then
-  # 兼容 Deployment 与 StatefulSet；此处走通用 label 匹配路径
+  if kubectl scale deploy/"$DEPLOY" -n "$NS" --replicas=1 >/dev/null 2>&1; then
+    log_info "  ✓ Deployment ${DEPLOY} 已 scale 回 1，等待新 Pod Running..."
+  else
+    log_warn "  scale deploy/${DEPLOY} 回 1 失败, 但 trap 兜底会再试"
+  fi
   for i in $(seq 1 90); do
     NEW=$(kubectl get pods -n "$NS" -l "eno-scheduler-name=${SCHED_LABEL}" \
              --field-selector=status.phase=Running \

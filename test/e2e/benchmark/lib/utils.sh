@@ -98,7 +98,15 @@ wait_all_scheduled() {
   local ns="${1:-bench}"
   local timeout="${2:-3600}"
   local expected="${3:-}"
-  local elapsed=0
+  local poll="${POLL_INTERVAL:-5}"
+  # 50K pod 的完整分页返回稳定态需要 ~20s；给 3x 余量以覆盖 apiserver 拥堵。
+  local req_timeout="${KUBECTL_REQUEST_TIMEOUT:-60s}"
+  # apiserver 在 Layer 3 恢复期会被节流；单次 kubectl 可能返回部分结果甚至超时，
+  # 这里 (a) 显式 --request-timeout 让失败可感知, (b) 早退分支加连续一致读，避免
+  # 一次性截断被当成"submissions 缺失"的假阳性。
+  local required_stable="${SCHEDULE_STABLE_READS:-3}"
+  local elapsed=0 stable_miss=0 stable_hit=0
+  local pending=-1 total=-1 scheduled=-1
 
   if [[ -n "$expected" ]]; then
     log_info "等待 namespace=${ns} 中 ${expected} 个 Pod 全部调度完成 (严格 100%, timeout=${timeout}s)..."
@@ -106,11 +114,28 @@ wait_all_scheduled() {
     log_info "等待 namespace=${ns} 中所有 Pod 调度完成 (timeout=${timeout}s)..."
   fi
 
+  # 返回行数；kubectl 失败/超时 → 输出 -1
+  _wait_all_scheduled__count() {
+    local out
+    if ! out=$(kubectl get pods -n "$ns" --no-headers --request-timeout="$req_timeout" \
+                 "$@" 2>/dev/null); then
+      echo -1; return
+    fi
+    printf '%s\n' "$out" | grep -c '.' || true
+  }
+
   while (( elapsed < timeout )); do
-    local pending total scheduled
-    pending=$(kubectl get pods -n "$ns" --field-selector=status.phase=Pending \
-      --no-headers 2>/dev/null | wc -l | tr -d ' ')
-    total=$(kubectl get pods -n "$ns" --no-headers 2>/dev/null | wc -l | tr -d ' ')
+    pending=$(_wait_all_scheduled__count --field-selector=status.phase=Pending)
+    total=$(_wait_all_scheduled__count)
+
+    # kubectl 超时或错误 → 视为未知，跳过本轮，别当作 pending=0
+    if (( pending < 0 || total < 0 )); then
+      log_warn "  kubectl 读取失败/超时，${poll}s 后重试 (pending_rc=${pending} total_rc=${total})"
+      stable_miss=0; stable_hit=0
+      sleep "$poll"; elapsed=$((elapsed + poll))
+      continue
+    fi
+
     scheduled=$((total - pending))
 
     if (( pending == 0 )); then
@@ -119,16 +144,31 @@ wait_all_scheduled() {
         return 0
       fi
       if (( total == expected )); then
-        log_info "✓ ${expected} 个 Pod 全部调度完成 (scheduled=${scheduled}, total=${total})"
-        return 0
+        stable_hit=$((stable_hit + 1))
+        stable_miss=0
+        if (( stable_hit >= required_stable )); then
+          log_info "✓ ${expected} 个 Pod 全部调度完成 (scheduled=${scheduled}, total=${total})"
+          return 0
+        fi
+        log_info "  ✓ 稳态确认 ${stable_hit}/${required_stable}..."
+      else
+        # total < expected：可能真的缺失，也可能是 apiserver 节流截断了返回
+        stable_miss=$((stable_miss + 1))
+        stable_hit=0
+        if (( stable_miss >= required_stable )); then
+          log_error "调度数不达标 (连续 ${required_stable} 次 pending=0 且 total<expected):"
+          log_error "  expected=${expected}, total in ns=${total}, scheduled=${scheduled}"
+          log_error "  可能原因: podgen 提交失败（webhook/quota/RBAC）或 Pod 提前被清理"
+          return 2
+        fi
+        log_warn "  pending=0 但 total=${total}<${expected}（第 ${stable_miss}/${required_stable} 次），继续观察"
       fi
-      log_error "调度数不达标: expected=${expected}, total in ns=${total}, scheduled=${scheduled}"
-      log_error "  可能原因: podgen 提交失败（webhook/quota/RBAC）或 Pod 提前被清理"
-      return 2
+    else
+      stable_hit=0; stable_miss=0
     fi
 
-    sleep "${POLL_INTERVAL:-5}"
-    elapsed=$((elapsed + ${POLL_INTERVAL:-5}))
+    sleep "$poll"
+    elapsed=$((elapsed + poll))
     if (( elapsed % 30 == 0 )); then
       if [[ -n "$expected" ]]; then
         log_info "  scheduled=${scheduled}/${expected}, pending=${pending}, total_in_ns=${total} ... (${elapsed}s)"
@@ -138,7 +178,7 @@ wait_all_scheduled() {
     fi
   done
 
-  log_error "超时：仍有 Pending Pod（scheduled=${scheduled:-?}/${expected:-?}, pending=${pending:-?}）"
+  log_error "超时：仍有 Pending Pod（scheduled=${scheduled}/${expected:-?}, pending=${pending}）"
   return 1
 }
 
