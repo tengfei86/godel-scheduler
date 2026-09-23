@@ -1,7 +1,7 @@
 [config] loaded — project_root=/root/dev/godel-scheduler, cluster=eno-bench
-[0;32m[INFO][0m  15:53:37 Layer0 注入: from=eno-scheduler-0 → to=eno-scheduler-1, fraction=0.1
+[0;32m[INFO][0m  18:29:59 Layer0 注入: from=eno-scheduler-0 → to=eno-scheduler-1, fraction=0.1
 [layer0] owner-distribution: {'<none>': 1000}
-[0;32m[INFO][0m  15:53:41   匹配节点池 1000 个，抽取 100 个进行注解漂移
-[0;32m[INFO][0m  15:54:31   ✓ patch 完成: 100 成功 / 0 失败 / 用时 50s
+[0;32m[INFO][0m  18:30:02   匹配节点池 1000 个，抽取 100 个进行注解漂移
+[0;32m[INFO][0m  18:30:43   ✓ patch 完成: 100 成功 / 0 失败 / 用时 41s
 /root/dev/godel-scheduler/test/e2e/benchmark/results/faultinject/layer0/a_s2_w2_inst3/run1/inject-manifest.json
-[0;32m[INFO][0m  15:54:32   ✓ manifest: /root/dev/godel-scheduler/test/e2e/benchmark/results/faultinject/layer0/a_s2_w2_inst3/run1/inject-manifest.json
+[0;32m[INFO][0m  18:30:43   ✓ manifest: /root/dev/godel-scheduler/test/e2e/benchmark/results/faultinject/layer0/a_s2_w2_inst3/run1/inject-manifest.json

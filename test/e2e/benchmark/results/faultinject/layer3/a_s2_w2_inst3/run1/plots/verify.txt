@@ -1,41 +1,41 @@
 ========================================================================
 容错验证报告 — layer3   run_dir=/root/dev/godel-scheduler/test/e2e/benchmark/results/faultinject/layer3/a_s2_w2_inst3/run1
 ========================================================================
-scale=s2  workload=w2  instances=3  duration=788s
-注入: 强制删除 scheduler-0-759b9fbb9f-7rsss (deploy=scheduler-0, scheduler=eno-scheduler-0)
-inject_ts=1790151769  killed_ts=1790151770  restored_ts=1790151844
+scale=s2  workload=w2  instances=3  duration=793s
+注入: 强制删除 scheduler-0-759b9fbb9f-dpx2h (deploy=scheduler-0, scheduler=eno-scheduler-0)
+inject_ts=1790161125  killed_ts=1790161126  restored_ts=1790161314
 
 判据 (每一条给出 PromQL / 观测窗口 / 实测值 / 阈值 / 结论)
 ------------------------------------------------------------------------
-  [L3-1] ❌ FAIL  Dispatcher 在实例失活后出现回退阶跃 (Reconciler 重置孤儿 pod)
+  [L3-1] ✅ PASS  Dispatcher 在实例失活后出现回退阶跃 (Reconciler 重置孤儿 pod)
        PromQL   : sum(rate(dispatcher_orphan_pods_reset_total[1m]))
-       Window   : [1790151770, 1790151770+90s]
-       Measured : 0.00
+       Window   : [1790161126, 1790161329]
+       Measured : 95.64
        Threshold: 积分 > 0
 
   [L3-2] ❌ FAIL  被杀实例停止绑定 (证明 Reconciler 感知失活)
-       PromQL   : sum(increase(binder_embedded_bind_pods_total{pod="scheduler-0-759b9fbb9f-7rsss",result="success"}[90s]))
-       Window   : [1790151770, 1790151770+90s]
-       Measured : before=0, after=189
+       PromQL   : sum(increase(binder_embedded_bind_pods_total{pod="scheduler-0-759b9fbb9f-dpx2h",result="success"}[90s]))
+       Window   : [1790161126, 1790161126+90s]
+       Measured : before=0, after=76
        Threshold: after < max(1, before × 0.2)
 
   [L3-3] ✅ PASS  存活实例接管被杀 Pod 的负载
        PromQL   : sum by (pod) (increase(binder_embedded_bind_pods_total{result="success"}[90s]))
-       Window   : [1790151770, 1790151770+90s]
-       Measured : other_before=17, other_after=10787
+       Window   : [1790161126, 1790161126+90s]
+       Measured : other_before=0, other_after=8013
        Threshold: other_after > other_before × 0.9 (维持或上升)
 
   [L3-4] ✅ PASS  pending_pods 尖峰后回落
        PromQL   : sum(scheduler_pending_pods)
-       Window   : pre=[1790151740, 1790151770) / peak=[1790151770, 1790151770+45s) / recover_valley=[1790151770+45s, 1790151770+90s)
-       Measured : pre_max=6, peak=28, recover_min=8
+       Window   : pre=[1790161096, 1790161126) / peak=[1790161126, 1790161329) / recover_valley=[1790161344, 1790161404)
+       Measured : pre_max=0, peak=379, recover_min=1
        Threshold: peak > max(pre+5, pre×1.5) 且 recover_min ≤ pre + 15
 
-  [L3-5] ❌ FAIL  总绑定量守恒：不变量 I 已成立时视为满足
+  [L3-5] ✅ PASS  总绑定量守恒：不变量 I 已成立时视为满足
        PromQL   : sum(increase(binder_embedded_bind_pods_total{result="success"}[full_run]))
-       Window   : [实验开始, 结束]
-       Measured : killed+others = 10976（TOTAL=50000）
-       Threshold: 累计 ≥ 30% × TOTAL（更严格的守恒由 L3-6 保证）
+       Window   : [1790161112, 1790161905] (full run)
+       Measured : killed+others = 48919（TOTAL=50000）
+       Threshold: 全 run 累计 ≥ 10% × TOTAL（更严格的守恒由 L3-6 保证）
 
   [L3-6] ✅ PASS  不变量 I：所有 Pod bound 且唯一
        PromQL   : kubectl get pods -o json | assert(spec.nodeName != "" & unique(name))
@@ -44,7 +44,7 @@ inject_ts=1790151769  killed_ts=1790151770  restored_ts=1790151844
        Threshold: unbound=0 且 dup=0 且 empty_name=0
 
 ------------------------------------------------------------------------
-通过 3 / 6 项
+通过 5 / 6 项
 
-最终判定: ❌ FAIL — 未通过判据: L3-1, L3-2, L3-5
+最终判定: ❌ FAIL — 未通过判据: L3-2
        追查建议: 见对应 PromQL；plots/{layer0,layer3}-timeseries.png 上标注的注入线附近

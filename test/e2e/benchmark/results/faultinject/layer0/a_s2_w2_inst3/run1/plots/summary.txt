@@ -1,18 +1,19 @@
 # Fault-injection summary — layer=layer0, run_dir=/root/dev/godel-scheduler/test/e2e/benchmark/results/faultinject/layer0/a_s2_w2_inst3/run1
-start_time=1790149987  inject_ts=1790150021  duration=802s
-node_validation_failures                  pre=0.0  inject_30s=0.0  recovery_60s=141.7
-dispatcher_fallback                       pre=0.0  inject_30s=0.0  recovery_60s=141.7
-pending_pods (integ)                      pre=67.5  inject_30s=15.0  recovery_60s=652.5
+start_time=1790159369  inject_ts=1790159402  duration=790s
+node_validation_failures                  pre=0.0  inject_30s=0.0  recovery_60s=419.6
+dispatcher_fallback                       pre=0.0  inject_30s=0.0  recovery_60s=419.6
+bind_retries                              pre=0.0  inject_30s=0.0  recovery_60s=0.0
+pending_pods (integ)                      pre=0.0  inject_30s=12540.0  recovery_60s=11842.5
 
 Per-Scheduler bind rate over [inject, inject+90s] (integrated pods):
-  scheduler-0-759b9fbb9f-7rsss    ~3505 pods
-  scheduler-1-cdc6cbdf8-llqmq     ~3357 pods
-  scheduler-2-ff8689dbf-gbmf6     ~2962 pods
+  scheduler-0-759b9fbb9f-dpx2h    ~3654 pods
+  scheduler-1-cdc6cbdf8-5g4dm     ~1944 pods
+  scheduler-2-ff8689dbf-bvx86     ~4207 pods
 
 Invariant I assertion:
   namespace=bench total=50000 bound=50000 unbound=0 dup=0 empty_name=0
 
-Duration vs baseline: run=802s  base=680s  Δ=+122s (+17.9%)
+Duration vs baseline: run=790s  base=680s  Δ=+110s (+16.2%)
 
 ============================================================
 容错验证 (layer=layer0)
