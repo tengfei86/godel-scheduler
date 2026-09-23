@@ -68,4 +68,13 @@ func Register() {
 	})
 	info := version.Get()
 	buildInfo.WithLabelValues(info.Major, info.Minor, info.GitVersion, info.GitCommit, info.GitTreeState, info.BuildDate, info.GoVersion, info.Compiler, info.Platform).Set(1)
+
+	// 关键：CounterVec 只在 With(labels).Inc() 首次调用时才把 series 具化到 registry。
+	// 若某个 reason 的 reset 事件在极短时间内成批发生（例如 CR 删除事件一次性 enqueue
+	// 几千个 orphan pod）, Prometheus 从没见过该 series 的 0 值样本, rate() 会因为
+	// "只有一个采样点" 或 "首个采样点已是终值" 而算不出正增量, 导致下游判据看不到峰值。
+	// 这里在启动时对每个已知 reason 做一次 Add(0), 让 series 从 0 起有连续采样, 之后
+	// 事件真正发生时 rate() 就能正确报告变化速率。
+	orphanPodsResetTotal.WithLabelValues("stale_dispatched").Add(0)
+	orphanPodsResetTotal.WithLabelValues("abnormal").Add(0)
 }

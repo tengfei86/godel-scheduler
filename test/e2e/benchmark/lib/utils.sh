@@ -198,6 +198,22 @@ wait_ready_to_create_pods() {
 
   log_info "验证 admission 链就绪 (ns=${ns}, scheduler=${sched}, timeout=${timeout}s)..."
 
+  # 如果 ns 还在 Terminating（上一轮 GC 未完成，或 API server 重启后 etcd 里
+  # 仍残留），要先等它彻底消失, 否则 create 出的 ns 依旧是 Terminating, 后续
+  # 所有 pod 创建都会 Forbidden "being terminated"。最长再等 timeout/2。
+  local wait_term=$((timeout / 2))
+  local waited=0
+  while (( waited < wait_term )); do
+    local phase
+    phase=$(kubectl get ns "$ns" -o jsonpath='{.status.phase}' 2>/dev/null || true)
+    [[ "$phase" != "Terminating" ]] && break
+    if (( waited == 0 || waited % 10 == 0 )); then
+      log_warn "  ns=${ns} 处于 Terminating, 等待 GC 结束 (${waited}s)"
+    fi
+    sleep 2
+    waited=$((waited + 2))
+  done
+
   # 确保 ns 存在（--dry-run=server 需要）
   kubectl create ns "$ns" >/dev/null 2>&1 || true
 

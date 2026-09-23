@@ -79,14 +79,16 @@ START_TS=$(date +%s)
 START_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 echo "[$START_ISO] inject.begin pod=${TARGET} deploy=${DEPLOY:-?} sched=${SCHED_LABEL:-?}" >> "$EVENTS"
 
-# 若纯粹 delete pod, Deployment 会在 1s 内重建同 label 的新 pod，Lease 还没超过
-# DefaultLeaseDuration(45s), SchedulerMaintainer 从头到尾不会把 scheduler-0 标为
-# inactive, PodStateReconciler 也就不会走 orphan reset 路径 —— 也就是根本没测到
-# 论文声称的"Reconciler 感知失活 + 主动重分派"。
+# 若纯粹 delete pod, Deployment 会在 1s 内重建同 label 的新 pod, Scheduler CR 的
+# LastUpdateTime 从没老过, 整条 orphan-reset 路径就不会被激活。要让机制真正触发,
+# 必须让 Scheduler CR 停止更新的时间 > MaxSchedulerCRDNotUpdateDuration (2 min),
+# 之后 SchedulerMaintainer.SyncUpSchedulersStatus (每 30s 跑一次) 才会把 CR 删掉,
+# CR delete 事件传到 PodStateReconciler.DeleteScheduler, 才会把该 scheduler 名下
+# 所有 Dispatched-but-not-Bound pod 重置到 Pending → orphan_pods_reset_total 递增。
 #
-# 所以先把 Deployment scale 到 0 阻断重建, 让 Lease 真正过期; sleep 完再 scale 回
-# 1 恢复常态。OUTAGE_SEC 默认 60s > DefaultLeaseDuration(45s) + 一点余量。
-OUTAGE_SEC="${LAYER3_OUTAGE_SEC:-60}"
+# 因此默认 outage = 180s (>= 2min 30s), 覆盖 2min 阈值 + 一次 SyncUp 循环。可用
+# LAYER3_OUTAGE_SEC 覆盖 (调低会看不到 orphan reset)。
+OUTAGE_SEC="${LAYER3_OUTAGE_SEC:-180}"
 
 # 无论后续任何路径退出, 都要把 Deployment 拉回来, 别把集群留在 replicas=0
 rescale_up() {

@@ -38,6 +38,11 @@ spec:
             - "--leader-elect=false"
             - "--tracer=noop"
             - "--v=5"
+            # 开启节点分区归属功能：dispatcher 会把 fake.byted.org/node 标记的节点
+            # 按活跃 Scheduler 实例数均分, 并写入 eno.io/scheduler-name annotation。
+            # 这一步是 Layer 0 (归属漂移) 实验的前提 —— 没有分区就没有归属可漂移,
+            # NodeValidator 因为看到 owner="" 会全部放行, 拦截积分永远是 0。
+            - "--feature-gates=DispatcherNodeShuffle=true"
           resources:
             limits:
               cpu: "2"

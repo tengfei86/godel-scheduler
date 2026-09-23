@@ -303,6 +303,14 @@ phase_analyze() {
       echo "  ${rel}: ${verdict:-(missing verdict)}"
     done
   fi
+
+  # 论文用: 顶层带时戳的 Markdown 报告 (方便直接引用/对比不同批次)
+  if (( cached + ran > 0 )); then
+    log_info "生成聚合报告 → ${RESULTS_DIR}/faultinject/report-*.md"
+    bash "${SCRIPT_DIR}/aggregate-report.sh" "${RESULTS_DIR}/faultinject" || \
+      log_warn "  aggregate-report.sh 失败, 忽略"
+  fi
+
   [[ $rc -eq 3 ]] && RC=3
 }
 
