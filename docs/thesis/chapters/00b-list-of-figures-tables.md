@@ -42,6 +42,9 @@
 - 图 6-26  ENO 与 Gödel P99 调度延迟时序（s3, w5 突发洪峰, inst3，n=3 中位数）
 - 图 6-27  ENO 与 Gödel 调度吞吐时序（s4, w5 突发洪峰, inst3，n=3 中位数）
 - 图 6-28  ENO 与 Gödel P99 调度延迟时序（s4, w5 突发洪峰, inst3，n=3 中位数）
+- 图 6-29a  Layer 0 触发验证（节点归属漂移，s2/w2/inst3，n=1）
+- 图 6-29b  Layer 3 触发验证（scheduler-0 停机 180 s，s2/w2/inst3，n=1）
+- 图 6-30  Layer 0 / Layer 3 故障注入三项定量对比（s2/w2/inst3，n=1）
 
 ## 附表清单
 

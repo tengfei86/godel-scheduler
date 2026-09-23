@@ -23,6 +23,17 @@ try:
 except ImportError:
     print("请先: pip install matplotlib", file=sys.stderr); sys.exit(1)
 
+# 中文字体：macOS 优先 PingFang / Heiti; Linux 优先 Noto CJK; 都找不到就默认（会 warn 但仍出图）
+for _f in ["PingFang SC", "Arial Unicode MS", "Heiti SC", "Songti SC",
+           "Noto Sans CJK SC", "Source Han Sans SC", "WenQuanYi Zen Hei"]:
+    try:
+        matplotlib.font_manager.findfont(_f, fallback_to_default=False)
+        plt.rcParams["font.sans-serif"] = [_f]
+        break
+    except Exception:
+        continue
+plt.rcParams["axes.unicode_minus"] = False
+
 
 def load_series(path):
     """读取 prometheus 导出 JSON，返回 list of (t_epoch, value_or_None)."""

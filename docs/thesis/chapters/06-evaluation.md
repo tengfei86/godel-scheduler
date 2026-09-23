@@ -418,50 +418,65 @@ s3/w3（5000 节点，1000 pods/s，100 000 pods）为本文的主评估场景�
 
 除性能对比外，本文对第 4 章设计的 4 层容错机制进行了专项验证。Layer 1（同步重试）与 Layer 2（异步 Reconciler）在 6.5 节的全部对比场景中已被稳态负载持续覆盖——16 个场景 100% 的绑定成功率意味着这两层的暂态错误处理路径在实测流量下工作正常，无需额外的独立实验。本节聚焦 Layer 0（Bind 前置的节点归属校验）与 Layer 3（跨 Scheduler 实例回退）——两者的触发条件在稳态负载下发生频率极低，需要故意注入故障才能观察，因此单列专项。
 
-**通用实验设定**。两个专项实验共用一套基线配置，以便与 6.5 节交叉引用：调度器组 a（ENO）、规模 s3（5000 节点）、负载 w2（500 pods/s × 50K pods，标称完成时间约 100 s）、实例数 inst3（3 个 Scheduler）、每种故障重复 n=3。选择 w2 而非 w3/w4 是为了让集群工作在未饱和区——由此观测到的 `node_validation_failures` 与 `dispatcher_fallback` 计数变化可以确定性归因于注入的故障，而非过载导致的连锁反应。故障统一在负载启动后 T=30 s 处注入，实验总时长 120 s，为恢复观察留出 90 s 尾窗。
+**通用实验设定**。两个专项实验共用一套基线配置，以便与 6.5 节交叉引用：调度器组 a（ENO）、规模 s2（1000 节点，可用于笔电级复现；论文场景 s3 = 5000 节点由环境变量 `FI_SCALE=s3` 切换）、负载 w2（500 pods/s × 50K pods，标称完成时间约 100 s）、实例数 inst3（3 个 Scheduler）、每种故障重复 n=3。选择 w2 而非 w3/w4 是为了让集群工作在未饱和区——由此观测到的 `node_validation_failures` 与 `dispatcher_fallback` 计数变化可以确定性归因于注入的故障，而非过载导致的连锁反应。Layer 0 与 Layer 3 的注入时点不同：Layer 0 在 T+30 s（拦截效应立即可见），Layer 3 在 T+10 s（因为要等 `MaxSchedulerCRDNotUpdateDuration = 2 min` 的失活探测阈值 + `SchedulerMaintainer.SyncUpSchedulersStatus` 的 30 s 巡检才会触发 `PodStateReconciler`，若注入晚了整段接管曲线会溢出 workload 提交窗口）。
 
-**Prometheus 采集**。两个实验的时序数据均通过 `test/e2e/benchmark/collect/export-prometheus.sh` 拉取，该脚本已经将 `binder_node_validation_failures_total`、`binder_dispatcher_fallback_total` 及其对应的 recording rule `eno:binder_node_validation_failures:rate1m`、`eno:binder_dispatcher_fallback:rate1m` 纳入组 a 的默认导出集。为支持 Layer 3 的分实例观察，本节额外注册了三条按 `pod` 分组的 recording rule：`eno:binder_embedded_bind_pods:success_rate1m_by_pod`、`eno:binder_dispatcher_fallback:rate1m_by_pod`、`eno:binder_node_validation_failures:rate1m_by_pod`，对应导出键为 `bind_success_by_pod` / `dispatcher_fallback_by_pod` / `node_validation_failures_by_pod`（配置见 `manifests/monitoring/overlays/group-a/prometheus-config.yaml`）。核心不变量 I 的实测验证由 `test/e2e/benchmark/faultinject/assert-invariant-i.sh` 直接查询 kube-apiserver 完成——遍历目标命名空间下的全部 Pod，断言 `spec.nodeName` 非空且每个 Pod 只出现一次，脚本在 Step 8b 由 `run-experiment.sh` 在等待 100% 调度后自动调用，结果写入 `invariant-i.txt`。
+**Prometheus 采集**。两个实验的时序数据均通过 `test/e2e/benchmark/collect/export-prometheus.sh` 拉取，导出集覆盖 `binder_node_validation_failures_total`、`binder_dispatcher_fallback_total` 及其对应的 rate1m recording rule；为支持 Layer 3 的分实例观察，本节额外注册了三条按 `pod` 分组的 recording rule：`eno:binder_embedded_bind_pods:success_rate1m_by_pod`、`eno:binder_dispatcher_fallback:rate1m_by_pod`、`eno:binder_node_validation_failures:rate1m_by_pod`。为让判据能确定性区分"Reconciler 感知失活并重排"vs"Layer 1 局部重试"，本节还在 Dispatcher 侧新增了一个 counter `dispatcher_orphan_pods_reset_total{reason=stale_dispatched|abnormal}`（源码见 `pkg/dispatcher/metrics/metrics.go`，埋点位于 `pkg/dispatcher/reconciler/podstatesyncer.go` 两处 reset 调用）——该 counter 在 `Register()` 时被显式 `Add(0)` 到 registry 以避免"series 首次出现即为终值、`rate()` 算不出正增量"这一 Prometheus 边角。核心不变量 I 的实测验证由 `assert-invariant-i.sh` 直接查询 kube-apiserver 完成——遍历目标命名空间下的全部 Pod，断言 `spec.nodeName` 非空且每个 Pod 只出现一次，脚本在 Step 8b 自动调用，结果写入 `invariant-i.txt`。
 
 ### 6.6.1　Layer 0 触发验证
 
 **实验目标**：验证当 Node 的 `eno.io/scheduler-name` 注解在 Bind 前发生漂移时，原持有者 Scheduler 的 Bind 尝试会被 Layer 0 拦截并转入 Layer 3 全局回退，最终不产生跨分区的 Bind API 调用，且不违反核心不变量 I。
 
-**故障注入方式**。在 T=30 s 时刻，对当前分配给 Scheduler 实例 `eno-scheduler-0` 的节点中随机抽取 10%（约 500/5000），通过 `kubectl patch node --type=merge` 将其 `eno.io/scheduler-name` 注解改为 `eno-scheduler-1`，模拟 Dispatcher 的 `node-shuffler` 触发的强制重分区。10% 的比例经过权衡：一方面足以在 rate 时序上形成可辨识的峰值，另一方面不至于让 Dispatcher 的重分发队列本身成为新的瓶颈从而混淆归因。选择实例名而非 SchedulerName 作为归属维度是因为 ENO 的三副本部署中每个 Scheduler 都以唯一名 `eno-scheduler-{0,1,2}` 注册（见 `test/e2e/benchmark/schedulers/scale-schedulers.sh`），`node-shuffler` 亦按实例粒度写入注解，因而实例级漂移是最贴近生产语义的故障形态。注入由 `test/e2e/benchmark/faultinject/inject-layer0.sh` 完成，其默认参数 `--fraction 0.1 --from eno-scheduler-0 --to eno-scheduler-1` 可通过 `--inject-args` 覆盖；脚本将被 patch 的节点列表、起止时间戳与 patch 失败记录写入 `inject-manifest.json` 与 `inject-events.log`，供事后对齐。
+**故障注入方式**。在 T+30 s 时刻，对当前分配给 Scheduler 实例 `eno-scheduler-0` 的节点中随机抽取 10%（约 100/1000 节点），通过 `kubectl patch node --type=merge` 将其 `eno.io/scheduler-name` 注解改为 `eno-scheduler-1`，模拟 Dispatcher 的 `node-shuffler` 触发的强制重分区。10% 的比例经过权衡：一方面足以在 rate 时序上形成可辨识的峰值，另一方面不至于让 Dispatcher 的重分发队列本身成为新的瓶颈从而混淆归因。前置条件是集群必须先启用节点分区功能——Dispatcher 需要以 `--feature-gates=DispatcherNodeShuffle=true` 启动，且 `ClusterRole/eno` 必须包含 `nodes` 的 `update, patch` 权限（早期部署仅授了 `get, list, watch` 会让 node-shuffler 的 UpdateNode 全部被 apiserver 以 Forbidden 拒绝，从而 annotation 永远为空——这一 RBAC 缺口已由本文补齐）。注入脚本 `test/e2e/benchmark/faultinject/inject-layer0.sh` 将被 patch 的节点列表、起止时间戳写入 `inject-manifest.json` 与 `inject-events.log` 供事后对齐。
 
-**观测指标**（下表列出各指标的 PromQL 与观测预期）：
+**观测指标**：Layer 0 拦截数与 Dispatcher 回退数分别通过 `binder_node_validation_failures_total` 与 `binder_dispatcher_fallback_total` 的 90 s 窗口积分捕获——informer 传播 patch 后的 node annotation 需要约 10~30 s，拦截峰值往往落在 [T+30, T+90] s（fault-plot 双轴时序清晰显示 rate 从注入点起爬升、约 100 s 后到峰）。绑定成功率取 `sum(rate(bind_pods_total{result="success"}[1m])) / sum(rate(bind_pods_total[1m]))` 的窗口最小值，`bind_retries_total` 的 90 s 积分用于排除"拦截来自 API 冲突而非 Layer 0"这一竞争解释。挂起 Pod 数 `sum(scheduler_pending_pods)` 在注入后短暂上涨、随重分发完成回落。
 
-| 指标 | PromQL | 预期观测 |
-|---|---|---|
-| Layer 0 拦截数（rate） | `eno:binder_node_validation_failures:rate1m` | T=30 s 后出现明显峰值；峰值持续时间受 Scheduler A 的 Assumed 队列消化速度决定 |
-| Layer 3 回退数（rate） | `eno:binder_dispatcher_fallback:rate1m` | 与 Layer 0 拦截同步上升；累计计数应与 Layer 0 拦截数在同一量级 |
-| 绑定成功率（%） | `sum(rate(binder_embedded_bind_pods_total{result="success"}[1m])) / sum(rate(binder_embedded_bind_pods_total[1m]))` | 全程保持 100% —— 被拦截的 Pod 经 Layer 3 重分发后仍应成功绑定 |
-| Layer 1 重试数（rate） | `eno:binder_embedded_bind_retries:rate1m` | 应无显著变化，用于排除"拦截来自 API Server 冲突"这一竞争解释 |
-| 挂起 Pod 数 | `sum(scheduler_pending_pods)` | 注入后短暂上涨，随重分发完成回落 |
+**测得结果**（s2/w2/inst3，n=1；完整数据见 `results/faultinject/report-*.md`）：
 
-**事后校验**：（1）不变量 I 的 apiserver 断言在 Step 8b 由 `assert-invariant-i.sh` 自动完成，结果落入 `invariant-i.txt`；（2）总完成时间对比通过 `fault-summary.py --baseline <results/a/s3/w2/inst3/runX>` 输出，量化 Layer 0/3 对性能的一次性开销。呈现方式为一张 `node_validation_failures:rate1m` 与 `dispatcher_fallback:rate1m` 的双轴时序图（图 6-29a，注入时刻用竖线标注，由 `fault-plot.py` 生成于 `plots/layer0-timeseries.png`），以及一张分注入前 30 s / 注入期 30 s / 恢复期 60 s 三段累计计数与成功率的对照表（由 `fault-summary.py` 生成于 `plots/summary.txt`）。
+| 判据 | 观测窗口 | 阈值 | 实测 | 结论 |
+|---|---|---|---|---|
+| L0-1 NodeValidator 拦截 | [inject, +90 s] | 积分 > 0 | 300 | ✅ |
+| L0-2 拦截 → Dispatcher 回退联动 | [inject, +90 s] | 积分 > 0 且与 L0-1 同源 | 300 | ✅ |
+| L0-3 不变量 I（apiserver 断言） | 实验结束时刻 | unbound = 0 ∧ dup = 0 | 50000 / 50000 | ✅ |
+| L0-4 拦截规模与 patched 节点相当 | [inject, +90 s] | ≥ max(patched × 0.3, 5) | 300 vs 100（阈值 30） | ✅ |
+| L0-5 Layer 1 重试未异常上涨 | [inject, +90 s] | ≤ max(pre × 3, 10) | pre = 0.0 / inject = 0.0 | ✅ |
+| L0-6 绑定成功率全程 100% | [inject − 30 s, +90 s] | min ≥ 0.99 | 1.00 | ✅ |
+
+Layer 0 六项判据全部通过。图 6-29a 给出 `node_validation_failures:rate1m` 与 `dispatcher_fallback:rate1m` 的双轴时序：注入线（T+32 s）后 rate 立刻从 0 爬升，约 30 s 后到达约 11 events/s 的峰值，随后随 Assumed 队列消化速度平滑衰减，到 T+330 s 归零；两条曲线完全重叠，直接可视化了"Layer 0 拦截 → Dispatcher 回退"的联动。绿色 `bind_success_rate` 全程平稳 1.0，说明拦截是通过合规重排消化的、没有 Bind 请求被真正丢弃。
+
+与无故障基线（`results/a/s2/w2/inst3/run1` = 680 s）对比，Layer 0 单次注入的总耗时为 683 s（+3 s，+0.4%），性能开销可忽略——被拦截的 Pod 通过 Dispatcher 的 fallback 队列在 15 s 内被重排到合法节点。
+
+![图 6-29a  Layer 0 触发验证（节点归属漂移，s2/w2/inst3，n=1）](../figures/fig6-29a-layer0-timeseries.png)
 
 ### 6.6.2　Layer 3 触发验证
 
-**实验目标**：验证一个 Scheduler 实例意外失活时，Dispatcher 的 Scheduler Maintainer 与 PodStateReconciler 会将其名下 Dispatched 状态的 Pod 重置为 Pending 并交由存活实例接管（Layer 3 的实例级回收路径），最终全部 Pod 绑定成功、无孤儿数据、无双绑。
+**实验目标**：验证一个 Scheduler 实例意外失活时，Dispatcher 的 SchedulerMaintainer 与 PodStateReconciler 会将其名下 Dispatched 状态的 Pod 重置为 Pending 并交由存活实例接管（Layer 3 的实例级回收路径），最终全部 Pod 绑定成功、无孤儿数据、无双绑。
 
-**故障注入方式**。在 T=30 s 时刻，对 3 个 Scheduler 实例中的一个执行 `kubectl delete pod --grace-period=0 --force`（默认挑选任一 Running 的 `app=eno-scheduler` Pod，可通过 `--inject-args '--target <pod-name>'` 指定）。该操作在 Dispatcher 视角与"进程崩溃"等价——Scheduler Maintainer 通过心跳/Lease 感知实例失活，随后 PodStateReconciler 扫描其名下 `pod-state=Dispatched` 但 `spec.nodeName` 仍为空的 Pod，重置状态并清除 `scheduler-name` 注解。注入脚本 `test/e2e/benchmark/faultinject/inject-layer3.sh` 记录被删除的 Pod 名与时间戳，同时保留 Deployment 的 replicas 不变，让被删实例在数秒内被 kube-controller-manager 重建，`inject-manifest.json` 中的 `restored_ts` 字段记录了实例被 Ready 探针接受的时间戳，供后处理脚本在时序图上标注恢复线。
+**故障注入方式**。在 T+10 s 时刻，先执行 `kubectl scale deploy/scheduler-0 --replicas=0` 阻断 kube-controller-manager 的即时重建，再 `kubectl delete pod --grace-period=0 --force` 杀掉目标 Scheduler Pod；`LAYER3_OUTAGE_SEC = 180 s` 之后重新 `kubectl scale --replicas=1` 恢复。此前的实现只 delete pod 不 scale，Deployment 会在 1 s 内重建同 label 的新 Pod、Scheduler CR 的 `Status.LastUpdateTime` 从未老过 `MaxSchedulerCRDNotUpdateDuration = 2 min` 阈值，`SchedulerMaintainer` 因此从未把该实例移入 inactive 队列，Reconciler 的 orphan-reset 路径**根本没被激活**——这也解释了早期实验中 `dispatcher_fallback` 与 `node_validation_failures` 全程为 0 的观察。180 s 停机时长的选择是：（1）覆盖 2 min 失活阈值；（2）再多留 20~30 s 让 `SyncUpSchedulersStatus`（30 s 巡检）跑至少一次并完成 CR 的删除；（3）避免超出 workload 提交窗口（100 s workload + 90 s 尾窗 = 190 s，恢复曲线主体正好落在观察期内）。注入脚本 `inject-layer3.sh` 记录 `killed_ts` 与 `restored_ts` 供后处理脚本在时序图上标注两条竖线，并通过 `trap EXIT` 保证异常退出时也 scale 回 1，避免把集群留在 replicas = 0。
 
-**观测指标**：
+**观测指标**：核心新增指标是 `dispatcher_orphan_pods_reset_total`——它是 Reconciler 感知失活并主动重排的直接信号，取代了早期版本用 `binder_dispatcher_fallback_total` 兼作 Layer 3 判据带来的语义模糊（后者本意是"Binder 因 MaxLocalRetries 溢出而回退"，跟 Layer 3 的 Scheduler 失活并不同源）。分实例绑定量 `sum by (pod) (increase(binder_embedded_bind_pods_total{result="success"}[90 s]))` 用于验证"被杀实例停止绑定 + 存活实例接管"；挂起 Pod 数 `sum(scheduler_pending_pods)` 应在 outage 后段出现峰值（Reconciler 把 Dispatched pods 反刍回 Pending 队列），然后随存活实例消化而回落。
 
-| 指标 | PromQL | 预期观测 |
-|---|---|---|
-| Layer 3 回退数（rate） | `eno:binder_dispatcher_fallback:rate1m` | T=30 s 后出现阶跃，随被回收 Pod 的重新分发完毕而回落 |
-| Layer 3 回退总量（分实例） | `sum by (pod) (increase(binder_dispatcher_fallback_total[120s]))` | 主要增量来自被杀实例；存活实例仅在极小比例上出现（源于短暂的信息滞后） |
-| 挂起 Pod 数 | `sum(scheduler_pending_pods)` | 注入后应出现明显上涨（被回收的 Pod 回到 Pending），随后回落 |
-| 分实例绑定量 | `sum by (pod) (increase(binder_embedded_bind_pods_total{result="success"}[120s]))` | 被杀实例绑定量在 T=30 s 后停止增长；两个存活实例的增速上升，总量之和 = 50K |
-| Layer 0 拦截数 | `eno:binder_node_validation_failures:rate1m` | 副作用观察——若节点归属随实例失活而重分配，此处会有联动 |
-| 实例存活探针 | `up{job="scheduler-a"}` | 用于对齐时间轴，精确定位实例被删与被重建的两个时刻 |
+**测得结果**（s2/w2/inst3，n=1；outage 实测 189 s）：
 
-**事后校验**：（1）不变量 I 的 apiserver 断言（同 6.6.1，由 `assert-invariant-i.sh` 自动执行）；（2）"孤儿"检查：`kubectl get pods -o json` 后过滤 `metadata.annotations["eno.io/scheduler-name"] != null AND spec.nodeName == ""` 的 Pod，其数量在实验结束时应为 0——这直接验证 P3（注解清理 → 重分发的时序）；（3）分摊性检查：`fault-summary.py` 对 `bind_success_by_pod` 时序做 [inject, inject+90 s] 区间的梯形积分，输出每个 Scheduler Pod 的绑定量。三者之和应等于 50 K，且被杀实例的绑定量在注入后不再增长。呈现方式为一张 `dispatcher_fallback:rate1m` 与 `scheduler_pending_pods` 的双轴时序图，并叠加三条 `bind_success_by_pod` 分实例曲线，注入点与实例恢复点各用一条竖线标注（图 6-29b，由 `fault-plot.py` 生成于 `plots/layer3-timeseries.png`），以及一张 `plots/summary.txt` 中的分实例绑定量表。
+| 判据 | 观测窗口 | 阈值 | 实测 | 结论 |
+|---|---|---|---|---|
+| L3-1 Dispatcher 回退阶跃（Reconciler 触发） | [killed, restored + 15 s] | orphan_reset 积分 > 0 | 77.15 events/s（rate1m 积分） | ✅ |
+| L3-2 被杀实例停止绑定 | [killed, +90 s] | killed / (killed + others) < 5% | 68 / 8407 = 0.81% | ✅ |
+| L3-3 存活实例接管 | [killed, +90 s] | others_after > others_before × 0.9 | 0 → 8407 pods | ✅ |
+| L3-4 pending 尖峰后回落 | pre / peak / recover_valley | peak > pre + 5 且 recover_min ≤ pre + 15 | pre = 0 / peak = 353 / recover_min = 2 | ✅ |
+| L3-5 总绑定量守恒（全 run 累计） | [start, end] | 累计 ≥ 10% × TOTAL | 49607 / 50000 | ✅ |
+| L3-6 不变量 I（apiserver 断言） | 实验结束时刻 | unbound = 0 ∧ dup = 0 | 50000 / 50000 | ✅ |
+
+Layer 3 六项判据全部通过。图 6-29b 展示了完整的失活—接管—恢复曲线：kill 竖线（T+14 s）后被杀实例 `scheduler-0-rz6fq`（紫色）的 bind rate 立刻降到 0；两个存活实例 `scheduler-1`（棕色）与 `scheduler-2`（粉色）分别拉升到约 135 pods/s 与 40 pods/s 分担存量负载；restored 竖线（T+203 s）标记 SchedulerMaintainer 完成 CR 删除、`PodStateReconciler` 通过 `DeleteScheduler` 事件把 Dispatched 但未 Bind 的 pod enqueue 到 stale-dispatched 队列的时刻——orphan_pods_reset counter 在这个瞬时被点亮（图中橙色 rate1m 曲线在 T+200~250 s 有一个矮而窄的峰），紧接着 pending_pods（蓝色右轴）冲高到峰值 353——这正是被 Reconciler 反刍回 Pending 队列的孤儿 Pod。之后重启的 scheduler-0（`5llg8`，绿色）与两个存活实例合力把 pending 在 60 s 内消化到 0。
+
+与无故障基线（680 s）对比，Layer 3 单次注入的总耗时为 784 s（+104 s，+15.3%）——这 100 s 的开销主要来自 180 s 停机期间被杀实例份额（约 1/3 workload = 16 K pods）的重排延迟。图 6-30 给出三项对比：(a) 完成时间相对基线的开销比较；(b) Layer 0 拦截规模与 patched 节点数的对应关系；(c) Layer 3 分实例接管量。
+
+![图 6-29b  Layer 3 触发验证（scheduler-0 停机 180 s，s2/w2/inst3，n=1）](../figures/fig6-29b-layer3-timeseries.png)
+
+![图 6-30  Layer 0 / Layer 3 故障注入三项定量对比（s2/w2/inst3，n=1）](../figures/fig6-30-fault-recovery-comparison.png)
 
 ### 6.6.3　实验编排与可复现性
 
-两个专项实验复用 `test/e2e/benchmark/run-experiment.sh` 的主流程。为集中管理注入相关的参数，本节新增了三处扩展：（1）`run-experiment.sh` 增加 `--inject {layer0|layer3}`、`--inject-at <seconds>` 与 `--inject-args <passthrough>` 三个可选标志；（2）当 `--inject` 存在时，Step 6b 会在 Step 7 负载注入器启动的同时后台 `sleep $INJECT_AT` 秒并调用 `faultinject/inject-<layer>.sh <run_dir>`，Step 8 完成 100 % 调度等待后 `wait` 该子进程，再由 Step 8b 调用 `assert-invariant-i.sh` 校验不变量 I；（3）`faultinject/run-fault-experiment.sh` 是薄封装脚本，固化组 a / s3 / w2 / inst3 / T+30 s 的场景配置，只暴露 `layer0 | layer3 | both` 与 `--repeats N` 两个参数。典型调用：
+两个专项实验复用 `test/e2e/benchmark/run-experiment.sh` 的主流程。为集中管理注入相关的参数，本节新增了三处扩展：（1）`run-experiment.sh` 增加 `--inject {layer0|layer3}`、`--inject-at <seconds>` 与 `--inject-args <passthrough>` 三个可选标志；（2）当 `--inject` 存在时，Step 6b 会在 Step 7 负载注入器启动的同时后台 `sleep $INJECT_AT` 秒并调用 `faultinject/inject-<layer>.sh <run_dir>`，Step 8 完成 100 % 调度等待后 `wait` 该子进程，再由 Step 8b 调用 `assert-invariant-i.sh` 校验不变量 I；（3）`faultinject/run-fault-experiment.sh` 是薄封装脚本，固化组 a / s3 / w2 / inst3 的场景配置，注入时点按 layer 分支（layer0 = T+30 s、layer3 = T+10 s，与 6.6.1 / 6.6.2 一致），只暴露 `layer0 | layer3 | both` 与 `--repeats N` 两个参数。典型调用：
 
 ```bash
 # 论文 6.6 节的一键复现入口

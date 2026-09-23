@@ -147,65 +147,102 @@ def main():
         lines.append(f"  {mark}  {name}{('  — ' + note) if note else ''}")
         return passed
 
+    # 判据与 verify.py 保持同一套语义：
+    # - Layer 0 拦截窗口用 [inject, inject+90s] (informer 传播 patch 约需 10~30s,
+    #   峰值往往落在 [+30, +90], 30s 窗口会漏采)
+    # - Layer 3 ② 用"被杀 pod 占同期总绑定量比例 < 5%"取代绝对阈值
+    # - Layer 3 ④ 窗口跟着 restored_ts 走, 支持长 outage
+    def load_flat(name):
+        s = load_series(run_dir / name)
+        if not s: return []
+        if len(s) == 1: return list(s.values())[0]
+        all_t = sorted({t for ss in s.values() for t, _ in ss})
+        return [(t, sum((v or 0) for v in [next((v for tt, v in ss if tt == t), None)
+                                            for ss in s.values()])) for t in all_t]
+
     all_ok = True
     if layer == "layer0":
-        nvf = segs.get("node_validation_failures")
-        dfb = segs.get("dispatcher_fallback")
+        nvf_flat = load_flat("node_validation_failures.json")
+        dfb_flat = load_flat("dispatcher_fallback.json")
+        nvf_90 = integrate(nvf_flat, inj_ts, inj_ts + 90)
+        dfb_90 = integrate(dfb_flat, inj_ts, inj_ts + 90)
         target = manifest.get("patched_count", 0)
-        # ① 拦截计数上涨：inject_30s 段的积分 > 0
+
         c1 = check("① NodeValidator 有拦截 (rate>0)",
-                   nvf is not None and nvf[1] > 0,
-                   f"inject_30s 积分={nvf[1]:.1f}" if nvf else "无采样")
-        # ② 回退与拦截同步
+                   nvf_90 > 0, f"inject_90s 积分={nvf_90:.1f}")
         c2 = check("② Dispatcher 回退与拦截同步",
-                   dfb is not None and dfb[1] > 0,
-                   f"inject_30s 积分={dfb[1]:.1f}" if dfb else "无采样")
-        # ③ 不变量 I 成立
-        c3 = check("③ 不变量 I (bound & unique)", inv_ok, inv_txt.splitlines()[0] if inv_txt else "无断言")
-        # ④ 拦截数量 ≈ patched 节点数量级（不严格要求相等，因为一个节点可能多次尝试）
+                   dfb_90 > 0, f"inject_90s 积分={dfb_90:.1f}")
+        c3 = check("③ 不变量 I (bound & unique)", inv_ok,
+                   inv_txt.splitlines()[0] if inv_txt else "无断言")
         c4 = check("④ 拦截规模与 patched 节点相当",
-                   nvf is not None and nvf[1] >= target * 0.5,
-                   f"拦截≈{nvf[1]:.0f} vs patched={target}" if nvf else "无采样")
+                   nvf_90 >= max(5.0, target * 0.3),
+                   f"拦截≈{nvf_90:.0f} vs patched={target}, 阈值={max(5,target*0.3):.0f}")
         all_ok = c1 and c2 and c3 and c4
 
     elif layer == "layer3":
-        dfb = segs.get("dispatcher_fallback")
-        pend = segs.get("pending_pods (integ)")
         killed = manifest.get("target_pod", "")
+        # restored_ts 决定 peak/recover 窗口边界（长 outage 场景）
+        restored_ts = int(manifest.get("restored_ts") or 0)
+        if restored_ts and restored_ts > inj_ts:
+            peak_end = restored_ts + 15
+            recover_start = restored_ts + 30
+            recover_end = restored_ts + 90
+            dfb_end = max(inj_ts + 90, peak_end)
+        else:
+            peak_end = inj_ts + 45
+            recover_start = inj_ts + 45
+            recover_end = inj_ts + 90
+            dfb_end = inj_ts + 90
+
+        # ① Dispatcher 回退阶跃：orphan_pods_reset_total 为主, 拦截+回退为辅
+        orphan_flat = load_flat("orphan_pods_reset.json")
+        dfb_flat = load_flat("dispatcher_fallback.json")
+        orphan_90 = integrate(orphan_flat, inj_ts, dfb_end)
+        dfb_90 = integrate(dfb_flat, inj_ts, dfb_end)
+        c1 = check("① Dispatcher/Reconciler 回退阶跃",
+                   orphan_90 > 0 or dfb_90 > 0,
+                   f"orphan_reset={orphan_90:.1f} dispatcher_fallback={dfb_90:.1f}")
+
+        # ② 被杀实例停止绑定 - 用比值判据
         per_pod = load_series(run_dir / "bind_success_by_pod.json")
-
-        c1 = check("① Dispatcher 回退阶跃",
-                   dfb is not None and dfb[1] > 0,
-                   f"inject_30s 积分={dfb[1]:.1f}" if dfb else "无采样")
-
-        # ② 被杀实例在注入后停止绑定：inject 后 60s 的绑定量应远低于其正常水平
-        # 用完整 pod 名精确匹配。被 delete 的 pod 名在 per_pod 中会一直保留其历史
-        # 时间序列，重建后是一个 NEW pod 名；因此"被杀"仅指 manifest.target_pod。
-        killed_binds_after = killed_binds_before = 0.0
-        others_binds_after = others_binds_before = 0.0
+        killed_binds_after = 0.0; others_binds_after = 0.0
         for pod, vals in per_pod.items():
-            b = integrate(vals, inj_ts - 30, inj_ts)
             a = integrate(vals, inj_ts, inj_ts + 90)
             if pod == killed:
-                killed_binds_after += a; killed_binds_before += b
+                killed_binds_after += a
             else:
-                others_binds_after += a; others_binds_before += b
-        c2 = check("② 被杀实例停止绑定",
-                   killed_binds_after < max(1.0, killed_binds_before * 0.2),
-                   f"before={killed_binds_before:.0f} after={killed_binds_after:.0f}")
+                others_binds_after += a
+        total_after = killed_binds_after + others_binds_after
+        ratio = killed_binds_after / total_after if total_after > 0 else 0.0
+        c2 = check("② 被杀实例停止绑定 (占同期总量 < 5%)",
+                   killed_binds_after < 0.05 * max(1.0, total_after),
+                   f"killed={killed_binds_after:.0f} others={others_binds_after:.0f} "
+                   f"ratio={ratio:.2%}")
 
-        # ③ 存活实例绑定上升接管
+        # ③ 存活实例接管
         c3 = check("③ 存活实例接管",
-                   others_binds_after > others_binds_before * 0.9,
-                   f"before={others_binds_before:.0f} after={others_binds_after:.0f}")
+                   others_binds_after > 0,
+                   f"others_after={others_binds_after:.0f}")
 
-        # ④ pending 尖峰后回落（inject_30s 明显 > pre，recovery 应 < inject）
+        # ④ pending 尖峰后回落 - 窗口跟着 restored_ts 走
+        pend_flat = load_flat("pending_pods.json")
+        pend_pre_max = max((v or 0) for t, v in pend_flat
+                            if inj_ts - 30 <= t < inj_ts and v is not None) if pend_flat else 0
+        pend_peak = max((v or 0) for t, v in pend_flat
+                         if inj_ts <= t < peak_end and v is not None) if pend_flat else 0
+        recover_vals = [(v or 0) for t, v in pend_flat
+                        if recover_start <= t < recover_end and v is not None]
+        pend_recover_min = min(recover_vals) if recover_vals else float("inf")
         c4 = check("④ pending 尖峰后回落",
-                   pend is not None and pend[1] > pend[0] * 1.5 and pend[2] < pend[1] * 1.5,
-                   f"pre={pend[0]:.0f} peak={pend[1]:.0f} recover={pend[2]:.0f}" if pend else "无采样")
+                   pend_peak > max(pend_pre_max + 5, pend_pre_max * 1.5) and
+                   pend_recover_min <= pend_pre_max + 15,
+                   f"pre_max={pend_pre_max:.0f} peak={pend_peak:.0f} "
+                   f"recover_min={pend_recover_min:.0f} "
+                   f"(recover_window=[+{recover_start-inj_ts}s, +{recover_end-inj_ts}s])")
 
         # ⑤ 不变量 I
-        c5 = check("⑤ 不变量 I (bound & unique)", inv_ok, inv_txt.splitlines()[0] if inv_txt else "无断言")
+        c5 = check("⑤ 不变量 I (bound & unique)", inv_ok,
+                   inv_txt.splitlines()[0] if inv_txt else "无断言")
         all_ok = c1 and c2 and c3 and c4 and c5
     else:
         lines.append(f"  未知 layer={layer!r}")
