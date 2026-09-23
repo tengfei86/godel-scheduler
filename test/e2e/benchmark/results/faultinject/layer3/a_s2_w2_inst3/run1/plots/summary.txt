@@ -1,28 +1,28 @@
 # Fault-injection summary — layer=layer3, run_dir=/root/dev/godel-scheduler/test/e2e/benchmark/results/faultinject/layer3/a_s2_w2_inst3/run1
-start_time=1790161112  inject_ts=1790161125  duration=793s
-node_validation_failures                  pre=0.0  inject_30s=16.5  recovery_60s=266.0
-dispatcher_fallback                       pre=0.0  inject_30s=16.5  recovery_60s=266.0
+start_time=1790168196  inject_ts=1790168208  duration=784s
+node_validation_failures                  pre=0.0  inject_30s=8.0  recovery_60s=218.9
+dispatcher_fallback                       pre=0.0  inject_30s=8.0  recovery_60s=218.9
 bind_retries                              pre=0.0  inject_30s=0.0  recovery_60s=0.0
-pending_pods (integ)                      pre=0.0  inject_30s=375.0  recovery_60s=1785.0
+pending_pods (integ)                      pre=0.0  inject_30s=22.5  recovery_60s=780.0
 
 Per-Scheduler bind rate over [inject, inject+90s] (integrated pods):
-  scheduler-0-759b9fbb9f-dpx2h    ~76 pods
-  scheduler-0-759b9fbb9f-xxnv9    ~0 pods
-  scheduler-1-cdc6cbdf8-5g4dm     ~5042 pods
-  scheduler-2-ff8689dbf-bvx86     ~2971 pods
+  scheduler-0-759b9fbb9f-5llg8    ~0 pods
+  scheduler-0-759b9fbb9f-rz6fq    ~68 pods
+  scheduler-1-cdc6cbdf8-6xzdn     ~6234 pods
+  scheduler-2-ff8689dbf-9qcnm     ~2172 pods
 
 Invariant I assertion:
   namespace=bench total=50000 bound=50000 unbound=0 dup=0 empty_name=0
 
-Duration vs baseline: run=793s  base=680s  Δ=+113s (+16.6%)
+Duration vs baseline: run=784s  base=680s  Δ=+104s (+15.3%)
 
 ============================================================
 容错验证 (layer=layer3)
 ============================================================
-  ✅ PASS  ① Dispatcher 回退阶跃  — inject_30s 积分=16.5
-  ❌ FAIL  ② 被杀实例停止绑定  — before=0 after=76
-  ✅ PASS  ③ 存活实例接管  — before=0 after=8013
-  ❌ FAIL  ④ pending 尖峰后回落  — pre=0 peak=375 recover=1785
+  ✅ PASS  ① Dispatcher 回退阶跃  — inject_30s 积分=8.0
+  ❌ FAIL  ② 被杀实例停止绑定  — before=0 after=68
+  ✅ PASS  ③ 存活实例接管  — before=0 after=8407
+  ❌ FAIL  ④ pending 尖峰后回落  — pre=0 peak=22 recover=780
   ✅ PASS  ⑤ 不变量 I (bound & unique)  — namespace=bench total=50000 bound=50000 unbound=0 dup=0 empty_name=0
 
 总判定: ❌ 至少一项未通过，请查看上表

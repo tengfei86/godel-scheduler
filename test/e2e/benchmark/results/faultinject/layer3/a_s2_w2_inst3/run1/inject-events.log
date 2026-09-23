@@ -1,4 +1,4 @@
-[2026-09-23T10:58:45Z] inject.begin pod=scheduler-0-759b9fbb9f-dpx2h deploy=scheduler-0 sched=eno-scheduler-0
-[2026-09-23T10:58:46Z] inject.killed pod=scheduler-0-759b9fbb9f-dpx2h outage=180s
-[2026-09-23T11:01:46Z] inject.outage_elapsed sec=180
-[2026-09-23T11:01:54Z] inject.restored pod=scheduler-0-759b9fbb9f-xxnv9 recover=188s
+[2026-09-23T12:56:48Z] inject.begin pod=scheduler-0-759b9fbb9f-rz6fq deploy=scheduler-0 sched=eno-scheduler-0
+[2026-09-23T12:56:50Z] inject.killed pod=scheduler-0-759b9fbb9f-rz6fq outage=180s
+[2026-09-23T12:59:50Z] inject.outage_elapsed sec=180
+[2026-09-23T12:59:59Z] inject.restored pod=scheduler-0-759b9fbb9f-5llg8 recover=189s
