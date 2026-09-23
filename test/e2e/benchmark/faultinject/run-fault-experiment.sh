@@ -7,7 +7,7 @@
 #   * 负载   w2 (500 pods/s × 50K pods，未饱和)
 #   * 实例   3 (inst3)
 #   * 注入   layer0 或 layer3
-#   * 时点   T+30s
+#   * 时点   layer0: T+30s；layer3: T+10s (Lease 探测约需 45s，需给接管期留窗口)
 #
 # 用法:
 #   ./run-fault-experiment.sh layer0 [run_id] [--fraction 0.1] [--from ...] [--to ...]
@@ -61,12 +61,16 @@ run_once() {
   local layer="$1" rid="$2"
   local logf="${RESULTS_DIR}/faultinject/${layer}/a_s3_w2_inst3/run${rid}/console.log"
   mkdir -p "$(dirname "$logf")"
-  log_step "run-fault-experiment: layer=${layer} run=${rid}"
+  # Layer 3 走 Lease 心跳失活探测 (~45s)，注入必须提前才能让"存活实例接管"
+  # 曲线完整落在 100s 的负载提交窗口内；Layer 0 拦截是即时的，保持 T+30s。
+  local inject_at=30
+  [[ "$layer" == "layer3" ]] && inject_at=10
+  log_step "run-fault-experiment: layer=${layer} run=${rid} inject-at=T+${inject_at}s"
   # shellcheck disable=SC2086
   bash "${BENCHMARK_DIR}/run-experiment.sh" a s3 w2 "$rid" \
     --instances 3 \
     --inject "$layer" \
-    --inject-at 30 \
+    --inject-at "$inject_at" \
     ${INJECT_ARGS:+--inject-args "$INJECT_ARGS"} \
     2>&1 | tee "$logf"
 }

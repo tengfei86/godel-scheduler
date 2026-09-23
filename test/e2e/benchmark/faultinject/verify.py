@@ -218,11 +218,14 @@ def verify_layer3(run_dir: Path, manifest: dict, meta: dict) -> list[Criterion]:
     win30 = f"[{killed_ts}, {killed_ts}+30s]"
     win90 = f"[{killed_ts}, {killed_ts}+90s]"
 
-    dfb = flatten(load_series(run_dir / "dispatcher_fallback.json"))
+    # Layer 3 触发的"回退阶跃"是 PodStateReconciler 把 stale-dispatched pod
+    # 重置为 Pending 的过程（走 orphan_pods_reset_total），而不是 binder 端
+    # MaxLocalRetries 触发的 dispatcher_fallback_total（那是 Layer 0 的信号）。
+    orphan = flatten(load_series(run_dir / "orphan_pods_reset.json"))
     pend = flatten(load_series(run_dir / "pending_pods.json"))
     per_pod = load_series(run_dir / "bind_success_by_pod.json")
 
-    dfb_30 = integrate(dfb, killed_ts, killed_ts + 30)
+    orphan_90 = integrate(orphan, killed_ts, killed_ts + 90)
     pend_pre = peak(pend, killed_ts - 30, killed_ts)
     # Peak 窗口拉宽到 45s，避免 15s 采样节奏下 peak 值溢到 recover 窗口。
     pend_peak = peak(pend, killed_ts, killed_ts + 45)
@@ -249,12 +252,12 @@ def verify_layer3(run_dir: Path, manifest: dict, meta: dict) -> list[Criterion]:
     return [
         Criterion(
             key="L3-1",
-            name="Dispatcher 在实例失活后出现回退阶跃",
-            promql='sum(rate(binder_dispatcher_fallback_total[1m]))',
-            window=win30,
-            measured=dfb_30,
+            name="Dispatcher 在实例失活后出现回退阶跃 (Reconciler 重置孤儿 pod)",
+            promql='sum(rate(dispatcher_orphan_pods_reset_total[1m]))',
+            window=win90,
+            measured=orphan_90,
             threshold="积分 > 0",
-            passed=dfb_30 > 0,
+            passed=orphan_90 > 0,
         ),
         Criterion(
             key="L3-2",

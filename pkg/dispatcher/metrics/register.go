@@ -50,6 +50,7 @@ var metricsList = []metrics.Registerable{
 	podUpdatingAttempts,
 	podShufflingCount,
 	queueSortingLatency,
+	orphanPodsResetTotal,
 
 	pendingUnits,
 	unitPendingDuration,

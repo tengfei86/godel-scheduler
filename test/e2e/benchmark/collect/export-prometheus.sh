@@ -136,6 +136,10 @@ declare -A ENO_EMBEDDED_QUERIES=(
   [dispatcher_fallback_by_pod]='eno:binder_dispatcher_fallback:rate1m_by_pod'
   [node_validation_failures_by_pod]='eno:binder_node_validation_failures:rate1m_by_pod'
 
+  # Layer 3 触发信号：PodStateReconciler 将 stale/abnormal pod 重置为 Pending 的速率
+  [orphan_pods_reset]='sum(rate(dispatcher_orphan_pods_reset_total[1m]))'
+  [orphan_pods_reset_by_reason]='sum by (reason) (rate(dispatcher_orphan_pods_reset_total[1m]))'
+
   # Pod E2E 延迟（dispatcher → scheduler → binder → done）
   [pod_e2e_latency_p50]='eno:pod_e2e_duration:p50'
   [pod_e2e_latency_p90]='eno:pod_e2e_duration:p90'

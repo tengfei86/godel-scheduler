@@ -194,6 +194,18 @@ var (
 			Help:           "Number of attempts to successfully update a pod.",
 			StabilityLevel: metrics.ALPHA,
 		}, []string{pkgmetrics.QosLabel, pkgmetrics.SubClusterLabel, pkgmetrics.ResultLabel})
+
+	// orphanPodsResetTotal counts pods that PodStateReconciler reset back to
+	// Pending because their assigned scheduler became inactive/nonexistent
+	// (reason=stale_dispatched) or their annotated state went abnormal
+	// (reason=abnormal). This is the Layer 3 "Dispatcher 回退阶跃" signal.
+	orphanPodsResetTotal = metrics.NewCounterVec(
+		&metrics.CounterOpts{
+			Subsystem:      DispatcherSubsystem,
+			Name:           "orphan_pods_reset_total",
+			Help:           "Number of dispatched pods reset to Pending by the Reconciler after their target scheduler became inactive or the pod state went abnormal.",
+			StabilityLevel: metrics.ALPHA,
+		}, []string{pkgmetrics.ReasonLabel})
 )
 
 func DispatcherGoroutinesInc() {
@@ -391,6 +403,13 @@ func newDispatchingAttemptsCounterMetric(labels metrics.Labels) metrics.CounterM
 func DispatchingAttemptsInc(result string) {
 	labels := metrics.Labels{pkgmetrics.ResultLabel: result}
 	newDispatchingAttemptsCounterMetric(labels).Inc()
+}
+
+// OrphanPodsResetInc bumps orphan_pods_reset_total for the given reason
+// ("stale_dispatched" when the target scheduler is inactive/nonexistent,
+// "abnormal" when the pod annotation state went abnormal).
+func OrphanPodsResetInc(reason string) {
+	orphanPodsResetTotal.With(metrics.Labels{pkgmetrics.ReasonLabel: reason}).Inc()
 }
 
 // newPodUpdatingAttemptsCounterMetric returns the CounterMetric for given labels by PodUpdatingAttempts

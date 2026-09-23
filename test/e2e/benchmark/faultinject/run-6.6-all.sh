@@ -223,12 +223,16 @@ phase_inject() {
         log_info "  ✓ ${layer}/run${n} 已存在，跳过 (${d})"
         continue
       fi
-      log_step "inject ${layer} run ${n}/${REPEATS}"
+      # Layer 3 走 Lease 心跳失活探测 (~45s)，注入必须提前才能让"存活实例接管"
+      # 曲线完整落在负载提交窗口内；Layer 0 拦截是即时的，保持 T+30s。
+      local inject_at=30
+      [[ "$layer" == "layer3" ]] && inject_at=10
+      log_step "inject ${layer} run ${n}/${REPEATS} (inject-at=T+${inject_at}s)"
       # shellcheck disable=SC2086
       if ! bash "${BENCHMARK_DIR}/run-experiment.sh" a "$FI_SCALE" "$FI_WORKLOAD" "$n" \
               --instances "$FI_INSTANCES" \
               --inject "$layer" \
-              --inject-at 30 \
+              --inject-at "$inject_at" \
               ${INJECT_ARGS:+--inject-args "$INJECT_ARGS"}; then
         log_error "${layer}/run${n} 失败"
         RC=3
