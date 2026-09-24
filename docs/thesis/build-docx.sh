@@ -29,10 +29,16 @@ fi
 
 # ── 解析参数 ──
 REFERENCE_DOC="${THESIS_DIR}/beihang-reference.docx"
-if [[ "${1:-}" == "--reference" ]]; then
-  REFERENCE_DOC="${2:?用法: build-docx.sh --reference <模板.docx>}"
-  [[ -f "${REFERENCE_DOC}" ]] || { echo "错误：模板不存在 ${REFERENCE_DOC}" >&2; exit 1; }
-fi
+CONSERVATIVE=""
+ARGS_IN=("$@")
+for ((i=0; i<${#ARGS_IN[@]}; i++)); do
+  case "${ARGS_IN[$i]}" in
+    --reference) REFERENCE_DOC="${ARGS_IN[$((i+1))]:?用法: build-docx.sh --reference <模板.docx>}"
+                 [[ -f "${REFERENCE_DOC}" ]] || { echo "错误：模板不存在 ${REFERENCE_DOC}" >&2; exit 1; } ;;
+    --conservative) CONSERVATIVE="--conservative" ;;
+  esac
+done
+# --conservative：只做表格宽度与表内样式，不重建分节/页眉页码（排查 Word 打不开时用）
 
 # ── 装订顺序（与学校规范一致）──
 FILES=(
@@ -107,7 +113,7 @@ cd ..
 #   - 表内段落由 Compact 改 TableCell（五号宋体居中）
 #   - 分节：摘要/目录 用大写罗马数字页码且无页眉；正文奇数页页眉「北京航空航天大学硕士学位论文」、
 #     偶数页为章标题；参考文献/附录/致谢 不分奇偶，页眉为篇名；页码阿拉伯数字从 1 起
-python3 postprocess-docx.py thesis-preview.docx
+python3 postprocess-docx.py thesis-preview.docx ${CONSERVATIVE}
 
 echo "导出完成：$(pwd)/thesis-preview.docx"
 rm -rf build

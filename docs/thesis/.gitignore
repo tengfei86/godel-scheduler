@@ -8,3 +8,4 @@ _ref_tmp/
 # 例外：thesis-beihang.docx 是交给作者与导师的成品，按作者要求入库跟踪
 # （2026-09-24 起）。每次重建后需要 git add 该文件并提交。
 !thesis-beihang.docx
+thesis-beihang-formatted.docx

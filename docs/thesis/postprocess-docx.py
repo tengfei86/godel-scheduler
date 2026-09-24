@@ -274,7 +274,7 @@ def insert_sectpr(paragraph: str, sectpr: str) -> str:
     return paragraph[: m2.end()] + f"<w:pPr>{sectpr}</w:pPr>" + paragraph[m2.end():]
 
 
-def process(input_path: Path, output_path: Path) -> None:
+def process(input_path: Path, output_path: Path, conservative: bool = False) -> None:
     tmp = output_path.parent / "_pp_tmp"
     shutil.rmtree(tmp, ignore_errors=True)
     with zipfile.ZipFile(input_path) as z:
@@ -283,6 +283,13 @@ def process(input_path: Path, output_path: Path) -> None:
     doc_file = tmp / "word/document.xml"
     doc = doc_file.read_text(encoding="utf-8")
     doc = fix_tables(doc)
+    if conservative:
+        # 保守模式：只做表格宽度与表内样式，不重建分节、页眉页码，也不移动目录。
+        # 用于排查 Word 无法打开的问题（该模式下输出与历史可正常打开的版本同类）。
+        doc_file.write_text(doc, encoding="utf-8")
+        _repackage(tmp, output_path)
+        print("后处理完成（保守模式）：仅表格宽度铺满版心 + 表内五号居中；未改动分节/页眉/页码")
+        return
     doc = move_toc_after_abstract(doc)
 
     # 定位章节：Heading1 段落；正文起点为第一个以「第…章」开头的 Heading1
@@ -460,9 +467,14 @@ def main() -> int:
     if len(sys.argv) < 2:
         print(__doc__)
         return 1
-    src = Path(sys.argv[1])
-    dst = Path(sys.argv[2]) if len(sys.argv) > 2 else src
-    process(src, dst)
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    flags = {a for a in sys.argv[1:] if a.startswith("--")}
+    if not args:
+        print(__doc__)
+        return 1
+    src = Path(args[0])
+    dst = Path(args[1]) if len(args) > 1 else src
+    process(src, dst, conservative="--conservative" in flags)
     return 0
 
 
