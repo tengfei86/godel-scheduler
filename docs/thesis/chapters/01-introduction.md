@@ -52,7 +52,7 @@ Kubernetes 调度器的相关研究主要沿三条主线展开：架构演进、
 
 本文的主要贡献包括：
 
-创新点 1：单 Dispatcher、多独立 Scheduler 分布式调度架构（ENO）。构建"单 Dispatcher 统一分发 + 多 Scheduler 独立并行执行"的协同模型，使系统整体吞吐能力可随 Scheduler 实例数近线性扩展。设计并实现了 CacheAdapter 共享缓存适配层，使 Scheduler 与进程内 Binder 通过对象引用共享同一份 SchedulerCache 内存实例，实现零拷贝、零同步延迟的状态复用。相比独立 Binder 部署形态，ENO 消除了跨进程 API 往返与相应的序列化开销。
+创新点 1：单 Dispatcher、多独立 Scheduler 分布式调度架构（ENO）。构建"单 Dispatcher 统一分发 + 多 Scheduler 独立并行执行"的协同模型，使系统整体吞吐能力可随 Scheduler 实例数亚线性扩展（第 6 章 s3/w3 实测：实例数 1→3 时 ENO 有效吞吐 +17.5%、峰值吞吐 +19.2%）。设计并实现了 CacheAdapter 共享缓存适配层，使 Scheduler 与进程内 Binder 通过对象引用共享同一份 SchedulerCache 内存实例，实现零拷贝、零同步延迟的状态复用。相比独立 Binder 部署形态，ENO 消除了跨进程 API 往返与相应的序列化开销。
 
 创新点 2：基于 etcd 语义的分层绑定容错策略。针对分布式调度中最易被忽视的绑定阶段异常，构建四层结构化容错链路：节点分区验证（Layer 0，预防层）通过 Bind 前置校验拦截节点归属漂移；同步指数退避重试（Layer 1，即时恢复层）处理 apiserver 暂态错误；异步 Reconciler 队列（Layer 2，后台恢复层）清理孤儿 Assumed 状态；Dispatcher 跨 Scheduler 实例回退（Layer 3，全局恢复层）通过清理 `scheduler-name` 注解触发全局重分发。四层机制形成本文所见分布式 Kubernetes 调度系统中首个结构化的绑定容错模型，并给出了核心不变量"任一 Pod 至多绑定到一个节点"的完整证明要点，明确了每一层如何依赖 etcd 的原子性语义维护不变量。
 

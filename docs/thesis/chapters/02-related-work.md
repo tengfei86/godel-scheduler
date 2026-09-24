@@ -10,7 +10,7 @@ kube-scheduler 是 Kubernetes 集群中的默认调度器<sup>[7]</sup>，也是
 - 调度决策：从 activeQ 弹出 Pod 后，依次执行 PreFilter → Filter → PostFilter → PreScore → Score → Reserve → Permit 一系列插件，最终产出目标节点；
 - 绑定：将调度决策通过 Bind API 写入 kube-apiserver，Bind API 是 Pod 资源的一个子资源，Kubernetes 提供了对该操作的原子性保证。
 
-kube-scheduler 采用单实例串行处理架构，虽然内部通过 goroutine 池并发执行 Filter/Score，但同一时刻仅有一个 Pod 处于绑定阶段，Bind 操作串行地写入 apiserver。这一设计的主要优势是天然避免了多实例并发绑定同一节点的冲突——不需要额外的一致性协议——但其吞吐上限也就此固定：本文实验测得 kube-scheduler 的稳态调度吞吐为 465~800 pods/s（见 6.4.1 节），与 Gödel 官方性能评估中对 kube-scheduler 的测量结果处于同一量级<sup>[3]</sup>。Burns 等在《Kubernetes: Up and Running》中亦系统阐述了 kube-scheduler 的单实例架构与调度流程<sup>[8]</sup>；张磊对 kube-scheduler 的内部实现进行了源码级剖析<sup>[9]</sup>。调度约束通过污点容忍<sup>[10]</sup>与节点亲和/反亲和<sup>[11]</sup>等机制表达，Pod 优先级与抢占<sup>[12]</sup>则决定队列排序与资源竞争时的处理次序。
+kube-scheduler 采用单实例架构，虽然内部通过 goroutine 池并发执行 Filter/Score、并将绑定放到独立 goroutine 上异步于后续 Pod 的调度决策执行，但调度周期（Filter/Score/Reserve）本身在单一 goroutine 内串行推进，全部实例的绑定也统一由单点的 apiserver 承接。这一设计的主要优势是天然避免了多实例并发绑定同一节点的冲突——不需要额外的一致性协议——但其吞吐上限也就此固定：本文实验测得 kube-scheduler 的稳态调度吞吐为 465~800 pods/s（见 6.4.1 节），与 Gödel 官方性能评估中对 kube-scheduler 的测量结果处于同一量级<sup>[3]</sup>。Burns 等在《Kubernetes: Up and Running》中亦系统阐述了 kube-scheduler 的单实例架构与调度流程<sup>[8]</sup>；张磊对 kube-scheduler 的内部实现进行了源码级剖析<sup>[9]</sup>。调度约束通过污点容忍<sup>[10]</sup>与节点亲和/反亲和<sup>[11]</sup>等机制表达，Pod 优先级与抢占<sup>[12]</sup>则决定队列排序与资源竞争时的处理次序。
 
 kube-scheduler 2019 年引入的 Scheduling Framework<sup>[2,13]</sup> 通过插件化机制将调度流程解耦为若干扩展点，使得第三方项目（Volcano、Koordinator 等）可以在不 fork 主线代码的前提下扩展调度能力，这也构成了本章后续调度器的技术起点。
 
@@ -18,7 +18,7 @@ kube-scheduler 2019 年引入的 Scheduling Framework<sup>[2,13]</sup> 通过插
 
 Volcano 是 CNCF 孵化的 Kubernetes 批处理调度器<sup>[5]</sup>，主要面向 AI 训练、大数据、HPC 等场景。相比 kube-scheduler，其关键差异有三处。最突出的是 Gang 调度：批处理任务（例如分布式训练）通常要求"要么全部 Pod 都被调度，要么全部不调度"，Volcano 通过 PodGroup 抽象与 gang 插件在决策阶段整体判断是否满足 Gang 约束<sup>[14]</sup>。其次是 Session-based 调度周期，Volcano 将一次调度周期封装为 Session，在 Session 内维护该周期看到的资源视图与 job 队列，周期结束时统一提交决策。最后是多维公平共享，Volcano 通过 DRF（Dominant Resource Fairness）<sup>[15]</sup> 等算法在多个租户或队列之间实现公平资源分配。
 
-Volcano 的架构上仍然沿用了 kube-scheduler 的单实例调度，其扩展性主要通过 Session 内的批处理决策与插件化实现，而非水平扩展多个调度器实例。这一设计使 Volcano 在批处理场景下具备较好的策略表达能力，但在需要极高有效吞吐的场景下同样受制于单实例的处理能力。
+Volcano 的调度器本身以单实例 Session 循环运行（其代码基线源自 kube-batch，与 kube-scheduler 并非同一实现），其扩展性主要通过 Session 内的批处理决策与插件化实现，而非水平扩展多个调度器实例。这一设计使 Volcano 在批处理场景下具备较好的策略表达能力，但在需要极高有效吞吐的场景下同样受制于单实例的处理能力。
 
 ## 2.3　混部调度器 Koordinator
 

@@ -10,7 +10,7 @@
 
 （3）面向大规模场景的 ENO 架构优化。第 5 章提出将原独立部署的 Binder 合并进 Scheduler 进程的架构改造，通过 CacheAdapter 桥接层实现 SchedulerCache 零拷贝共享，消除了跨进程 API 调用与序列化开销，同时保持了第 4 章一致性容错机制的完整性。
 
-第 6 章基于 KWOK 仿真在 16 个对比场景（s1~s4 × w1~w7、inst1/inst3、n=3 中位数）下将 ENO 与 Gödel、kube-scheduler、Volcano、Koordinator 逐项比对。最直接的一组读数是 s3/w3 主评估场景：inst1 下 ENO 的 P99 调度延迟由 Gödel 的 32.57 s 降到 16.22 s，inst3 下二者都进入亚秒级（0.13 s vs 0.15 s），有效吞吐提升 5.1%~22.9%。其余场景与 Gang / 突发 / 异构负载下的表现见 6.4~6.5 的完整数据。
+第 6 章基于 KWOK 仿真在 16 个对比场景（s1~s4 × w1~w7、inst1/inst3、n=3 中位数）下将 ENO 与 Gödel、kube-scheduler、Volcano、Koordinator 逐项比对。最直接的一组读数是 s3/w3 主评估场景：inst1 下 ENO 的 P99 调度延迟由 Gödel 的 32.57 s 降到 16.22 s，inst3 下二者都进入亚秒级（0.13 s vs 0.15 s），有效吞吐提升 5.1%~21.7%。其余场景与 Gang / 突发 / 异构负载下的表现见 6.4~6.5 的完整数据。
 
 ## 7.2　主要贡献
 
