@@ -111,8 +111,9 @@ def render(labels: list[str], eno: list[float | None], godel: list[float | None]
     godel_plot = [v if v is not None else 0.0 for v in godel]
 
     fig, ax = plt.subplots(figsize=(15, 5.6))
-    bars_a = ax.bar(x - width / 2, eno_plot,   width, label="ENO (a)",   color="#2196F3", edgecolor="black", linewidth=0.5)
-    bars_b = ax.bar(x + width / 2, godel_plot, width, label="Godel (b)", color="#FF5722", edgecolor="black", linewidth=0.5)
+    # 统一色板 (与 fig6-30 一致): ENO=#1f77b4 tab:blue, Gödel=#7f7f7f tab:gray
+    bars_a = ax.bar(x - width / 2, eno_plot,   width, label="ENO (a)",   color="#1f77b4", edgecolor="black", linewidth=0.5)
+    bars_b = ax.bar(x + width / 2, godel_plot, width, label="Godel (b)", color="#7f7f7f", edgecolor="black", linewidth=0.5)
 
     ax.set_xticks(x)
     ax.set_xticklabels(labels, fontsize=9)

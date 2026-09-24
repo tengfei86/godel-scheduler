@@ -124,7 +124,9 @@ def load_p99_latency(group_dir: Path) -> tuple[float, str]:
 
 def render_bar_chart(labels, values, ylabel, title, out_path):
     fig, ax = plt.subplots(figsize=(6.4, 4.5))
-    colors = ["#2196F3", "#FF5722", "#4CAF50"]
+    # 统一色板 (与 fig6-30 一致): a=ENO/blue, b=Godel/gray, d=Volcano/green
+    # 顺序对应 CONFIGS: a, b, d
+    colors = ["#1f77b4", "#7f7f7f", "#2ca02c"]
     bars = ax.bar(
         labels, values, color=colors[: len(labels)], edgecolor="black", linewidth=0.6
     )

@@ -42,8 +42,8 @@ ROOT = Path(__file__).resolve().parent.parent.parent.parent
 LATENCY_COMPARE = ROOT / "test" / "e2e" / "benchmark" / "collect" / "latency-compare.py"
 OUT_DEFAULT = Path(__file__).resolve().parent / "fig6-4-latency-p99-all.png"
 
-ENO_COLOR = "#2E5C8A"
-GODEL_COLOR = "#B0B0B0"
+ENO_COLOR = "#1f77b4"    # tab:blue, 与 fig6-30 统一
+GODEL_COLOR = "#7f7f7f"  # tab:gray, 参照基线
 
 # 表 6-6 场景顺序（跳过 s1/w1，因为 a 侧 P99 数据点不足）
 SCENARIOS = [

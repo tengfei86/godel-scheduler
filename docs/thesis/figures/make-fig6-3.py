@@ -48,8 +48,8 @@ RESULTS_DIR = (
 COMPARE_DIR = RESULTS_DIR / "compare"
 OUT_DEFAULT = Path(__file__).resolve().parent / "fig6-3-effective-throughput.png"
 
-ENO_COLOR = "#2E5C8A"
-GODEL_COLOR = "#B0B0B0"
+ENO_COLOR = "#1f77b4"    # tab:blue, 与 fig6-30 统一
+GODEL_COLOR = "#7f7f7f"  # tab:gray, 参照基线
 
 # 重采前的 w6 旧值（10 000 Pod 规模），仅用于 --legacy-values 校验脚本还原度
 LEGACY = {

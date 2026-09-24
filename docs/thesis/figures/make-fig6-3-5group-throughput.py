@@ -44,12 +44,13 @@ RESULTS_DIR = (
 OUT_DEFAULT = Path(__file__).resolve().parent / "fig6-3-throughput-5group.png"
 
 SCENARIOS = ["s1_w1", "s2_w2", "s2_w3", "s3_w2", "s3_w3"]
+# 统一色板 (tab10, 与 fig6-30 及其他柱状图一致)
 GROUPS = [
-    ("a", "ENO",            "#2E5C8A"),
-    ("b", "Gödel",          "#7FA1C7"),
-    ("c", "kube-scheduler", "#B8B8B8"),
-    ("d", "Volcano",        "#D28D5B"),
-    ("e", "Koordinator",    "#7BAA6E"),
+    ("a", "ENO",            "#1f77b4"),   # tab:blue,   主 focus
+    ("b", "Gödel",          "#7f7f7f"),   # tab:gray,   参照基线
+    ("c", "kube-scheduler", "#ff7f0e"),   # tab:orange
+    ("d", "Volcano",        "#2ca02c"),   # tab:green
+    ("e", "Koordinator",    "#9467bd"),   # tab:purple
 ]
 
 
