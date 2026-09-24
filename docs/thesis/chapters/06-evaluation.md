@@ -430,7 +430,7 @@ s3/w3（5000 节点，1000 pods/s，100 000 pods）为本文的主评估场景�
 
 **观测指标**：Layer 0 拦截数与 Dispatcher 回退数分别通过 `binder_node_validation_failures_total` 与 `binder_dispatcher_fallback_total` 的 90 s 窗口积分捕获——informer 传播 patch 后的 node annotation 需要约 10~30 s，拦截峰值往往落在 [T+30, T+90] s（fault-plot 双轴时序清晰显示 rate 从注入点起爬升、约 100 s 后到峰）。绑定成功率取 `sum(rate(bind_pods_total{result="success"}[1m])) / sum(rate(bind_pods_total[1m]))` 的窗口最小值，`bind_retries_total` 的 90 s 积分用于排除"拦截来自 API 冲突而非 Layer 0"这一竞争解释。挂起 Pod 数 `sum(scheduler_pending_pods)` 在注入后短暂上涨、随重分发完成回落。
 
-**测得结果**（s2/w2/inst3，n=1；完整数据见 `results/faultinject/report-*.md`）：
+: 表 15  Layer 0 触发验证：六项判据实测结果（s2/w2/inst3，n=1；完整数据见 `results/faultinject/report-*.md`）
 
 | 判据 | 观测窗口 | 阈值 | 实测 | 结论 |
 |---|---|---|---|---|
@@ -455,7 +455,7 @@ Layer 0 六项判据全部通过。图 41 给出 `node_validation_failures:rate1
 
 **观测指标**：核心新增指标是 `dispatcher_orphan_pods_reset_total`——它是 Reconciler 感知失活并主动重排的直接信号，取代了早期版本用 `binder_dispatcher_fallback_total` 兼作 Layer 3 判据带来的语义模糊（后者本意是"Binder 因 MaxLocalRetries 溢出而回退"，跟 Layer 3 的 Scheduler 失活并不同源）。分实例绑定量 `sum by (pod) (increase(binder_embedded_bind_pods_total{result="success"}[90 s]))` 用于验证"被杀实例停止绑定 + 存活实例接管"；挂起 Pod 数 `sum(scheduler_pending_pods)` 应在 outage 后段出现峰值（Reconciler 把 Dispatched pods 反刍回 Pending 队列），然后随存活实例消化而回落。
 
-**测得结果**（s2/w2/inst3，n=1；outage 实测 189 s）：
+: 表 16  Layer 3 触发验证：六项判据实测结果（s2/w2/inst3，n=1；outage 实测 189 s）
 
 | 判据 | 观测窗口 | 阈值 | 实测 | 结论 |
 |---|---|---|---|---|
