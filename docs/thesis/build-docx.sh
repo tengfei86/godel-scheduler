@@ -101,27 +101,13 @@ fi
 "${PANDOC}" "${ARGS[@]}"
 cd ..
 
-# ── 后处理：表格内文字改为五号居中（TableCell 样式）──
-python3 - <<'PY'
-import re, zipfile, shutil
-src = "thesis-preview.docx"
-tmp = "_pp"
-shutil.rmtree(tmp, ignore_errors=True)
-with zipfile.ZipFile(src) as z:
-    z.extractall(tmp)
-p = f"{tmp}/word/document.xml"
-x = open(p, encoding="utf-8").read()
-def fix_tbl(m):
-    return re.sub(r'<w:pStyle w:val="Compact"\s*/>', '<w:pStyle w:val="TableCell"/>', m.group(0))
-x2 = re.sub(r"<w:tbl>.*?</w:tbl>", fix_tbl, x, flags=re.S)
-open(p, "w", encoding="utf-8").write(x2)
-with zipfile.ZipFile(src, "w", zipfile.ZIP_DEFLATED) as z:
-    for f in sorted(__import__("pathlib").Path(tmp).rglob("*")):
-        if f.is_file():
-            z.write(f, f.relative_to(tmp))
-shutil.rmtree(tmp, ignore_errors=True)
-print("后处理完成：表格内文字已套用五号居中样式")
-PY
+# ── 后处理：北航格式（表格铺满版心、表内五号居中、分节+页眉页码）──
+# 细节见 postprocess-docx.py：
+#   - 表格 tblGrid/tblW 统一为版心 16.00 cm（pandoc 默认约 13.96 cm，表格没顶到页边距）
+#   - 表内段落由 Compact 改 TableCell（五号宋体居中）
+#   - 分节：摘要/目录 用大写罗马数字页码且无页眉；正文奇数页页眉「北京航空航天大学硕士学位论文」、
+#     偶数页为章标题；参考文献/附录/致谢 不分奇偶，页眉为篇名；页码阿拉伯数字从 1 起
+python3 postprocess-docx.py thesis-preview.docx
 
 echo "导出完成：$(pwd)/thesis-preview.docx"
 rm -rf build

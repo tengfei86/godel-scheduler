@@ -6,7 +6,7 @@
 
 图 9 展示了 Binder 作为独立 Deployment 部署时的完整跨进程流程：Binder 与 Scheduler 进程之间无直接连接，只能通过 Kubernetes API Server 间接通信。本文以这一部署形态作为第 6 章实验中 b 组的评估基线，用以量化 ENO 进程内合并方案（5.2 节）带来的性能改进。
 
-![图 9  独立 Binder：5 步跨进程流程](../figures/fig5-1a-shared-binder.png)
+![图 9  独立 Binder（改造前）：5 步跨进程流程](../figures/fig5-1a-shared-binder.png)
 
 整条链路上有 5 次 API Server 调用。Dispatcher 首先以 `PatchPod` 写入 `scheduler-name` 注解 ①，随后 Informer 把该事件推送给 Scheduler ②；Scheduler 完成 Filter/Score/Reserve 后再以 `PatchPod` 写入 `assumed-node` 注解 ③，Informer 又将这次修改推送到独立的 Binder 进程 ④；最终由 Binder 通过 Bind API 完成绑定 ⑤。
 

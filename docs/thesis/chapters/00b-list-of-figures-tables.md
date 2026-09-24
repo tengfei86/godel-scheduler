@@ -8,7 +8,7 @@
 - 图 4  单个 Scheduler 内部：Pod 在活跃队列与退避队列间的流动
 - 图 5  Pod 生命周期状态机与 4 层容错机制介入点
 - 图 6  Dispatcher 策略分发的嵌套决策路径（先按 PodGroup 分流，再由 SupportRescheduling FeatureGate 决定 Owner 亲和或默认负载均衡）
-- 图 7  Dispatcher 侧的错误恢复流程（Layer 3 全局回退）
+- 图 7  Dispatcher 分发失败的处理（PatchPod 失败 / Pod 已删除）
 - 图 8  一致性论证：核心不变量 I 及其 4 层威胁-防御映射
 - 图 9  独立 Binder（改造前）：5 步跨进程流程
 - 图 10  ENO 进程内 Binder（改造后）：3 步进程内流程
@@ -19,9 +19,9 @@
 - 图 15  a/b/d 三组调度器 w6 有效吞吐对比（s3, inst1）
 - 图 16  a/b/d 三组调度器 w6 P99 调度延迟对比（s3, inst1）
 - 图 17  ENO 与 Gödel 各场景有效吞吐对比（总工作量 / 总完成时间，n=3 中位数）
-- 图 18  ENO 与 Gödel 峰值吞吐 15 场景对比（scheduling_peak_throughput，n=3 中位数）
-- 图 19  全场景 ENO 与 Gödel P99 调度延迟对比（scheduling_latency_p99，log 纵轴，n=3 中位数）
-- 图 20  ENO 与 Gödel Pod E2E 延迟 P99 15 场景对比（pod_e2e_latency_p99，log 纵轴，n=3 中位数）
+- 图 18  ENO 与 Gödel 峰值吞吐 15 场景对比（scheduling_peak_throughput，n=3 中位数，s1/w1 无有效采样）
+- 图 19  全场景 ENO 与 Gödel P99 调度延迟对比（scheduling_latency_p99，n=3 中位数，log 纵轴）
+- 图 20  ENO 与 Gödel Pod E2E 延迟 P99 15 场景对比（pod_e2e_latency_p99，n=3 中位数，s1/w1 无有效采样，log 纵轴）
 - 图 21  ENO 与 Gödel 调度吞吐时序（s3, w3, inst1，n=3 中位数）
 - 图 22  P90 调度延迟时序（s3, w3, inst1，n=3 中位数）
 - 图 23  P99 调度延迟时序（s3, w3, inst1，n=3 中位数）
@@ -57,8 +57,8 @@
 - 表 7  五组基线场景有效吞吐（pods/s，n=3 中位数）
 - 表 8  Gang 场景（s3/w6/inst1）三组对比
 - 表 9  ENO 与 Gödel 有效吞吐对比（pods/s，n=3 中位数）
-- 表 10  ENO 与 Gödel 调度延迟对比（秒）
-- 表 11  ENO 与 Gödel Pod E2E 延迟对比（pod_e2e_latency_p99，秒）
+- 表 10  ENO 与 Gödel 调度延迟对比（秒，n=3 中位数，剔除首尾各 2 采样点）
+- 表 11  ENO 与 Gödel Pod E2E 延迟对比（pod_e2e_latency_p99，秒，n=3 中位数，口径同表 10）
 - 表 12  s3 → s4 规模扩展下的关键指标变化（w3, inst3）
 - 表 13  inst1 → inst3 实例扩展下的关键指标变化（s3, w3）
 - 表 14  复杂负载场景对比（有效吞吐单位 pods/s，延迟单位秒）
