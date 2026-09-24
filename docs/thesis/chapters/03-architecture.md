@@ -2,11 +2,11 @@
 
 ## 3.1　系统总体架构
 
-本文所研究的分布式 Kubernetes 调度器采用"集中式任务分发 + 分布式调度执行"（即分发-执行解耦）的总体架构，由三类核心组件组成：Dispatcher（任务分发器）、多个 Scheduler 实例，以及底层的 Kubernetes API Server 与 etcd 存储。图 3-1 展示了系统的总体架构。
+本文所研究的分布式 Kubernetes 调度器采用"集中式任务分发 + 分布式调度执行"（即分发-执行解耦）的总体架构，由三类核心组件组成：Dispatcher（任务分发器）、多个 Scheduler 实例，以及底层的 Kubernetes API Server 与 etcd 存储。图 1 展示了系统的总体架构。
 
-![图 3-1  基于 etcd 的分布式 Kubernetes 调度器系统架构](../figures/fig3-1-system-arch.png)
+![图 1  基于 etcd 的分布式 Kubernetes 调度器系统架构](../figures/fig3-1-system-arch.png)
 
-图 3-1 中，用户与集群控制平面组件（如 kube-controller-manager、kubelet）通过 API Server 与 etcd 交互；本文所关注的分布式调度器由 Dispatcher 与 N 个 Scheduler 实例构成，二者通过 API Server（进而通过 etcd）间接通信，不存在任何直接的 RPC/gRPC 连接。三条关键的写路径分别是：① dispatching（Dispatcher 写入 Pod 的 `scheduler-name` 注解）、② assuming（Scheduler 内部 Reserve 阶段将 Pod 标记为已选定节点，并写入 `assumed-node` 注解）、③ binding（Scheduler 内部的 Binder 模块调用 Bind 子资源 API 完成最终绑定）。
+图 1 中，用户与集群控制平面组件（如 kube-controller-manager、kubelet）通过 API Server 与 etcd 交互；本文所关注的分布式调度器由 Dispatcher 与 N 个 Scheduler 实例构成，二者通过 API Server（进而通过 etcd）间接通信，不存在任何直接的 RPC/gRPC 连接。三条关键的写路径分别是：① dispatching（Dispatcher 写入 Pod 的 `scheduler-name` 注解）、② assuming（Scheduler 内部 Reserve 阶段将 Pod 标记为已选定节点，并写入 `assumed-node` 注解）、③ binding（Scheduler 内部的 Binder 模块调用 Bind 子资源 API 完成最终绑定）。
 
 ### 3.1.1　Dispatcher
 
@@ -19,7 +19,7 @@ Dispatcher 是全集群唯一活跃的分发实例（通过 Leader Election 机�
 
 ### 3.1.2　Scheduler
 
-每个 Scheduler 实例只负责被分配到自己的 Pod，并只对自己分区内的节点执行 Filter/Score 决策。图 3-1 中"Scheduler 0"内部展开了三个主要子系统：
+每个 Scheduler 实例只负责被分配到自己的 Pod，并只对自己分区内的节点执行 Filter/Score 决策。图 1 中"Scheduler 0"内部展开了三个主要子系统：
 
 - Scheduling：正常调度路径，包含 Pre-Queue 插件（Pod 入队前的预处理）、Filtering 插件（过滤不满足硬约束的节点）、Scoring 插件（对候选节点打分）；
 - Preempting：抢占路径，当资源不足时通过 Victims Searching Plugins 寻找可抢占的低优 Pod、Candidates Sorting Plugins 对抢占候选进行排序；
@@ -31,9 +31,9 @@ API Server 是所有组件唯一的通信中介。Dispatcher 与 Scheduler 之�
 
 ## 3.2　基于 etcd 的三步事务写入模型
 
-图 3-1 中标注的三条写路径 ① dispatching、② assuming、③ binding 构成了本文所研究的分布式调度器的核心事务模型。每一步都是对 etcd 的一次原子写入，且都通过 Kubernetes API Server 中转，得益于 etcd 的强一致性保证，这三步写入满足如下性质：
+图 1 中标注的三条写路径 ① dispatching、② assuming、③ binding 构成了本文所研究的分布式调度器的核心事务模型。每一步都是对 etcd 的一次原子写入，且都通过 Kubernetes API Server 中转，得益于 etcd 的强一致性保证，这三步写入满足如下性质：
 
-![图 3-2  基于 etcd 的三步事务写入时序（dispatching → assuming → binding）](../figures/fig3-2-etcd-three-step-txn.png)
+![图 2  基于 etcd 的三步事务写入时序（dispatching → assuming → binding）](../figures/fig3-2-etcd-three-step-txn.png)
 
 （1）① dispatching 步骤。Dispatcher 通过 `PatchPod` 操作，在 Pod 的注解字段中写入 `eno.io/scheduler-name={selectedScheduler}`。这一步操作携带 Pod 的 `resourceVersion`，若并发情况下已有其他修改，则会由 etcd 返回 `409 Conflict`，Dispatcher 收到冲突后重新读取 Pod 并重试。这保证了同一 Pod 的分发决策不会出现竞争条件。
 
@@ -49,11 +49,11 @@ API Server 是所有组件唯一的通信中介。Dispatcher 与 Scheduler 之�
 
 ## 3.3　Dispatcher 内部：Pod 的数据结构流转
 
-图 3-3 展示了 Dispatcher 内部 Pod 从进入到分发完成的完整流转过程。
+图 3 展示了 Dispatcher 内部 Pod 从进入到分发完成的完整流转过程。
 
-![图 3-3  Dispatcher 内部数据结构流转：Pod 从新建到分发完成的过程](../figures/fig3-3-dispatcher-flow.png)
+![图 3  Dispatcher 内部数据结构流转：Pod 从新建到分发完成的过程](../figures/fig3-3-dispatcher-flow.png)
 
-如图 3-3 所示，一个新创建的 Pod（尚未被调度）进入 Dispatcher 的流转过程如下：
+如图 3 所示，一个新创建的 Pod（尚未被调度）进入 Dispatcher 的流转过程如下：
 
 （1）进入 Sorting Policy Manager。当 Dispatcher 通过 Informer 观察到一个 `spec.nodeName == ""` 且 `scheduler-name` 注解为空的新 Pod 时，将其送入 Sorting Policy Manager。当前实现采用 FIFO 排序（可扩展为 DRF 等公平共享算法）；
 
@@ -61,7 +61,7 @@ API Server 是所有组件唯一的通信中介。Dispatcher 与 Scheduler 之�
 
 （3）交由 Dispatching Policy Manager。从有序队列中弹出的 Pod 进入分发策略模块。选择顺序为嵌套判定：若 Pod 属于某个 PodGroup，则复用该 PodGroup 已分配的 Scheduler 实例（`selectSchedulerForUnit`）；否则进入 `pickScheduler`，默认走 `loadBalancing`，即通过 `GetMostIdleSchedulerAndAddPodInAdvance` 选出当前处理能力剩余最多者（MaxIdle 加权轮询）。在启用 `SupportRescheduling` FeatureGate（默认关闭，Alpha 阶段）后，则先尝试与同 Owner Pod 复用同一 Scheduler 实例做亲和路由，未命中再回退到 `loadBalancing`；
 
-（4）通过 API Server 传递到目标 Scheduler。分发策略选定 Scheduler 后，通过 `PatchPod` 写入 `scheduler-name` 注解（对应图 3-1 中的 ① dispatching），Pod 从此对该 Scheduler 可见；
+（4）通过 API Server 传递到目标 Scheduler。分发策略选定 Scheduler 后，通过 `PatchPod` 写入 `scheduler-name` 注解（对应图 1 中的 ① dispatching），Pod 从此对该 Scheduler 可见；
 
 （5）等待调度结果。Pod 进入所选 Scheduler 后，Dispatcher 通过 Informer 持续观察其状态。若 Scheduler 最终完成绑定（`spec.nodeName != ""`），则该 Pod 的分发任务结束（图中"Finish（完成）"节点）；
 
@@ -71,17 +71,17 @@ API Server 是所有组件唯一的通信中介。Dispatcher 与 Scheduler 之�
 
 ## 3.4　单个 Scheduler 内部：Pod 的调度流程
 
-被 Dispatcher 分发到某个 Scheduler 实例后，Pod 进入该 Scheduler 内部的调度循环。图 3-4 展示了这一过程。
+被 Dispatcher 分发到某个 Scheduler 实例后，Pod 进入该 Scheduler 内部的调度循环。图 4 展示了这一过程。
 
-![图 3-4  单个 Scheduler 内部：Pod 在活跃队列与退避队列间的流动](../figures/fig3-4-scheduler-flow.png)
+![图 4  单个 Scheduler 内部：Pod 在活跃队列与退避队列间的流动](../figures/fig3-4-scheduler-flow.png)
 
-图 3-4 描述的流转过程可分为如下步骤：
+图 4 描述的流转过程可分为如下步骤：
 
 （1）Pod From Dispatcher（分发到达）。Scheduler 通过 Informer 观察到 `scheduler-name` 注解匹配自身的 Pod，将其纳入调度队列；
 
 （2）Pre-Queue Plugin 预处理。在进入活跃队列前，pre-queue 插件对 Pod 进行一次预处理，主要检查 Pod 是否满足入队条件（例如 PodGroup 的成员是否齐全、亲和性依赖是否满足）；
 
-（3）验证是否通过。若预处理阶段的验证不通过（例如 PodGroup 依赖尚不齐全），Pod 会被送回 Dispatcher 分发器，等待条件成熟后重新分发（对应图 3-3 中的 unschedulable pool 回路）；若通过，则进入 activeQ；
+（3）验证是否通过。若预处理阶段的验证不通过（例如 PodGroup 依赖尚不齐全），Pod 会被送回 Dispatcher 分发器，等待条件成熟后重新分发（对应图 3 中的 unschedulable pool 回路）；若通过，则进入 activeQ；
 
 （4）activeQ（活跃队列）。活跃队列是 Scheduler 主调度循环的入口，一个后台 goroutine 不断从 activeQ 弹出 Pod 进入调度循环；
 
@@ -95,7 +95,7 @@ API Server 是所有组件唯一的通信中介。Dispatcher 与 Scheduler 之�
 
 （8）多次重试失败。若一个 Pod 在本 Scheduler 内经过若干次退避重试仍然无法完成绑定（例如本分区内确实无可用节点），Pod 将被送回 Dispatcher 分发器，触发跨 Scheduler 实例回退（对应第 4 章 Layer 3）。
 
-需要特别强调的是，图 3-3 中的 "unschedulable pool → 回到 Sorting Policy Manager" 与图 3-4 中的 "多次重试失败 → 回到 Dispatcher" 是同一个跨 Scheduler 实例回退机制的两个侧面：Scheduler 侧决定何时放弃本地重试并回退，Dispatcher 侧决定回退回来的 Pod 何时被重新分发。这一双向协作是分布式调度器实现整体高可用的核心机制之一。
+需要特别强调的是，图 3 中的 "unschedulable pool → 回到 Sorting Policy Manager" 与图 4 中的 "多次重试失败 → 回到 Dispatcher" 是同一个跨 Scheduler 实例回退机制的两个侧面：Scheduler 侧决定何时放弃本地重试并回退，Dispatcher 侧决定回退回来的 Pod 何时被重新分发。这一双向协作是分布式调度器实现整体高可用的核心机制之一。
 
 ## 3.5　本章小结
 

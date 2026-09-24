@@ -22,9 +22,9 @@
 
 ### 6.1.3　五组调度器部署
 
-本文对比了 5 个调度器组（表 6-1）：
+本文对比了 5 个调度器组（表 3）：
 
-: 表 6-1  五个对比调度器组的部署概览
+: 表 3  五个对比调度器组的部署概览
 
 | 组 | 调度器 | 定位 | 版本 / 特点 |
 |---|---|---|---|
@@ -42,7 +42,7 @@
 
 ### 6.2.1　集群规模梯度
 
-: 表 6-2  集群规模梯度
+: 表 4  集群规模梯度
 
 | 代号 | 节点数 | 用途 |
 |---|---|---|
@@ -55,7 +55,7 @@ s2、s3 与 s4 覆盖了从中等到超大规模的集群场景（跨度 10×）
 
 ### 6.2.2　工作负载
 
-: 表 6-3  评估用工作负载定义
+: 表 5  评估用工作负载定义
 
 | 代号 | 到达速率 | Pod 总数 | 每 Pod 资源 | 类型 |
 |---|---|---|---|---|
@@ -71,9 +71,9 @@ s2、s3 与 s4 覆盖了从中等到超大规模的集群场景（跨度 10×）
 
 ### 6.2.3　实验矩阵
 
-本文实验统一由 `run-experiment.sh` 流程驱动，覆盖 5 组调度器（a~e）、4 档规模（s1~s4）、7 类负载（w1~w7）与 1/3 两档实例配置，每个 (scale, workload) 场景重复 3 次；`results/` 下留存的对比数据共 144 次 run，同一场景的重跑以最近一次为准，统计口径与聚合规则统一（6.3 节）。本章全部数据取自 `test/e2e/benchmark/results/compare/` 下的 16 个对比场景，其命名规则为 `{规模}_{负载}[_inst3]`，各场景实际参与的调度器组与实例数见表 6-4。
+本文实验统一由 `run-experiment.sh` 流程驱动，覆盖 5 组调度器（a~e）、4 档规模（s1~s4）、7 类负载（w1~w7）与 1/3 两档实例配置，每个 (scale, workload) 场景重复 3 次；`results/` 下留存的对比数据共 144 次 run，同一场景的重跑以最近一次为准，统计口径与聚合规则统一（6.3 节）。本章全部数据取自 `test/e2e/benchmark/results/compare/` 下的 16 个对比场景，其命名规则为 `{规模}_{负载}[_inst3]`，各场景实际参与的调度器组与实例数见表 6。
 
-: 表 6-4  16 个对比场景的参与调度器与实例配置
+: 表 6  16 个对比场景的参与调度器与实例配置
 
 | 序号 | 场景 | 集群规模 | 工作负载 | 参与调度器组 | a/b 实例数 |
 |---|---|---|---|---|---|
@@ -96,9 +96,9 @@ s2、s3 与 s4 覆盖了从中等到超大规模的集群场景（跨度 10×）
 
 这 16 个场景按用途分为三类。序号 1~5 是全组基线场景，五组调度器同场对比，ENO 与 Gödel 使用 1 个实例、c/d/e 为其单实例架构的默认配置。序号 6 是 Gang 调度的专项场景，c（kube-scheduler）与 e（Koordinator）未参与采集，因此该场景的五组对比不成立，相关结论只在 a/b/d 之间给出。序号 7~16 是实例匹配的扩展场景，只在 ENO 与 Gödel 之间做定量对比、均使用 3 个实例，覆盖多实例扩展性、复杂负载（w4 / w5 / w6 / w7）与更大集群规模（s4）。本节后续凡涉及"五组对比"的表述均指序号 1~5 的场景；涉及 c/d/e 的数值均来自这些全组基线场景。
 
-图 6-1 展示了单次实验的完整流程（对应 `run-experiment.sh` 的 12 个 Step），按环境准备、负载执行、数据收集三个阶段组织；负载前 30 秒为 warmup、结束前 30 秒为 cooldown，两者在稳态统计中被剔除。
+图 13 展示了单次实验的完整流程（对应 `run-experiment.sh` 的 12 个 Step），按环境准备、负载执行、数据收集三个阶段组织；负载前 30 秒为 warmup、结束前 30 秒为 cooldown，两者在稳态统计中被剔除。
 
-![图 6-1  单次实验流程时序（run-experiment.sh 的 12 个 Step）](../figures/fig6-1-experiment-flow.png)
+![图 13  单次实验流程时序（run-experiment.sh 的 12 个 Step）](../figures/fig6-1-experiment-flow.png)
 
 ## 6.3　评估指标
 
@@ -136,11 +136,11 @@ s2、s3 与 s4 覆盖了从中等到超大规模的集群场景（跨度 10×）
 
 ### 6.4.1　五组调度器基线对比（场景 1~5）
 
-表 6-4 的序号 1~5 定义了五组调度器同场对比的基线场景（s1/w1、s2/w2、s2/w3、s3/w2、s3/w3，均为 inst1）。图 6-2 汇总五组在这些场景下的有效吞吐。
+表 6 的序号 1~5 定义了五组调度器同场对比的基线场景（s1/w1、s2/w2、s2/w3、s3/w2、s3/w3，均为 inst1）。图 14 汇总五组在这些场景下的有效吞吐。
 
-![图 6-2  五组调度器有效吞吐对比（全组基线场景，n=3 中位数）](../figures/fig6-3-throughput-5group.png)
+![图 14  五组调度器有效吞吐对比（全组基线场景，n=3 中位数）](../figures/fig6-3-throughput-5group.png)
 
-: 表 6-5  五组基线场景有效吞吐（pods/s，n=3 中位数）
+: 表 7  五组基线场景有效吞吐（pods/s，n=3 中位数）
 
 | 场景 | ENO (a) | Gödel (b) | kube-scheduler (c) | Volcano (d) | Koordinator (e) |
 |---|---|---|---|---|---|
@@ -150,19 +150,19 @@ s2、s3 与 s4 覆盖了从中等到超大规模的集群场景（跨度 10×）
 | s3/w2 | 328.9 | 273.2 | ≈270 | ≈48 | ≈24 |
 | s3/w3 | 297.6 | 283.3 | ≈292 | ≈48 | ≈24 |
 
-> 表中 c/d/e 数值为图 6-2 柱状图的近似读数。d 组稳定在 48 pods/s 附近；e 组在多数场景为 24 pods/s 附近，s2/w3 是例外（约 16 pods/s）。
+> 表中 c/d/e 数值为图 14 柱状图的近似读数。d 组稳定在 48 pods/s 附近；e 组在多数场景为 24 pods/s 附近，s2/w3 是例外（约 16 pods/s）。
 
 结论：五组呈现明显的三档差异——ENO 与 Gödel 处于第一档（两者接近，ENO 略领先），kube-scheduler 处于第二档（同量级但略低），Volcano 与 Koordinator 分列第三、第四档（分别稳定在约 48 与 24 pods/s，几乎不随集群规模或负载变化，反映其批处理与 QoS 感知调度机制的固有处理速率上限）。定量地，ENO 在 s2/s3 × w2/w3 主评估四组场景下有效吞吐较 kube-scheduler 高 +1.8%~+22.5%（s2/w2 +22.5%，s3/w2 +21.7%，s2/w3 +18.7%，s3/w3 +1.8%），较 Volcano 与 Koordinator 分别高约 6 倍与 12 倍以上。s1/w1（100 节点、10K pods 低负载）是唯一 ENO 有效吞吐略低于 kube-scheduler 的场景（−7.2%）——该负载在两类调度器上都未达饱和处理阈值，完成时间主要由 podgen 注入速率决定，个位数秒级的启动差异即可反转对比方向；主评估结论仍以 w2/w3 稳态负载为准。
 
 ### 6.4.2　Gang 调度专项对比（场景 6，a/b/d）
 
-表 6-4 的序号 6（s3/w6/inst1）是 Gang 调度的专项场景，只有 ENO（a）、Gödel（b）与 Volcano（d）三组参与采集（c、e 未参与）。图 6-3 与图 6-4 分别汇总三组在该场景下的有效吞吐与 P99 调度延迟。
+表 6 的序号 6（s3/w6/inst1）是 Gang 调度的专项场景，只有 ENO（a）、Gödel（b）与 Volcano（d）三组参与采集（c、e 未参与）。图 15 与图 16 分别汇总三组在该场景下的有效吞吐与 P99 调度延迟。
 
-![图 6-3  a/b/d 三组调度器 w6 有效吞吐对比（s3, inst1）](../figures/fig6-18-w6-throughput-bar.png)
+![图 15  a/b/d 三组调度器 w6 有效吞吐对比（s3, inst1）](../figures/fig6-18-w6-throughput-bar.png)
 
-![图 6-4  a/b/d 三组调度器 w6 P99 调度延迟对比（s3, inst1）](../figures/fig6-19-w6-latency-p99-bar.png)
+![图 16  a/b/d 三组调度器 w6 P99 调度延迟对比（s3, inst1）](../figures/fig6-19-w6-latency-p99-bar.png)
 
-: 表 6-6  Gang 场景（s3/w6/inst1）三组对比
+: 表 8  Gang 场景（s3/w6/inst1）三组对比
 
 | 指标 | ENO (a) | Gödel (b) | Volcano (d) |
 |---|---|---|---|
@@ -173,13 +173,13 @@ s2、s3 与 s4 覆盖了从中等到超大规模的集群场景（跨度 10×）
 
 ### 6.4.3　ENO 与 Gödel 全场景对比
 
-本小节汇总 ENO 与 Gödel 在全部 16 个场景下的定量对比（含表 6-4 序号 1~5 的单实例基线与序号 7~16 的多实例扩展场景），按有效吞吐、峰值吞吐、调度延迟、Pod E2E 延迟、绑定成功率五项指标依次展开。
+本小节汇总 ENO 与 Gödel 在全部 16 个场景下的定量对比（含表 6 序号 1~5 的单实例基线与序号 7~16 的多实例扩展场景），按有效吞吐、峰值吞吐、调度延迟、Pod E2E 延迟、绑定成功率五项指标依次展开。
 
 #### 6.4.3.1　有效吞吐
 
-![图 6-5  ENO 与 Gödel 各场景有效吞吐对比（总工作量 / 总完成时间，n=3 中位数）](../figures/fig6-2-effective-throughput.png)
+![图 17  ENO 与 Gödel 各场景有效吞吐对比（总工作量 / 总完成时间，n=3 中位数）](../figures/fig6-2-effective-throughput.png)
 
-: 表 6-7  ENO 与 Gödel 有效吞吐对比（pods/s，n=3 中位数）
+: 表 9  ENO 与 Gödel 有效吞吐对比（pods/s，n=3 中位数）
 
 | 场景（实例配置） | ENO（a） | Gödel（b） | 相对变化 |
 |---|---|---|---|
@@ -204,15 +204,15 @@ s2、s3 与 s4 覆盖了从中等到超大规模的集群场景（跨度 10×）
 
 #### 6.4.3.2　峰值吞吐
 
-![图 6-6  ENO 与 Gödel 峰值吞吐 15 场景对比（scheduling_peak_throughput，n=3 中位数，s1/w1 无有效采样）](../figures/fig6-20-peak-throughput-a-vs-b-all.png)
+![图 18  ENO 与 Gödel 峰值吞吐 15 场景对比（scheduling_peak_throughput，n=3 中位数，s1/w1 无有效采样）](../figures/fig6-20-peak-throughput-a-vs-b-all.png)
 
-结论：以峰值吞吐（`scheduling_peak_throughput`）衡量，ENO 在 12 个场景领先、提升幅度 0.2%~68.0%，其中 s4/w6（inst3）达 +68.0%（893.2 对 531.6 pods/s）、s4/w7（inst3）+14.9%、s2/w3 +13.4%、s3/w3（inst1）+14.0%；Gödel 略领先的场景 2 个：s3/w5（inst3，-10.4%）与 s3/w6（inst3，-2.0%）；s4/w3（inst3）两者基本持平（-0.3%）。s3/w3 场景下 inst1/inst3 的绝对峰值另见 6.5.4 节表 6-11（ENO 858.2→1023.1 pods/s，Gödel 752.8→999.5 pods/s）。ENO 未在峰值吞吐上一律领先说明其有效吞吐的整体优势并非源自更高的瞬时调度速率，而是来自更快的启动进入稳态与更短的整体完成时间——这一口径差异在 §6.7 第（7）条中作为局限进一步说明。
+结论：以峰值吞吐（`scheduling_peak_throughput`）衡量，ENO 在 12 个场景领先、提升幅度 0.2%~68.0%，其中 s4/w6（inst3）达 +68.0%（893.2 对 531.6 pods/s）、s4/w7（inst3）+14.9%、s2/w3 +13.4%、s3/w3（inst1）+14.0%；Gödel 略领先的场景 2 个：s3/w5（inst3，-10.4%）与 s3/w6（inst3，-2.0%）；s4/w3（inst3）两者基本持平（-0.3%）。s3/w3 场景下 inst1/inst3 的绝对峰值另见 6.5.4 节表 13（ENO 858.2→1023.1 pods/s，Gödel 752.8→999.5 pods/s）。ENO 未在峰值吞吐上一律领先说明其有效吞吐的整体优势并非源自更高的瞬时调度速率，而是来自更快的启动进入稳态与更短的整体完成时间——这一口径差异在 §6.7 第（7）条中作为局限进一步说明。
 
 #### 6.4.3.3　调度延迟分布（P90/P99）
 
-![图 6-7  全场景 ENO 与 Gödel P99 调度延迟对比（scheduling_latency_p99，n=3 中位数，log 纵轴）](../figures/fig6-4-latency-p99-all.png)
+![图 19  全场景 ENO 与 Gödel P99 调度延迟对比（scheduling_latency_p99，n=3 中位数，log 纵轴）](../figures/fig6-4-latency-p99-all.png)
 
-: 表 6-8  ENO 与 Gödel 调度延迟对比（秒，n=3 中位数，剔除首尾各 2 采样点）
+: 表 10  ENO 与 Gödel 调度延迟对比（秒，n=3 中位数，剔除首尾各 2 采样点）
 
 | 场景（实例配置） | ENO P90 | Gödel P90 | P90 改善 | ENO P99 | Gödel P99 | P99 改善 |
 |---|---|---|---|---|---|---|
@@ -234,13 +234,13 @@ s2、s3 与 s4 覆盖了从中等到超大规模的集群场景（跨度 10×）
 
 > 附注：本表仅列出 ENO 与 Gödel 的调度延迟对比，未包含 kube-scheduler（c）、Volcano（d）、Koordinator（e）。原因见 6.3.1 节：单实例调度器在 1000 pods/s 过载压力下的 latency histogram 存在幸存者偏差，其表面上的低 P99 值不与分布式方案 a/b 的真实尾延迟直接可比。c/d/e 与 a/b 的整体对比通过吞吐、队列堆积（pending_pods）与绑定成功率进行。
 
-结论：在 s2/w2 之外的 11 个非 Gang 场景中，ENO 的 P90 与 P99 调度延迟均低于 Gödel，P90 改善 4.7%~79.5%、P99 改善 0.3%~82.9%。高负载场景的改善最为明显：s2/w3 的 P99 由 23.48 s 降至 4.00 s（降低 82.9%），s3/w3（inst1）由 32.57 s 降至 16.22 s（降低 50.2%），s3/w4（inst3）降低 49.7%，s4/w3（inst3）降低 33.4%。多实例配置下两者的绝对延迟都进入亚秒级（s3/w3 inst3：ENO 0.127 s、Gödel 0.150 s），说明增加实例数能同时缓解两种架构的排队压力、差距收窄。未饱和的 s2/w2 差距很小：ENO P99 为 0.123 s、Gödel 为 0.112 s，绝对差 0.011 s。三个 Gang 场景（s3/w6 的 inst1 与 inst3、s4/w6 的 inst3）方向相反：ENO 明显更高，P99 相差 1.6~4.1 倍。Gang 负载下 ENO 的完成时间反而更短（表 6-7），这一"吞吐与延迟方向相反"的现象及其可能的入计口径原因见 6.4.3.4 与 6.7 节第（2）条。
+结论：在 s2/w2 之外的 11 个非 Gang 场景中，ENO 的 P90 与 P99 调度延迟均低于 Gödel，P90 改善 4.7%~79.5%、P99 改善 0.3%~82.9%。高负载场景的改善最为明显：s2/w3 的 P99 由 23.48 s 降至 4.00 s（降低 82.9%），s3/w3（inst1）由 32.57 s 降至 16.22 s（降低 50.2%），s3/w4（inst3）降低 49.7%，s4/w3（inst3）降低 33.4%。多实例配置下两者的绝对延迟都进入亚秒级（s3/w3 inst3：ENO 0.127 s、Gödel 0.150 s），说明增加实例数能同时缓解两种架构的排队压力、差距收窄。未饱和的 s2/w2 差距很小：ENO P99 为 0.123 s、Gödel 为 0.112 s，绝对差 0.011 s。三个 Gang 场景（s3/w6 的 inst1 与 inst3、s4/w6 的 inst3）方向相反：ENO 明显更高，P99 相差 1.6~4.1 倍。Gang 负载下 ENO 的完成时间反而更短（表 9），这一"吞吐与延迟方向相反"的现象及其可能的入计口径原因见 6.4.3.4 与 6.7 节第（2）条。
 
 #### 6.4.3.4　Pod E2E 延迟（Dispatcher → Bound）
 
-![图 6-8  ENO 与 Gödel Pod E2E 延迟 P99 15 场景对比（pod_e2e_latency_p99，n=3 中位数，s1/w1 无有效采样，log 纵轴）](../figures/fig6-8-e2e-latency-p99-all.png)
+![图 20  ENO 与 Gödel Pod E2E 延迟 P99 15 场景对比（pod_e2e_latency_p99，n=3 中位数，s1/w1 无有效采样，log 纵轴）](../figures/fig6-8-e2e-latency-p99-all.png)
 
-: 表 6-9  ENO 与 Gödel Pod E2E 延迟对比（pod_e2e_latency_p99，秒，n=3 中位数，口径同表 6-8）
+: 表 11  ENO 与 Gödel Pod E2E 延迟对比（pod_e2e_latency_p99，秒，n=3 中位数，口径同表 10）
 
 | 场景（实例配置） | ENO | Gödel | 改善 |
 |---|---|---|---|
@@ -272,41 +272,41 @@ s2、s3 与 s4 覆盖了从中等到超大规模的集群场景（跨度 10×）
 
 ### 6.5.1　主对比场景：s3/w3, inst1
 
-s3/w3（5000 节点，1000 pods/s，100 000 pods）为本文的主评估场景，也是 ENO 与 Gödel 在 P99 延迟上差距最大的场景之一（表 6-8）。图 6-9~6-11 分别给出该场景下的调度吞吐、P90 与 P99 调度延迟随时间的走势；Pod E2E 延迟与绑定成功率不再单列时序图——前者的全场景数值已在图 6-8 与表 6-9 汇总，后者在全部已测场景下始终为 100%（见 6.4.3.5）。
+s3/w3（5000 节点，1000 pods/s，100 000 pods）为本文的主评估场景，也是 ENO 与 Gödel 在 P99 延迟上差距最大的场景之一（表 10）。图 21~23 分别给出该场景下的调度吞吐、P90 与 P99 调度延迟随时间的走势；Pod E2E 延迟与绑定成功率不再单列时序图——前者的全场景数值已在图 20 与表 11 汇总，后者在全部已测场景下始终为 100%（见 6.4.3.5）。
 
 **（1）调度吞吐 — s3/w3 · inst1**
 
-![图 6-9  ENO 与 Gödel 调度吞吐时序（s3, w3, inst1，n=3 中位数）](../figures/fig6-throughput-s3-w3.png)
+![图 21  ENO 与 Gödel 调度吞吐时序（s3, w3, inst1，n=3 中位数）](../figures/fig6-throughput-s3-w3.png)
 
 **（2）P90 调度延迟 — s3/w3 · inst1**
 
-![图 6-10  P90 调度延迟时序（s3, w3, inst1，n=3 中位数）](../figures/fig6-5-latency-p90-s3-w3.png)
+![图 22  P90 调度延迟时序（s3, w3, inst1，n=3 中位数）](../figures/fig6-5-latency-p90-s3-w3.png)
 
 **（3）P99 调度延迟 — s3/w3 · inst1**
 
-![图 6-11  P99 调度延迟时序（s3, w3, inst1，n=3 中位数）](../figures/fig6-6-latency-p99-s3-w3.png)
+![图 23  P99 调度延迟时序（s3, w3, inst1，n=3 中位数）](../figures/fig6-6-latency-p99-s3-w3.png)
 
 ### 6.5.2　中等规模对照：s2/w3, inst1
 
-图 6-12~6-14 切换到 1000 节点规模同一 w3 负载，作为 s3/w3 的中等规模对照——该场景是 ENO 相对 Gödel 的 P99 改善幅度最大的场景（-82.9%，表 6-8）。
+图 24~26 切换到 1000 节点规模同一 w3 负载，作为 s3/w3 的中等规模对照——该场景是 ENO 相对 Gödel 的 P99 改善幅度最大的场景（-82.9%，表 10）。
 
 **（1）调度吞吐 — s2/w3 · inst1**
 
-![图 6-12  ENO 与 Gödel 调度吞吐时序（s2, w3, inst1，n=3 中位数）](../figures/fig6-throughput-s2-w3.png)
+![图 24  ENO 与 Gödel 调度吞吐时序（s2, w3, inst1，n=3 中位数）](../figures/fig6-throughput-s2-w3.png)
 
 **（2）P90 调度延迟 — s2/w3 · inst1**
 
-![图 6-13  P90 调度延迟时序（s2, w3, inst1，n=3 中位数）](../figures/fig6-latency-p90-s2-w3.png)
+![图 25  P90 调度延迟时序（s2, w3, inst1，n=3 中位数）](../figures/fig6-latency-p90-s2-w3.png)
 
 **（3）P99 调度延迟 — s2/w3 · inst1**
 
-![图 6-14  P99 调度延迟时序（s2, w3, inst1，n=3 中位数）](../figures/fig6-11-latency-p99-s2-w3.png)
+![图 26  P99 调度延迟时序（s2, w3, inst1，n=3 中位数）](../figures/fig6-11-latency-p99-s2-w3.png)
 
 ### 6.5.3　集群规模扩展：s3 → s4（w3, inst3）
 
-表 6-10 汇总在相同实例配置（inst3）与负载（w3）下，集群规模从 5000 节点（s3）扩展到 10000 节点（s4）时各指标的变化；图 6-15~6-17 给出 s4/w3/inst3 场景下的调度吞吐、P90 与 P99 延迟时序。
+表 12 汇总在相同实例配置（inst3）与负载（w3）下，集群规模从 5000 节点（s3）扩展到 10000 节点（s4）时各指标的变化；图 27~29 给出 s4/w3/inst3 场景下的调度吞吐、P90 与 P99 延迟时序。
 
-: 表 6-10  s3 → s4 规模扩展下的关键指标变化（w3, inst3）
+: 表 12  s3 → s4 规模扩展下的关键指标变化（w3, inst3）
 
 | 指标 | ENO（s3→s4） | Gödel（s3→s4） |
 |---|---|---|
@@ -317,23 +317,23 @@ s3/w3（5000 节点，1000 pods/s，100 000 pods）为本文的主评估场景�
 
 **（1）调度吞吐 — s4/w3 · inst3**
 
-![图 6-15  ENO 与 Gödel 调度吞吐时序（s4, w3, inst3，n=3 中位数）](../figures/fig6-12-throughput-s4-w3-inst3.png)
+![图 27  ENO 与 Gödel 调度吞吐时序（s4, w3, inst3，n=3 中位数）](../figures/fig6-12-throughput-s4-w3-inst3.png)
 
 **（2）P90 调度延迟 — s4/w3 · inst3**
 
-![图 6-16  P90 调度延迟时序（s4, w3, inst3，n=3 中位数）](../figures/fig6-latency-p90-s4-w3-inst3.png)
+![图 28  P90 调度延迟时序（s4, w3, inst3，n=3 中位数）](../figures/fig6-latency-p90-s4-w3-inst3.png)
 
 **（3）P99 调度延迟 — s4/w3 · inst3**
 
-![图 6-17  ENO 与 Gödel P99 调度延迟时序（s4, w3, inst3，n=3 中位数）](../figures/fig6-13-latency-p99-s4-w3-inst3.png)
+![图 29  ENO 与 Gödel P99 调度延迟时序（s4, w3, inst3，n=3 中位数）](../figures/fig6-13-latency-p99-s4-w3-inst3.png)
 
 结论：规模从 5000 节点扩展到 10000 节点后，两者的处理速度都有所下降：ENO 有效吞吐下降 15.2%、P99 延迟上升 46.2%，Gödel 吞吐基本持平（-2.3%）但 P99 延迟上升 86.7%。ENO 在 s4 场景仍保持领先——有效吞吐 296.7 对 280.9 pods/s（+5.6%）、P99 延迟 0.19 对 0.28 s（低 33.4%），队列堆积峰值也明显更低（9 对 61）。需要指出的是，s3 与 s4 均固定使用 3 个实例，规模翻倍而未同步增加实例数，因此本节反映的是"实例数不变、规模增长"的情形，ENO 吞吐的回落与这一设定有关（6.7 节）。
 
 ### 6.5.4　实例数扩展：inst1 → inst3（s3, w3）
 
-表 6-11 给出 s3/w3 场景下调度器实例数从 1 增加到 3 时的指标变化；图 6-18~6-20 给出 s3/w3/inst3 场景下的调度吞吐、P90 与 P99 延迟时序，与 6.5.1 节 inst1 时序形成 1 vs 3 对照。
+表 13 给出 s3/w3 场景下调度器实例数从 1 增加到 3 时的指标变化；图 30~32 给出 s3/w3/inst3 场景下的调度吞吐、P90 与 P99 延迟时序，与 6.5.1 节 inst1 时序形成 1 vs 3 对照。
 
-: 表 6-11  inst1 → inst3 实例扩展下的关键指标变化（s3, w3）
+: 表 13  inst1 → inst3 实例扩展下的关键指标变化（s3, w3）
 
 | 指标 | ENO（inst1→inst3） | Gödel（inst1→inst3） |
 |---|---|---|
@@ -345,23 +345,23 @@ s3/w3（5000 节点，1000 pods/s，100 000 pods）为本文的主评估场景�
 
 **（1）调度吞吐 — s3/w3 · inst3**
 
-![图 6-18  ENO 与 Gödel 调度吞吐时序（s3, w3, inst3，n=3 中位数）](../figures/fig6-16-throughput-s3-w3-inst3.png)
+![图 30  ENO 与 Gödel 调度吞吐时序（s3, w3, inst3，n=3 中位数）](../figures/fig6-16-throughput-s3-w3-inst3.png)
 
 **（2）P90 调度延迟 — s3/w3 · inst3**
 
-![图 6-19  P90 调度延迟时序（s3, w3, inst3，n=3 中位数）](../figures/fig6-latency-p90-s3-w3-inst3.png)
+![图 31  P90 调度延迟时序（s3, w3, inst3，n=3 中位数）](../figures/fig6-latency-p90-s3-w3-inst3.png)
 
 **（3）P99 调度延迟 — s3/w3 · inst3**
 
-![图 6-20  ENO 与 Gödel P99 调度延迟时序（s3, w3, inst3，n=3 中位数）](../figures/fig6-17-latency-p99-s3-w3-inst3.png)
+![图 32  ENO 与 Gödel P99 调度延迟时序（s3, w3, inst3，n=3 中位数）](../figures/fig6-17-latency-p99-s3-w3-inst3.png)
 
 结论：实例数从 1 增至 3 后，两种架构的延迟都出现数量级改善——P99 调度延迟下降约 99%、Pod E2E 延迟下降约 97%，队列堆积峰值从一万以上降至数十，说明原先的排队等待主要源于单实例处理能力不足，多实例分摊后瓶颈基本消除。有效吞吐方面两者表现不同：ENO 提升 17.5%，Gödel 仅提升 1.4%（两者峰值吞吐分别上升 19.2% 与 32.8%）。这说明 ENO 能把增加的并发能力较完整地转化为端到端完成速度，而 Gödel 增加的瞬时调度能力有相当一部分被下游独立 Binder 的串行绑定环节吸收。
 
 ### 6.5.5　复杂负载场景（w4 极限 / w5 突发）
 
-表 6-12 汇总极限负载与突发洪峰两类复杂负载下的有效吞吐与延迟对比（w6 Gang 场景已在 6.4.2 节独立展示，w7 异构资源无独立时序图，数据见表 6-7~6-9 相应行）。图 6-21~6-28 给出 w4/w5 在 s3、s4 两档规模下共 4 个场景的调度吞吐与 P99 延迟时序，先按负载分组（w4 极限 → w5 突发），组内先 s3 再 s4。
+表 14 汇总极限负载与突发洪峰两类复杂负载下的有效吞吐与延迟对比（w6 Gang 场景已在 6.4.2 节独立展示，w7 异构资源无独立时序图，数据见表 9~11 相应行）。图 33~40 给出 w4/w5 在 s3、s4 两档规模下共 4 个场景的调度吞吐与 P99 延迟时序，先按负载分组（w4 极限 → w5 突发），组内先 s3 再 s4。
 
-: 表 6-12  复杂负载场景对比（有效吞吐单位 pods/s，延迟单位秒）
+: 表 14  复杂负载场景对比（有效吞吐单位 pods/s，延迟单位秒）
 
 | 负载（场景） | ENO 有效吞吐 | Gödel 有效吞吐 | 吞吐变化 | ENO P99 | Gödel P99 | ENO podE2E | Gödel podE2E |
 |---|---|---|---|---|---|---|---|
@@ -377,41 +377,41 @@ s3/w3（5000 节点，1000 pods/s，100 000 pods）为本文的主评估场景�
 
 **（1）调度吞吐 — s3/w4 · inst3（极限负载）**
 
-![图 6-21  ENO 与 Gödel 调度吞吐时序（s3, w4 极限负载, inst3，n=3 中位数）](../figures/fig6-14-throughput-s3-w4-inst3.png)
+![图 33  ENO 与 Gödel 调度吞吐时序（s3, w4 极限负载, inst3，n=3 中位数）](../figures/fig6-14-throughput-s3-w4-inst3.png)
 
 **（2）P99 调度延迟 — s3/w4 · inst3（极限负载）**
 
-![图 6-22  ENO 与 Gödel P99 调度延迟时序（s3, w4 极限负载, inst3，n=3 中位数）](../figures/fig6-latency-p99-s3-w4-inst3.png)
+![图 34  ENO 与 Gödel P99 调度延迟时序（s3, w4 极限负载, inst3，n=3 中位数）](../figures/fig6-latency-p99-s3-w4-inst3.png)
 
 **（3）调度吞吐 — s4/w4 · inst3（极限负载）**
 
-![图 6-23  ENO 与 Gödel 调度吞吐时序（s4, w4 极限负载, inst3，n=3 中位数）](../figures/fig6-throughput-s4-w4-inst3.png)
+![图 35  ENO 与 Gödel 调度吞吐时序（s4, w4 极限负载, inst3，n=3 中位数）](../figures/fig6-throughput-s4-w4-inst3.png)
 
 **（4）P99 调度延迟 — s4/w4 · inst3（极限负载）**
 
-![图 6-24  ENO 与 Gödel P99 调度延迟时序（s4, w4 极限负载, inst3，n=3 中位数）](../figures/fig6-latency-p99-s4-w4-inst3.png)
+![图 36  ENO 与 Gödel P99 调度延迟时序（s4, w4 极限负载, inst3，n=3 中位数）](../figures/fig6-latency-p99-s4-w4-inst3.png)
 
 **（5）调度吞吐 — s3/w5 · inst3（突发洪峰）**
 
-![图 6-25  ENO 与 Gödel 调度吞吐时序（s3, w5 突发洪峰, inst3，n=3 中位数）](../figures/fig6-throughput-s3-w5-inst3.png)
+![图 37  ENO 与 Gödel 调度吞吐时序（s3, w5 突发洪峰, inst3，n=3 中位数）](../figures/fig6-throughput-s3-w5-inst3.png)
 
 **（6）P99 调度延迟 — s3/w5 · inst3（突发洪峰）**
 
-![图 6-26  ENO 与 Gödel P99 调度延迟时序（s3, w5 突发洪峰, inst3，n=3 中位数）](../figures/fig6-latency-p99-s3-w5-inst3.png)
+![图 38  ENO 与 Gödel P99 调度延迟时序（s3, w5 突发洪峰, inst3，n=3 中位数）](../figures/fig6-latency-p99-s3-w5-inst3.png)
 
 **（7）调度吞吐 — s4/w5 · inst3（突发洪峰）**
 
-![图 6-27  ENO 与 Gödel 调度吞吐时序（s4, w5 突发洪峰, inst3，n=3 中位数）](../figures/fig6-15-throughput-s4-w5-inst3.png)
+![图 39  ENO 与 Gödel 调度吞吐时序（s4, w5 突发洪峰, inst3，n=3 中位数）](../figures/fig6-15-throughput-s4-w5-inst3.png)
 
 **（8）P99 调度延迟 — s4/w5 · inst3（突发洪峰）**
 
-![图 6-28  ENO 与 Gödel P99 调度延迟时序（s4, w5 突发洪峰, inst3，n=3 中位数）](../figures/fig6-latency-p99-s4-w5-inst3.png)
+![图 40  ENO 与 Gödel P99 调度延迟时序（s4, w5 突发洪峰, inst3，n=3 中位数）](../figures/fig6-latency-p99-s4-w5-inst3.png)
 
 结论：
 
 - w4（2000 pods/s 极限负载）：ENO 在两个规模下的有效吞吐分别较 Gödel 提升 9.3% 与 16.0%，P99 调度延迟分别低 49.7% 与 14.8%，Pod E2E 延迟低 32.6%~35.3%。两个场景下队列均出现明显积压（s4 场景下堆积峰值分别为 37 554 与 48 303 pods），说明 2000 pods/s 已超出两者处理能力上限；在该极限压力下 ENO 的吞吐与延迟优势依然保持。
 - w5（突发洪峰）：s3 场景下 ENO 有效吞吐较 Gödel 高 21.3%、Pod E2E 延迟低 53.8%（0.93 对 2.01 s）；s4 场景下吞吐高 2.8%，延迟基本持平。这表明在负载突增时 ENO 能更快进入稳定处理状态。
-- w6（Gang 调度）：见 6.4.2 节的三组对比与本节表 6-12 的 a/b 数据——ENO 在三个场景下有效吞吐均高于 Gödel（19.1%、4.3%、18.6%），但单 Pod 尾延迟明显更高，其成因见 6.4.3.4 与 6.7 节第（2）条。
+- w6（Gang 调度）：见 6.4.2 节的三组对比与本节表 14 的 a/b 数据——ENO 在三个场景下有效吞吐均高于 Gödel（19.1%、4.3%、18.6%），但单 Pod 尾延迟明显更高，其成因见 6.4.3.4 与 6.7 节第（2）条。
 - w7（异构资源）：s3 场景下 ENO 有效吞吐较 Gödel 高 21.2%、Pod E2E 延迟低 67.6%；s4 场景下两者基本持平。ENO 的优势主要体现在 s3 规模。
 
 ## 6.6　一致性容错机制的专项验证
@@ -441,11 +441,11 @@ s3/w3（5000 节点，1000 pods/s，100 000 pods）为本文的主评估场景�
 | L0-5 Layer 1 重试未异常上涨 | [inject, +90 s] | ≤ max(pre × 3, 10) | pre = 0.0 / inject = 0.0 | ✅ |
 | L0-6 绑定成功率全程 100% | [inject − 30 s, +90 s] | min ≥ 0.99 | 1.00 | ✅ |
 
-Layer 0 六项判据全部通过。图 6-29a 给出 `node_validation_failures:rate1m` 与 `dispatcher_fallback:rate1m` 的双轴时序：注入线（T+32 s）后 rate 立刻从 0 爬升，约 30 s 后到达约 11 events/s 的峰值，随后随 Assumed 队列消化速度平滑衰减，到 T+330 s 归零；两条曲线完全重叠，直接可视化了"Layer 0 拦截 → Dispatcher 回退"的联动。绿色 `bind_success_rate` 全程平稳 1.0，说明拦截是通过合规重排消化的、没有 Bind 请求被真正丢弃。
+Layer 0 六项判据全部通过。图 41 给出 `node_validation_failures:rate1m` 与 `dispatcher_fallback:rate1m` 的双轴时序：注入线（T+32 s）后 rate 立刻从 0 爬升，约 30 s 后到达约 11 events/s 的峰值，随后随 Assumed 队列消化速度平滑衰减，到 T+330 s 归零；两条曲线完全重叠，直接可视化了"Layer 0 拦截 → Dispatcher 回退"的联动。绿色 `bind_success_rate` 全程平稳 1.0，说明拦截是通过合规重排消化的、没有 Bind 请求被真正丢弃。
 
 与无故障基线（`results/a/s2/w2/inst3/run1` = 680 s）对比，Layer 0 单次注入的总耗时为 683 s（+3 s，+0.4%），性能开销可忽略——被拦截的 Pod 通过 Dispatcher 的 fallback 队列在 15 s 内被重排到合法节点。
 
-![图 6-29a  Layer 0 触发验证（节点归属漂移，s2/w2/inst3，n=1）](../figures/fig6-29a-layer0-timeseries.png)
+![图 41  Layer 0 触发验证（节点归属漂移，s2/w2/inst3，n=1）](../figures/fig6-29a-layer0-timeseries.png)
 
 ### 6.6.2　Layer 3 触发验证
 
@@ -466,13 +466,13 @@ Layer 0 六项判据全部通过。图 6-29a 给出 `node_validation_failures:ra
 | L3-5 总绑定量守恒（全 run 累计） | [start, end] | 累计 ≥ 10% × TOTAL | 49607 / 50000 | ✅ |
 | L3-6 不变量 I（apiserver 断言） | 实验结束时刻 | unbound = 0 ∧ dup = 0 | 50000 / 50000 | ✅ |
 
-Layer 3 六项判据全部通过。图 6-29b 展示了完整的失活—接管—恢复曲线：kill 竖线（T+14 s）后被杀实例 `scheduler-0-rz6fq`（紫色）的 bind rate 立刻降到 0；两个存活实例 `scheduler-1`（棕色）与 `scheduler-2`（粉色）分别拉升到约 135 pods/s 与 40 pods/s 分担存量负载；restored 竖线（T+203 s）标记 SchedulerMaintainer 完成 CR 删除、`PodStateReconciler` 通过 `DeleteScheduler` 事件把 Dispatched 但未 Bind 的 pod enqueue 到 stale-dispatched 队列的时刻——orphan_pods_reset counter 在这个瞬时被点亮（图中橙色 rate1m 曲线在 T+200~250 s 有一个矮而窄的峰），紧接着 pending_pods（蓝色右轴）冲高到峰值 353——这正是被 Reconciler 反刍回 Pending 队列的孤儿 Pod。之后重启的 scheduler-0（`5llg8`，绿色）与两个存活实例合力把 pending 在 60 s 内消化到 0。
+Layer 3 六项判据全部通过。图 42 展示了完整的失活—接管—恢复曲线：kill 竖线（T+14 s）后被杀实例 `scheduler-0-rz6fq`（紫色）的 bind rate 立刻降到 0；两个存活实例 `scheduler-1`（棕色）与 `scheduler-2`（粉色）分别拉升到约 135 pods/s 与 40 pods/s 分担存量负载；restored 竖线（T+203 s）标记 SchedulerMaintainer 完成 CR 删除、`PodStateReconciler` 通过 `DeleteScheduler` 事件把 Dispatched 但未 Bind 的 pod enqueue 到 stale-dispatched 队列的时刻——orphan_pods_reset counter 在这个瞬时被点亮（图中橙色 rate1m 曲线在 T+200~250 s 有一个矮而窄的峰），紧接着 pending_pods（蓝色右轴）冲高到峰值 353——这正是被 Reconciler 反刍回 Pending 队列的孤儿 Pod。之后重启的 scheduler-0（`5llg8`，绿色）与两个存活实例合力把 pending 在 60 s 内消化到 0。
 
-与无故障基线（680 s）对比，Layer 3 单次注入的总耗时为 784 s（+104 s，+15.3%）——这 100 s 的开销主要来自 180 s 停机期间被杀实例份额（约 1/3 workload = 16 K pods）的重排延迟。图 6-30 给出三项对比：(a) 完成时间相对基线的开销比较；(b) Layer 0 拦截规模与 patched 节点数的对应关系；(c) Layer 3 分实例接管量。
+与无故障基线（680 s）对比，Layer 3 单次注入的总耗时为 784 s（+104 s，+15.3%）——这 100 s 的开销主要来自 180 s 停机期间被杀实例份额（约 1/3 workload = 16 K pods）的重排延迟。图 43 给出三项对比：(a) 完成时间相对基线的开销比较；(b) Layer 0 拦截规模与 patched 节点数的对应关系；(c) Layer 3 分实例接管量。
 
-![图 6-29b  Layer 3 触发验证（scheduler-0 停机 180 s，s2/w2/inst3，n=1）](../figures/fig6-29b-layer3-timeseries.png)
+![图 42  Layer 3 触发验证（scheduler-0 停机 180 s，s2/w2/inst3，n=1）](../figures/fig6-29b-layer3-timeseries.png)
 
-![图 6-30  Layer 0 / Layer 3 故障注入三项定量对比（s2/w2/inst3，n=1）](../figures/fig6-30-fault-recovery-comparison.png)
+![图 43  Layer 0 / Layer 3 故障注入三项定量对比（s2/w2/inst3，n=1）](../figures/fig6-30-fault-recovery-comparison.png)
 
 ### 6.6.3　实验编排与可复现性
 
@@ -498,7 +498,7 @@ bash test/e2e/benchmark/faultinject/run-6.6-all.sh --phase analyze
 
 （1）KWOK 仿真的真实性差距：KWOK 未模拟真实节点上的资源压力（例如 kubelet 与容器运行时的 CPU/内存开销、磁盘 IO 排队）。因此本文的绝对数值不能直接外推到生产环境。
 
-（2）Gang 场景下延迟口径的可比性与字段缺口：w6（Gang 调度）的延迟数据在负载扩容重采后补齐，但该场景的调度分位在两种架构下并不同质——ENO 的绑定在调度进程内完成，同组预留等待与绑定耗时都计入调度周期；Gödel 的绑定由独立 Binder 承担，这部分等待只有一部分进入 `scheduler_e2e_scheduling_duration_seconds`。因此表 6-8 中 w6 三行的数值差异不宜全部归因于调度器本身的处理速度，本章在 6.4.3.3、6.4.3.4 已按此限定解读，尚未通过独立的计时实验把两种来源分离。此外，s3/w4 的元数据缺少调度完成率字段（不影响完成时间与吞吐计算）。
+（2）Gang 场景下延迟口径的可比性与字段缺口：w6（Gang 调度）的延迟数据在负载扩容重采后补齐，但该场景的调度分位在两种架构下并不同质——ENO 的绑定在调度进程内完成，同组预留等待与绑定耗时都计入调度周期；Gödel 的绑定由独立 Binder 承担，这部分等待只有一部分进入 `scheduler_e2e_scheduling_duration_seconds`。因此表 10 中 w6 三行的数值差异不宜全部归因于调度器本身的处理速度，本章在 6.4.3.3、6.4.3.4 已按此限定解读，尚未通过独立的计时实验把两种来源分离。此外，s3/w4 的元数据缺少调度完成率字段（不影响完成时间与吞吐计算）。
 
 （3）规模增长未同步增加实例数：本章 s3 与 s4 的对比均固定使用 3 个实例，规模翻倍时未同步扩充实例，因此 6.5.3 节反映的是"实例数不变、规模增长"的情形，ENO 在 s4 的吞吐回落与该设定有关。若按规模比例增加实例，其扩展性表现可能更好，这一点留作后续验证。
 

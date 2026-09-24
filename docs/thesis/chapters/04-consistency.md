@@ -31,14 +31,14 @@ $$
 
 ### 4.1.3　Pod 生命周期与容错介入点
 
-图 4-1 展示了 Pod 在本文调度器中的生命周期状态机，并标注了四层容错机制的介入点。
+图 5 展示了 Pod 在本文调度器中的生命周期状态机，并标注了四层容错机制的介入点。
 
-![图 4-1  Pod 生命周期状态机与 4 层容错机制介入点](../figures/fig4-1-pod-state-machine.png)
+![图 5  Pod 生命周期状态机与 4 层容错机制介入点](../figures/fig4-1-pod-state-machine.png)
 
-如图 4-1 所示，Pod 生命周期的主状态为：
+如图 5 所示，Pod 生命周期的主状态为：
 `[*] → Pending → Dispatched → Assumed → Bound → [*]`
 
-正常路径下，Pod 从新建（Pending）经 Dispatcher 分发（Dispatched）、Scheduler 决策（Assumed）、Bind API 成功（Bound）完成整个流程。图 4-1 中彩色分支展示了各层容错的介入点：
+正常路径下，Pod 从新建（Pending）经 Dispatcher 分发（Dispatched）、Scheduler 决策（Assumed）、Bind API 成功（Bound）完成整个流程。图 5 中彩色分支展示了各层容错的介入点：
 
 - Layer 0：Assumed → L0_Fail，节点归属校验在 Bind API 前拦截；
 - Layer 1：Assumed → L1_Retry → Assumed，暂态失败的同步重试；
@@ -159,11 +159,11 @@ Layer 2 在 `binder_reconciler.go` 中实现，其核心数据结构是 `APICall
 
 ### 4.5.2　Layer 3 的设计
 
-Layer 3 的核心思想是：放弃本实例，交还给 Dispatcher 重新分发。图 4-2a 展示了 Dispatcher 侧的主分发流程；Layer 3 触发后，Pod 因 `scheduler-name` 注解被清空而被 Dispatcher 的 Informer 重新观察到，从图 4-2a 顶端的 `SortedPodsQueue` 重新进入分发。图 4-2b 单列展示 Dispatcher 分发自身失败（`PatchPod` API 调用失败）时的处理，与 Layer 3 是独立的两条错误路径。
+Layer 3 的核心思想是：放弃本实例，交还给 Dispatcher 重新分发。图 6 展示了 Dispatcher 侧的主分发流程；Layer 3 触发后，Pod 因 `scheduler-name` 注解被清空而被 Dispatcher 的 Informer 重新观察到，从图 6 顶端的 `SortedPodsQueue` 重新进入分发。图 7 单列展示 Dispatcher 分发自身失败（`PatchPod` API 调用失败）时的处理，与 Layer 3 是独立的两条错误路径。
 
-![图 4-2a  Dispatcher 策略分发的嵌套决策路径（先按 PodGroup 分流，再由 `SupportRescheduling` FeatureGate 决定 Owner 亲和或默认负载均衡）](../figures/fig4-2a-dispatcher-main-flow.png)
+![图 6  Dispatcher 策略分发的嵌套决策路径（先按 PodGroup 分流，再由 `SupportRescheduling` FeatureGate 决定 Owner 亲和或默认负载均衡）](../figures/fig4-2a-dispatcher-main-flow.png)
 
-![图 4-2b  Dispatcher 分发失败的处理（`PatchPod` 失败 / Pod 已删除）](../figures/fig4-2b-dispatcher-error-recovery.png)
+![图 7  Dispatcher 分发失败的处理（`PatchPod` 失败 / Pod 已删除）](../figures/fig4-2b-dispatcher-error-recovery.png)
 
 Layer 3 的具体操作序列为：
 
@@ -171,7 +171,7 @@ Layer 3 的具体操作序列为：
 
 由于 `PatchPod` 通过 etcd 事务原子提交，Dispatcher 观察到的必然是 patch 完成后的最终状态，不存在"`scheduler-name` 已清但 `pod-state` 仍为 `Dispatched`"的中间态。
 
-（2）Dispatcher 侧重分发：Dispatcher 通过 Informer 观察到 `scheduler-name` 被清除的 Pod，将其重新纳入 `SortedPodsQueue`（对应图 4-2a 顶端）参与下一轮分发。
+（2）Dispatcher 侧重分发：Dispatcher 通过 Informer 观察到 `scheduler-name` 被清除的 Pod，将其重新纳入 `SortedPodsQueue`（对应图 6 顶端）参与下一轮分发。
 
 （3）幂等重分发：Dispatcher 的 `selectScheduler` 方法是幂等的——多次调用最终会写入同一个 `scheduler-name` 注解（这一注解通过 API Server 的 Patch 语义 + `resourceVersion` 保证并发安全）。因此即使 Layer 3 触发时 Dispatcher 恰好也在处理该 Pod，也不会产生错误的分发结果。
 
@@ -183,9 +183,9 @@ Layer 3 与 Layer 0 相互衔接，构成一条自我修复的回路。Layer 3 �
 
 ## 4.6　一致性论证
 
-本节给出四层容错机制维持核心不变量 I 的完整论证。图 4-3 综合展示了 4 类故障场景、4 层防御、以及 4 项证明要点的对应关系。
+本节给出四层容错机制维持核心不变量 I 的完整论证。图 8 综合展示了 4 类故障场景、4 层防御、以及 4 项证明要点的对应关系。
 
-![图 4-3  一致性论证：核心不变量 I 及其 4 层故障场景-防御映射](../figures/fig4-3-consistency-invariant.png)
+![图 8  一致性论证：核心不变量 I 及其 4 层故障场景-防御映射](../figures/fig4-3-consistency-invariant.png)
 
 ### 4.6.1　证明要点
 
@@ -201,7 +201,7 @@ P4【时序保证：Layer 0 前置拦截】 由 Node 归属注解的原子写入
 
 现证明 P1 ∧ P2 ∧ P3 ∧ P4 ⇒ 不变量 I 永远成立。
 
-按图 4-1 状态机的可能路径分类讨论：
+按图 5 状态机的可能路径分类讨论：
 
 情况 1（无故障）：Pod 从 Pending → Dispatched → Assumed → Bound。只有 Layer 0 通过校验的 Scheduler 发起 Bind API，P1 保证 Bind 的原子性，任一 Pod 至多被绑定到一个节点。I 成立。
 
@@ -211,7 +211,7 @@ P4【时序保证：Layer 0 前置拦截】 由 Node 归属注解的原子写入
 
 情况 4（T0/T3 触发）：无论是节点归属漂移（T0）还是本地重试耗尽（T3），Pod 都会经 Layer 3 清除 `scheduler-name` 注解回到 Pending 状态。由 P3，操作时序正确，Dispatcher 会重新分发。分发到新 Scheduler 后走完整流程，再次遇到 Layer 0 校验（P4），归约到情况 1。I 在整个过程中不被破坏。
 
-综上，四种情况覆盖了图 4-1 状态机的所有可能路径，且每种情况下 I 都得到维持。■
+综上，四种情况覆盖了图 5 状态机的所有可能路径，且每种情况下 I 都得到维持。■
 
 ## 4.7　本章小结
 

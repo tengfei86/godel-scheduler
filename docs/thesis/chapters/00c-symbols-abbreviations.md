@@ -29,7 +29,7 @@
 | $p$ | 系统中的某个 Pod |
 | $N$ | Scheduler 实例数 |
 | s1 ~ s4 | 集群规模代号，分别对应 100、1000、5000、10000 个节点 |
-| w1 ~ w7 | 工作负载代号，定义见表 6-3 |
+| w1 ~ w7 | 工作负载代号，定义见表 5 |
 | inst1 / inst3 | 调度器实例数配置（1 个 / 3 个实例） |
 | a ~ e | 调度器组代号：a=ENO、b=Gödel、c=kube-scheduler、d=Volcano、e=Koordinator |
 | Layer 0 ~ Layer 3 | 第 4 章四层绑定容错机制的四个层次 |
