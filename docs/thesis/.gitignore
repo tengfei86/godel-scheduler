@@ -1,7 +1,10 @@
 # 生成的构建产物（可由 build-docx.sh / make-reference.py 重新生成）
 beihang-reference.docx
 thesis-preview.docx
-thesis-beihang.docx
 build/
 _ref_out/
 _ref_tmp/
+
+# 例外：thesis-beihang.docx 是交给作者与导师的成品，按作者要求入库跟踪
+# （2026-09-24 起）。每次重建后需要 git add 该文件并提交。
+!thesis-beihang.docx
