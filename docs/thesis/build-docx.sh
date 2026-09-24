@@ -37,8 +37,6 @@ fi
 # ── 装订顺序（与学校规范一致）──
 FILES=(
   00-abstract.md
-  00b-list-of-figures-tables.md
-  00c-symbols-abbreviations.md
   01-introduction.md
   02-related-work.md
   03-architecture.md
@@ -47,7 +45,6 @@ FILES=(
   06-evaluation.md
   07-conclusion.md
   96-references.md
-  97-achievements.md
   98-appendix.md
   99-acknowledgements.md
 )
