@@ -151,6 +151,63 @@ def fix_tables(doc: str) -> str:
     return re.sub(r"<w:tbl>.*?</w:tbl>", fix_one, doc, flags=re.S)
 
 
+# ── 步骤 2b：参考文献上标引用改为内部跳转 ──
+# 正文写作约定为 <sup>[N]</sup>（构建脚本转成 pandoc 上标 ^\[N\]^），
+# pandoc 输出形如：
+#   <w:r><w:rPr><w:vertAlign w:val="superscript" /></w:rPr><w:t>[1,2]</w:t></w:r>
+# 这里把每个编号拆成指向文献表书签 refN 的内部超链接，并显式覆盖颜色与下划线，
+# 使其在版面上仍是普通的黑色上标数字（可点击但不显眼）。
+RUN_RE = re.compile(r"<w:r\b[^>]*>.*?</w:r>", re.S)
+
+
+def citation_rpr(orig_run: str) -> str:
+    """按 CT_RPr 的 schema 顺序重建上标数字的 rPr：rFonts → color → u → vertAlign"""
+    fonts = re.search(r"<w:rFonts[^>]*/>", orig_run)
+    return (
+        "<w:rPr>"
+        + (fonts.group(0) if fonts else "")
+        + '<w:color w:val="auto"/>'
+        + '<w:u w:val="none"/>'
+        + '<w:vertAlign w:val="superscript"/>'
+        + "</w:rPr>"
+    )
+
+
+def link_citations(doc: str) -> tuple[str, int]:
+    """把 <sup>[N]</sup> 形式的上标引用改成指向 refN 书签的内部超链接。
+
+    返回 (新文档, 处理的引用条数)。
+    """
+    count = 0
+
+    def repl(m: re.Match) -> str:
+        nonlocal count
+        run = m.group(0)
+        if "superscript" not in run:
+            return run
+        t = re.search(r"<w:t[^>]*>([^<]*)</w:t>", run)
+        if not t:
+            return run
+        mm = re.fullmatch(r"\[([\d,\s]+)\]", t.group(1))
+        if not mm:
+            return run
+        nums = [n for n in re.split(r"[,\s]+", mm.group(1).strip()) if n]
+        rpr = citation_rpr(run)
+        out = []
+        for i, n in enumerate(nums):
+            if i:
+                out.append(f'<w:r>{rpr}<w:t xml:space="preserve">,</w:t></w:r>')
+            out.append(
+                f'<w:hyperlink w:anchor="ref{n}">'
+                f'<w:r>{rpr}<w:t xml:space="preserve">[{n}]</w:t></w:r>'
+                f"</w:hyperlink>"
+            )
+        count += 1
+        return "".join(out)
+
+    return RUN_RE.sub(repl, doc), count
+
+
 # ── 步骤 3：分节 + 页眉页码 ──
 # ── 步骤 3：目录移位（规范顺序：中文摘要 → 英文摘要 → 目录 → 正文）──
 PAGE_BREAK_BLOCK = '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'
@@ -283,12 +340,13 @@ def process(input_path: Path, output_path: Path, conservative: bool = False) -> 
     doc_file = tmp / "word/document.xml"
     doc = doc_file.read_text(encoding="utf-8")
     doc = fix_tables(doc)
+    doc, cite_n = link_citations(doc)
     if conservative:
         # 保守模式：只做表格宽度与表内样式，不重建分节、页眉页码，也不移动目录。
         # 用于排查 Word 无法打开的问题（该模式下输出与历史可正常打开的版本同类）。
         doc_file.write_text(doc, encoding="utf-8")
         _repackage(tmp, output_path)
-        print("后处理完成（保守模式）：仅表格宽度铺满版心 + 表内五号居中；未改动分节/页眉/页码")
+        print(f"后处理完成（保守模式）：表格铺满版心 + 表内五号居中 + {cite_n} 处文献引用改为内部跳转；未改动分节/页眉/页码")
         return
     doc = move_toc_after_abstract(doc)
 
@@ -449,7 +507,7 @@ def process(input_path: Path, output_path: Path, conservative: bool = False) -> 
     print(
         f"后处理完成：表格宽度统一为 {TEXT_WIDTH_TWIPS} twips（16.00 cm）；"
         f"分 {len(sections)} 节（含 {sum(1 for s in sections if 'upperRoman' in s)} 节罗马页码），"
-        f"新增页眉/页脚部件 {len(new_parts)} 个"
+        f"新增页眉/页脚部件 {len(new_parts)} 个；{cite_n} 处文献引用改为内部跳转"
     )
 
 
