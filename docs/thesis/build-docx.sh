@@ -66,10 +66,18 @@ t = open(f"chapters/{f}", encoding="utf-8").read()
 # 引用上标：<sup>[N]</sup> → pandoc 上标语法
 t = re.sub(r'<sup>\[([0-9,\s]+)\]</sup>', lambda m: '^\\[' + m.group(1) + '\\]^', t)
 # 每章/每部分另起一页：在一级标题前插入分页符（文档第一个标题除外）
+# 注意：必须跳过围栏代码块内的行——代码块里的 "# ..." 是 shell 注释而非标题，
+# 若在此处插入 OpenXML 原始块，pandoc 会把它当作代码块的字面内容渲染出来
+# （2026-09-24：§6.6 的 run-6.6-all.sh 示例曾被插入 ```{=openxml} 垃圾行）。
 BRK = '```{=openxml}\n<w:p><w:r><w:br w:type="page"/></w:r></w:p>\n```\n\n'
 lines, out = t.split('\n'), []
+in_fence = False
 for ln in lines:
-    if re.match(r'^# ', ln):
+    if ln.lstrip().startswith('```'):
+        in_fence = not in_fence
+        out.append(ln)
+        continue
+    if not in_fence and re.match(r'^# ', ln):
         if not first:
             out.append(BRK.rstrip('\n'))
         first = False
