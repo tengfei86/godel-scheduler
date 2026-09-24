@@ -35,6 +35,25 @@ HEADER_ODD_TEXT = "北京航空航天大学硕士学位论文"
 HEADER_FONT_SIZE = "21"  # 小五号 = 10.5pt = 21 half-points
 NS_W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+# 页眉/页脚根元素的命名空间声明：与北航样例中 Word 原生生成的部件保持一致
+NS_BLOCK = (
+    'xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas" '
+    'xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" '
+    'xmlns:o="urn:schemas-microsoft-com:office:office" '
+    f'xmlns:r="{NS_R}" '
+    'xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" '
+    'xmlns:v="urn:schemas-microsoft-com:vml" '
+    'xmlns:wp14="http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing" '
+    'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" '
+    'xmlns:w10="urn:schemas-microsoft-com:office:word" '
+    f'xmlns:w="{NS_W}" '
+    'xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" '
+    'xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml" '
+    'xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup" '
+    'xmlns:wpi="http://schemas.microsoft.com/office/word/2010/wordprocessingInk" '
+    'xmlns:wne="http://schemas.microsoft.com/office/word/2006/wordml" '
+    'xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"'
+)
 CT_HEADER = "application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"
 CT_FOOTER = "application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"
 REL_HEADER = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/header"
@@ -62,7 +81,7 @@ def header_xml(text: str) -> str:
     )
     return (
         XML_DECL
-        + f'<w:hdr xmlns:w="{NS_W}" xmlns:r="{NS_R}">'
+        + f'<w:hdr {NS_BLOCK}>'
         + '<w:p><w:pPr><w:jc w:val="center"/>'
         + rpr
         + "</w:pPr>"
@@ -87,7 +106,7 @@ def footer_xml() -> str:
     )
     return (
         XML_DECL
-        + f'<w:ftr xmlns:w="{NS_W}" xmlns:r="{NS_R}">'
+        + f'<w:ftr {NS_BLOCK}>'
         + '<w:p><w:pPr><w:jc w:val="center"/>'
         + rpr
         + "</w:pPr>"
@@ -198,27 +217,31 @@ def base_sectpr(doc: str) -> str:
     return m.group(0) if m else ""
 
 
-def sect_geometry(sect: str) -> str:
-    """从已有 sectPr 中取出页面几何元素（顺序按 schema）"""
-    out = []
-    for tag in ("pgSz", "pgMar", "pgBorders"):
+def sect_geometry(sect: str) -> dict[str, str]:
+    """从已有 sectPr 取出页面几何元素，按元素名返回（顺序在 build_section 中排定）"""
+    out: dict[str, str] = {}
+    for tag in ("pgSz", "pgMar", "pgBorders", "cols", "docGrid"):
         mm = re.search(rf"<w:{tag}\b[^>]*/>|<w:{tag}\b.*?</w:{tag}>", sect, re.S)
         if mm:
-            out.append(mm.group(0))
-    for tag in ("cols", "docGrid"):
-        mm = re.search(rf"<w:{tag}\b[^>]*/>", sect)
-        if mm:
-            out.append(mm.group(0))
-    return "".join(out)
+            out[tag] = mm.group(0)
+    return out
 
 
 def build_section(
-    geometry: str,
+    geometry: dict[str, str],
     pg_num: str | None,
     odd_rid: str | None,
     even_rid: str | None,
     footer_rid: str | None,
 ) -> str:
+    """组装 sectPr。
+
+    子元素顺序必须符合 CT_SectPr 的 schema 序列，否则 Word 会报
+    "Word experienced an error trying to open the file"：
+      headerReference* → footerReference* → pgSz → pgMar → pgBorders
+      → pgNumType → cols → docGrid
+    （顺序以北航样例中 Word 原生生成的 sectPr 为准）
+    """
     parts = ["<w:sectPr>"]
     if odd_rid:
         parts.append(f'<w:headerReference w:type="default" r:id="{odd_rid}"/>')
@@ -227,9 +250,14 @@ def build_section(
     if footer_rid:
         parts.append(f'<w:footerReference w:type="default" r:id="{footer_rid}"/>')
         parts.append(f'<w:footerReference w:type="even" r:id="{footer_rid}"/>')
-    parts.append(geometry)
+    for tag in ("pgSz", "pgMar", "pgBorders"):
+        if tag in geometry:
+            parts.append(geometry[tag])
     if pg_num:
         parts.append(pg_num)
+    for tag in ("cols", "docGrid"):
+        if tag in geometry:
+            parts.append(geometry[tag])
     parts.append("</w:sectPr>")
     return "".join(parts)
 
