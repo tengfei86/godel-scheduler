@@ -1,4 +1,4 @@
-# 第六章　实验设计与评估
+# 第六章　实验验证与性能评估
 
 本章通过大规模仿真基准测试评估本文提出的 ENO 架构与四层容错机制。
 
@@ -132,17 +132,17 @@ s2、s3 与 s4 覆盖了从中等到超大规模的集群场景（跨度 10×）
 
 ## 6.4　实验验证
 
-本节回答"方案是否正确"这一问题——通过实验数据说明 ENO 分布式调度器在正常与故障两类场景下均能维护第 4 章定义的核心不变量 I「任一 Pod 至多绑定到一个节点」，同时保证绑定路径不残留脏数据。§6.4.1 汇总全部对比场景下的绑定成功率与不变量 I 断言结果，用于验证稳态负载下 Layer 1（同步重试）与 Layer 2（异步 Reconciler）的正确性；§6.4.2 与 §6.4.3 通过针对性故障注入分别验证 Layer 0（节点归属校验）与 Layer 3（跨 Scheduler 实例回退）；§6.4.4 说明专项实验的编排与可复现方式。
+本节回答"方案是否正确"这一问题——通过实验数据说明 ENO 分布式调度器在正常与故障两类场景下均能维护第 4 章定义的核心不变量 I「任一 Pod 至多绑定到一个节点」，同时保证绑定路径不残留脏数据。本节按三部分展开：首先在 6.4.1 节汇总全部对比场景下的绑定成功率与不变量 I 断言结果，用于验证稳态负载下 Layer 1（同步重试）与 Layer 2（异步 Reconciler）的正确性；随后在 6.4.2、6.4.3 两节通过针对性故障注入分别验证 Layer 0（节点归属校验）与 Layer 3（跨 Scheduler 实例回退）；最后在 6.4.4 节说明专项实验的编排与可复现方式。
 
 ### 6.4.1　全场景绑定成功率与核心不变量保持性
 
-正确性验证的第一层证据来自全部性能对比场景本身。在 §6.5 覆盖的 16 个对比场景 × n=3 重复共 144 次 run 中，ENO 与 Gödel 的绑定成功率始终为 100%，未出现绑定失败或请求丢失；在 1000~2000 pods/s 的高压注入下两组均保持全量绑定成功，说明第 4 章的分层容错机制在已测规模下正确工作，ENO 的架构改造未引入任何正确性回退。绑定成功率通过 `sum(rate(bind_pods_total{result="success"}[1m])) / sum(rate(bind_pods_total[1m]))` 在 Prometheus 侧持续采集，作为不受样本群体差异影响的正确性指标。
+正确性验证的第一层证据来自全部性能对比场景本身。在 6.5 节覆盖的 16 个对比场景中，ENO 每个场景重复运行 3 次共 48 次 run，绑定成功率始终为 100%，未出现绑定失败或请求丢失；在 1000~2000 pods/s 的高压注入下也始终保持全量绑定成功，说明第 4 章的分层容错机制在已测规模下正确工作，ENO 的架构改造未引入任何正确性回退。绑定成功率通过 `sum(rate(bind_pods_total{result="success"}[1m])) / sum(rate(bind_pods_total[1m]))` 在 Prometheus 侧持续采集，作为不受样本群体差异影响的正确性指标。
 
 与此配套，核心不变量 I「任一 Pod 至多绑定到一个节点」由 `assert-invariant-i.sh` 脚本在每次 run 结束时直接查询 kube-apiserver 完成断言——遍历目标命名空间下的全部 Pod，检查 `spec.nodeName` 是否非空以及每个 Pod 是否只出现一次，结果写入 `invariant-i.txt`。在全部 144 次 run 上，脚本均输出 `unbound = 0 ∧ dup = 0`，即不存在未绑定 Pod、也不存在被绑定到两个不同节点的重复项，从 apiserver 视角直接确认不变量 I 在稳态负载下严格成立。
 
-Layer 1（同步指数退避重试）与 Layer 2（异步 Reconciler 队列）在稳态负载下频繁触发——前者由 apiserver 暂态错误驱动、后者由孤儿 Assumed 状态回收驱动——它们的正确性由上述"绑定成功率 100% + 不变量 I 断言全通过"两个指标间接覆盖，无需额外单列专项实验。Layer 0 与 Layer 3 的触发条件在稳态负载下发生频率极低，需要故意注入故障才能观察，以下 §6.4.2 与 §6.4.3 分别单列专项验证。
+Layer 1（同步指数退避重试）与 Layer 2（异步 Reconciler 队列）在稳态负载下频繁触发——前者由 apiserver 暂态错误驱动、后者由孤儿 Assumed 状态回收驱动——它们的正确性由上述"绑定成功率 100% + 不变量 I 断言全通过"两个指标间接覆盖，无需额外单列专项实验。Layer 0 与 Layer 3 的触发条件在稳态负载下发生频率极低，需要故意注入故障才能观察，以下 6.4.2、6.4.3 两节分别单列专项验证。
 
-**通用实验设定**。两个专项实验共用一套基线配置，以便与 §6.5 交叉引用：调度器组 a（ENO）、规模 s2（1000 节点，可用于笔电级复现；论文场景 s3 = 5000 节点由环境变量 `FI_SCALE=s3` 切换）、负载 w2（500 pods/s × 50K pods，标称完成时间约 100 s）、实例数 inst3（3 个 Scheduler）、每种故障重复 n=3。选择 w2 而非 w3/w4 是为了让集群工作在未饱和区——由此观测到的 `node_validation_failures` 与 `dispatcher_fallback` 计数变化可以确定性归因于注入的故障，而非过载导致的连锁反应。Layer 0 与 Layer 3 的注入时点不同：Layer 0 在 T+30 s（拦截效应立即可见），Layer 3 在 T+10 s（因为要等 `MaxSchedulerCRDNotUpdateDuration = 2 min` 的失活探测阈值 + `SchedulerMaintainer.SyncUpSchedulersStatus` 的 30 s 巡检才会触发 `PodStateReconciler`，若注入晚了整段接管曲线会溢出 workload 提交窗口）。
+**通用实验设定**。两个专项实验共用一套基线配置，以便与 6.5 节交叉引用：调度器组 a（ENO）、规模 s2（1000 节点，可用于笔电级复现；论文场景 s3 = 5000 节点由环境变量 `FI_SCALE=s3` 切换）、负载 w2（500 pods/s × 50K pods，标称完成时间约 100 s）、实例数 inst3（3 个 Scheduler）、每种故障重复 n=3。选择 w2 而非 w3/w4 是为了让集群工作在未饱和区——由此观测到的 `node_validation_failures` 与 `dispatcher_fallback` 计数变化可以确定性归因于注入的故障，而非过载导致的连锁反应。Layer 0 与 Layer 3 的注入时点不同：Layer 0 在 T+30 s（拦截效应立即可见），Layer 3 在 T+10 s（因为要等 `MaxSchedulerCRDNotUpdateDuration = 2 min` 的失活探测阈值 + `SchedulerMaintainer.SyncUpSchedulersStatus` 的 30 s 巡检才会触发 `PodStateReconciler`，若注入晚了整段接管曲线会溢出 workload 提交窗口）。
 
 **Prometheus 采集**。两个实验的时序数据均通过 `test/e2e/benchmark/collect/export-prometheus.sh` 拉取，导出集覆盖 `binder_node_validation_failures_total`、`binder_dispatcher_fallback_total` 及其对应的 rate1m recording rule；为支持 Layer 3 的分实例观察，本节额外注册了三条按 `pod` 分组的 recording rule：`eno:binder_embedded_bind_pods:success_rate1m_by_pod`、`eno:binder_dispatcher_fallback:rate1m_by_pod`、`eno:binder_node_validation_failures:rate1m_by_pod`。为让判据能确定性区分"Reconciler 感知失活并重排"vs"Layer 1 局部重试"，本节还在 Dispatcher 侧新增了一个 counter `dispatcher_orphan_pods_reset_total{reason=stale_dispatched|abnormal}`（源码见 `pkg/dispatcher/metrics/metrics.go`，埋点位于 `pkg/dispatcher/reconciler/podstatesyncer.go` 两处 reset 调用）——该 counter 在 `Register()` 时被显式 `Add(0)` 到 registry 以避免"series 首次出现即为终值、`rate()` 算不出正增量"这一 Prometheus 边角。核心不变量 I 的实测验证由 `assert-invariant-i.sh` 直接查询 kube-apiserver 完成——遍历目标命名空间下的全部 Pod，断言 `spec.nodeName` 非空且每个 Pod 只出现一次，脚本在 Step 8b 自动调用，结果写入 `invariant-i.txt`。
 
@@ -200,7 +200,7 @@ Layer 3 六项判据全部通过。图 42 展示了完整的失活—接管—�
 
 ### 6.4.4　故障注入专项实验的编排与可复现性
 
-两个专项实验复用 `test/e2e/benchmark/run-experiment.sh` 的主流程。为集中管理注入相关的参数，本节新增了三处扩展：（1）`run-experiment.sh` 增加 `--inject {layer0|layer3}`、`--inject-at <seconds>` 与 `--inject-args <passthrough>` 三个可选标志；（2）当 `--inject` 存在时，Step 6b 会在 Step 7 负载注入器启动的同时后台 `sleep $INJECT_AT` 秒并调用 `faultinject/inject-<layer>.sh <run_dir>`，Step 8 完成 100 % 调度等待后 `wait` 该子进程，再由 Step 8b 调用 `assert-invariant-i.sh` 校验不变量 I；（3）`faultinject/run-fault-experiment.sh` 是薄封装脚本，固化组 a / s3 / w2 / inst3 的场景配置，注入时点按 layer 分支（layer0 = T+30 s、layer3 = T+10 s，与 §6.4.2 / §6.4.3 一致），只暴露 `layer0 | layer3 | both` 与 `--repeats N` 两个参数。典型调用：
+两个专项实验复用 `test/e2e/benchmark/run-experiment.sh` 的主流程。为集中管理注入相关的参数，本节新增了三处扩展：（1）`run-experiment.sh` 增加 `--inject {layer0|layer3}`、`--inject-at <seconds>` 与 `--inject-args <passthrough>` 三个可选标志；（2）当 `--inject` 存在时，Step 6b 会在 Step 7 负载注入器启动的同时后台 `sleep $INJECT_AT` 秒并调用 `faultinject/inject-<layer>.sh <run_dir>`，Step 8 完成 100 % 调度等待后 `wait` 该子进程，再由 Step 8b 调用 `assert-invariant-i.sh` 校验不变量 I；（3）`faultinject/run-fault-experiment.sh` 是薄封装脚本，固化组 a / s3 / w2 / inst3 的场景配置，注入时点按 layer 分支（layer0 = T+30 s、layer3 = T+10 s，与 6.4.2、6.4.3 两节一致），只暴露 `layer0 | layer3 | both` 与 `--repeats N` 两个参数。典型调用：
 
 ```bash
 # 论文 6.4 节的一键复现入口
@@ -212,13 +212,13 @@ bash test/e2e/benchmark/faultinject/run-6.6-all.sh --phase inject --repeats 5
 bash test/e2e/benchmark/faultinject/run-6.6-all.sh --phase analyze
 ```
 
-`run-6.6-all.sh` 把整套实验切成四个幂等 phase：`preflight`（校验集群与 recording rule）→ `baseline`（补跑 §6.5 `a/s3/w2/inst3` 无故障基线）→ `inject`（`layer0 × N` + `layer3 × N`）→ `analyze`（对每个 run 目录跑 `fault-plot.py` 与 `fault-summary.py`）。若只想跑注入部分或使用不同参数（例如把 Layer 0 的漂移比例改成 20%），可透传 `--fraction` / `--from` / `--to` 等给底层 `inject-<layer>.sh`；细粒度的手动接口 `run-fault-experiment.sh {layer0|layer3|both}` 仍保留供调试使用。
+`run-6.6-all.sh` 把整套实验切成四个幂等 phase：`preflight`（校验集群与 recording rule）→ `baseline`（补跑 6.5 节的 `a/s3/w2/inst3` 无故障基线）→ `inject`（`layer0 × N` + `layer3 × N`）→ `analyze`（对每个 run 目录跑 `fault-plot.py` 与 `fault-summary.py`）。若只想跑注入部分或使用不同参数（例如把 Layer 0 的漂移比例改成 20%），可透传 `--fraction` / `--from` / `--to` 等给底层 `inject-<layer>.sh`；细粒度的手动接口 `run-fault-experiment.sh {layer0|layer3|both}` 仍保留供调试使用。
 
-其余环节（Prometheus 时段导出、元数据落盘、节点分布快照）与 §6.5 完全一致。全部实验产物——PromQL 时序 JSON、注入事件时间戳、被 patch 的节点/被删的 Pod 清单、不变量 I 断言输出、生成的双轴时序图与分段汇总——落在 `test/e2e/benchmark/results/faultinject/{layer0|layer3}/a_s3_w2_inst3/run{N}/` 之下。目录命名与 `results/compare/` 保持一致的 `<scale>_<workload>[_inst<M>]` 前缀，可直接被现有 `plot-results.py --average --stat median` 消费；per-instance 曲线由 `fault-plot.py` 单独处理，因为 `plot-results.py` 的默认聚合会把 `pod` 维度剥离。
+其余环节（Prometheus 时段导出、元数据落盘、节点分布快照）与 6.5 节完全一致。全部实验产物——PromQL 时序 JSON、注入事件时间戳、被 patch 的节点/被删的 Pod 清单、不变量 I 断言输出、生成的双轴时序图与分段汇总——落在 `test/e2e/benchmark/results/faultinject/{layer0|layer3}/a_s3_w2_inst3/run{N}/` 之下。目录命名与 `results/compare/` 保持一致的 `<scale>_<workload>[_inst<M>]` 前缀，可直接被现有 `plot-results.py --average --stat median` 消费；per-instance 曲线由 `fault-plot.py` 单独处理，因为 `plot-results.py` 的默认聚合会把 `pod` 维度剥离。
 
 ## 6.5　性能评估
 
-本节按"先总体、再分场景"的顺序组织实验结果。§6.5.1~§6.5.3 汇总各类别的柱状图与对应数据表，用于回答"整体上 ENO 相比其他方案如何"；§6.5.4 按具体测试场景 drill-down 到时序图，用于回答"某个具体场景下差距的分布形态如何"。
+本节按"先总体、再分场景"的顺序组织实验结果。6.5.1、6.5.2、6.5.3 三节汇总各类别的柱状图与对应数据表，用于回答"整体上 ENO 相比其他方案如何"；6.5.4 节按具体测试场景 drill-down 到时序图，用于回答"某个具体场景下差距的分布形态如何"。
 
 ### 6.5.1　五组调度器基线对比（场景 1~5）
 
@@ -292,7 +292,7 @@ bash test/e2e/benchmark/faultinject/run-6.6-all.sh --phase analyze
 
 ![图 18  ENO 与 Gödel 峰值吞吐 15 场景对比（scheduling_peak_throughput，n=3 中位数，s1/w1 无有效采样）](../figures/fig6-20-peak-throughput-a-vs-b-all.png)
 
-结论：以峰值吞吐（`scheduling_peak_throughput`）衡量，ENO 在 12 个场景领先、提升幅度 0.2%~68.0%，其中 s4/w6（inst3）达 +68.0%（893.2 对 531.6 pods/s）、s4/w7（inst3）+14.9%、s2/w3 +13.4%、s3/w3（inst1）+14.0%；Gödel 略领先的场景 2 个：s3/w5（inst3，-10.4%）与 s3/w6（inst3，-2.0%）；s4/w3（inst3）两者基本持平（-0.3%）。s3/w3 场景下 inst1/inst3 的绝对峰值另见 6.5.4.4 节表 13（ENO 858.2→1023.1 pods/s，Gödel 752.8→999.5 pods/s）。ENO 未在峰值吞吐上一律领先说明其有效吞吐的整体优势并非源自更高的瞬时调度速率，而是来自更快的启动进入稳态与更短的整体完成时间——这一口径差异在 §6.6 第（7）条中作为局限进一步说明。
+结论：以峰值吞吐（`scheduling_peak_throughput`）衡量，ENO 在 12 个场景领先、提升幅度 0.2%~68.0%，其中 s4/w6（inst3）达 +68.0%（893.2 对 531.6 pods/s）、s4/w7（inst3）+14.9%、s2/w3 +13.4%、s3/w3（inst1）+14.0%；Gödel 略领先的场景 2 个：s3/w5（inst3，-10.4%）与 s3/w6（inst3，-2.0%）；s4/w3（inst3）两者基本持平（-0.3%）。s3/w3 场景下 inst1/inst3 的绝对峰值另见 6.5.4.4 节表 13（ENO 858.2→1023.1 pods/s，Gödel 752.8→999.5 pods/s）。ENO 未在峰值吞吐上一律领先说明其有效吞吐的整体优势并非源自更高的瞬时调度速率，而是来自更快的启动进入稳态与更短的整体完成时间——这一口径差异在 6.6 节第（7）条中作为局限进一步说明。
 
 #### 6.5.3.3　调度延迟分布（P90/P99）
 
@@ -350,7 +350,7 @@ bash test/e2e/benchmark/faultinject/run-6.6-all.sh --phase analyze
 
 ### 6.5.4　分场景 drill-down（时序图）
 
-本节按具体测试场景 drill-down 到时序图，展示 §6.5.1~§6.5.3 汇总数据背后的分布形态。所有时序图均为 3 次重复 run 逐点中位数聚合的结果（`plot-results.py --stat median`）。
+本节按具体测试场景 drill-down 到时序图，展示 6.5.1、6.5.2、6.5.3 三节汇总数据背后的分布形态。所有时序图均为 3 次重复 run 逐点中位数聚合的结果（`plot-results.py --stat median`）。
 
 #### 6.5.4.1　主对比场景：s3/w3, inst1
 
