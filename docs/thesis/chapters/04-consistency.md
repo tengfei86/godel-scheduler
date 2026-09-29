@@ -129,7 +129,7 @@ Layer 1 在 `embedded_binder.go` 的 `bindPodToNode` 函数中实现，核心逻
 
 ### 4.4.2　Layer 2 的设计
 
-Layer 2 在 `binder_reconciler.go` 中实现，其核心数据结构是 `APICallFailedTaskQueue`——基于 client-go workqueue<sup>[36]</sup> 的失败任务队列，具备去重、限流与指数退避重试能力。
+Layer 2 在 `binder_reconciler.go` 中实现，其核心数据结构是 `APICallFailedTaskQueue`——基于 client-go workqueue<sup>[34]</sup> 的失败任务队列，具备去重、限流与指数退避重试能力。
 
 流转过程如下：
 

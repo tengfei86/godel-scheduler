@@ -6,7 +6,7 @@
 
 ### 6.1.1　硬件与仿真栈
 
-出于成本与可复现性考虑，本文的评估基于 KWOK（Kubernetes WithOut Kubelet）仿真环境<sup>[37]</sup>，而非真实的物理集群。KWOK 通过在 kind 集群中运行"假 kubelet"控制器模拟真实节点的 Pod 生命周期，能够以极低的资源成本模拟千至万节点级别的集群。本文所有实验运行在一台 64 vCPU / 128 GB 内存的虚拟机上，s1~s4（100~10 000 节点）四档规模均可在该单机内完成，具备等同规格的开发机即可复现本文实验，无需真实物理服务器与云资源开支；同时由于去除了 kubelet 与容器运行时的干扰，所测指标聚焦于调度器本身的性能，而非容器启动、镜像拉取等下游开销。
+出于成本与可复现性考虑，本文的评估基于 KWOK（Kubernetes WithOut Kubelet）仿真环境<sup>[35]</sup>，而非真实的物理集群。KWOK 通过在 kind 集群中运行"假 kubelet"控制器模拟真实节点的 Pod 生命周期，能够以极低的资源成本模拟千至万节点级别的集群。本文所有实验运行在一台 64 vCPU / 128 GB 内存的虚拟机上，s1~s4（100~10 000 节点）四档规模均可在该单机内完成，具备等同规格的开发机即可复现本文实验，无需真实物理服务器与云资源开支；同时由于去除了 kubelet 与容器运行时的干扰，所测指标聚焦于调度器本身的性能，而非容器启动、镜像拉取等下游开销。
 
 已知的局限：KWOK 仿真环境无法完全反映真实节点上的资源竞争、网络延迟、磁盘 IO 等干扰因素，因此本文的绝对数值不能直接外推到生产环境。但在跨调度器对比这一相对场景下，KWOK 提供了公平的评估基准。
 
@@ -14,9 +14,9 @@
 
 本文实验的观测栈由 Prometheus + Grafana 组成：负载注入器按 w2/w3 速率创建 Pod；kind 集群内包含 kube-apiserver/etcd 控制平面、KWOK 仿真的 1000/5000 个节点、以及 a~e 五组调度器；各组调度器指标经 Prometheus（15 秒抓取 + recording rules 归一化）采集，由 Grafana 可视化。关键组件包括：
 
-- Prometheus<sup>[38]</sup>：每 15 秒从各调度器抓取一次指标，本文实验期间 Prometheus 部署为独立 Deployment，配备 16Gi 内存限制、2h 数据保留、WAL 压缩，避免 OOM；
+- Prometheus<sup>[36]</sup>：每 15 秒从各调度器抓取一次指标，本文实验期间 Prometheus 部署为独立 Deployment，配备 16Gi 内存限制、2h 数据保留、WAL 压缩，避免 OOM；
 - 调度器组自定义 recording rules：每个调度器组（a/b/c/d/e）在自己的 Prometheus 中定义了统一的 recording rules，将各调度器的原始指标（如 `scheduler_pod_scheduling_attempts` / `volcano_task_scheduling_latency_milliseconds`）归一化为跨组可比的记录（`{group}:{metric}:{aggregation}`）；
-- Grafana<sup>[39]</sup>：为每个调度器组配置了独立 dashboard，用于实时观察实验进展并事后审阅。
+- Grafana<sup>[37]</sup>：为每个调度器组配置了独立 dashboard，用于实时观察实验进展并事后审阅。
 
 在此基础上，每个 (scale, workload) 场景都独立跑 3 次 run，然后由 `plot-results.py --stat median` 按时间点对 3 条 run 取中位数，聚合成一条与单次 run 同形状的时序。这一"三次重复 + 逐点中位数"的归一化处理是本章所有数据从原始 JSON 到入表数值的关键一步：单次 run 的 GC 抖动、瞬时排队波动或采样丢点都无法主导结论，同时也保留了完整的时序形态供后续切片。从聚合序列进一步取出标量（延迟分位、峰值吞吐、队列堆积等）的具体规则见 6.3 节。
 
