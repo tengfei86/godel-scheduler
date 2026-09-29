@@ -128,13 +128,99 @@ s2、s3 与 s4 覆盖了从中等到超大规模的集群场景（跨度 10×）
 基于此，本文的定量对比策略如下：
 
 1. 主对比（a vs b）：ENO 与 Gödel 使用完全相同的 `scheduler_e2e_scheduling_duration_seconds` 指标，数据采样条件一致，可直接比较 latency 的绝对数值与相对改善百分比。
-2. 辅助对比（vs c/d/e）：以吞吐、pending_pods 队列堆积、绑定成功率等不受样本群体差异影响的指标进行整体扩展性对比；c/d/e 的 latency 分位数不与 a/b 做数值对齐（相关讨论见 6.5 节与 6.7 节）。
+2. 辅助对比（vs c/d/e）：以吞吐、pending_pods 队列堆积、绑定成功率等不受样本群体差异影响的指标进行整体扩展性对比；c/d/e 的 latency 分位数不与 a/b 做数值对齐（相关讨论见 6.5.4 节与 6.6 节）。
 
-## 6.4　综合对比
+## 6.4　实验验证
 
-本节按"先总体、再分场景"的顺序组织实验结果。6.4 汇总各类别的柱状图与对应数据表，用于回答"整体上 ENO 相比其他方案如何"；6.5 按具体测试场景 drill-down 到时序图，用于回答"某个具体场景下差距的分布形态如何"。
+本节回答"方案是否正确"这一问题——通过实验数据说明 ENO 分布式调度器在正常与故障两类场景下均能维护第 4 章定义的核心不变量 I「任一 Pod 至多绑定到一个节点」，同时保证绑定路径不残留脏数据。§6.4.1 汇总全部对比场景下的绑定成功率与不变量 I 断言结果，用于验证稳态负载下 Layer 1（同步重试）与 Layer 2（异步 Reconciler）的正确性；§6.4.2 与 §6.4.3 通过针对性故障注入分别验证 Layer 0（节点归属校验）与 Layer 3（跨 Scheduler 实例回退）；§6.4.4 说明专项实验的编排与可复现方式。
 
-### 6.4.1　五组调度器基线对比（场景 1~5）
+### 6.4.1　全场景绑定成功率与核心不变量保持性
+
+正确性验证的第一层证据来自全部性能对比场景本身。在 §6.5 覆盖的 16 个对比场景 × n=3 重复共 144 次 run 中，ENO 与 Gödel 的绑定成功率始终为 100%，未出现绑定失败或请求丢失；在 1000~2000 pods/s 的高压注入下两组均保持全量绑定成功，说明第 4 章的分层容错机制在已测规模下正确工作，ENO 的架构改造未引入任何正确性回退。绑定成功率通过 `sum(rate(bind_pods_total{result="success"}[1m])) / sum(rate(bind_pods_total[1m]))` 在 Prometheus 侧持续采集，作为不受样本群体差异影响的正确性指标。
+
+与此配套，核心不变量 I「任一 Pod 至多绑定到一个节点」由 `assert-invariant-i.sh` 脚本在每次 run 结束时直接查询 kube-apiserver 完成断言——遍历目标命名空间下的全部 Pod，检查 `spec.nodeName` 是否非空以及每个 Pod 是否只出现一次，结果写入 `invariant-i.txt`。在全部 144 次 run 上，脚本均输出 `unbound = 0 ∧ dup = 0`，即不存在未绑定 Pod、也不存在被绑定到两个不同节点的重复项，从 apiserver 视角直接确认不变量 I 在稳态负载下严格成立。
+
+Layer 1（同步指数退避重试）与 Layer 2（异步 Reconciler 队列）在稳态负载下频繁触发——前者由 apiserver 暂态错误驱动、后者由孤儿 Assumed 状态回收驱动——它们的正确性由上述"绑定成功率 100% + 不变量 I 断言全通过"两个指标间接覆盖，无需额外单列专项实验。Layer 0 与 Layer 3 的触发条件在稳态负载下发生频率极低，需要故意注入故障才能观察，以下 §6.4.2 与 §6.4.3 分别单列专项验证。
+
+**通用实验设定**。两个专项实验共用一套基线配置，以便与 §6.5 交叉引用：调度器组 a（ENO）、规模 s2（1000 节点，可用于笔电级复现；论文场景 s3 = 5000 节点由环境变量 `FI_SCALE=s3` 切换）、负载 w2（500 pods/s × 50K pods，标称完成时间约 100 s）、实例数 inst3（3 个 Scheduler）、每种故障重复 n=3。选择 w2 而非 w3/w4 是为了让集群工作在未饱和区——由此观测到的 `node_validation_failures` 与 `dispatcher_fallback` 计数变化可以确定性归因于注入的故障，而非过载导致的连锁反应。Layer 0 与 Layer 3 的注入时点不同：Layer 0 在 T+30 s（拦截效应立即可见），Layer 3 在 T+10 s（因为要等 `MaxSchedulerCRDNotUpdateDuration = 2 min` 的失活探测阈值 + `SchedulerMaintainer.SyncUpSchedulersStatus` 的 30 s 巡检才会触发 `PodStateReconciler`，若注入晚了整段接管曲线会溢出 workload 提交窗口）。
+
+**Prometheus 采集**。两个实验的时序数据均通过 `test/e2e/benchmark/collect/export-prometheus.sh` 拉取，导出集覆盖 `binder_node_validation_failures_total`、`binder_dispatcher_fallback_total` 及其对应的 rate1m recording rule；为支持 Layer 3 的分实例观察，本节额外注册了三条按 `pod` 分组的 recording rule：`eno:binder_embedded_bind_pods:success_rate1m_by_pod`、`eno:binder_dispatcher_fallback:rate1m_by_pod`、`eno:binder_node_validation_failures:rate1m_by_pod`。为让判据能确定性区分"Reconciler 感知失活并重排"vs"Layer 1 局部重试"，本节还在 Dispatcher 侧新增了一个 counter `dispatcher_orphan_pods_reset_total{reason=stale_dispatched|abnormal}`（源码见 `pkg/dispatcher/metrics/metrics.go`，埋点位于 `pkg/dispatcher/reconciler/podstatesyncer.go` 两处 reset 调用）——该 counter 在 `Register()` 时被显式 `Add(0)` 到 registry 以避免"series 首次出现即为终值、`rate()` 算不出正增量"这一 Prometheus 边角。核心不变量 I 的实测验证由 `assert-invariant-i.sh` 直接查询 kube-apiserver 完成——遍历目标命名空间下的全部 Pod，断言 `spec.nodeName` 非空且每个 Pod 只出现一次，脚本在 Step 8b 自动调用，结果写入 `invariant-i.txt`。
+
+### 6.4.2　Layer 0 触发验证
+
+**实验目标**：验证当 Node 的 `eno.io/scheduler-name` 注解在 Bind 前发生漂移时，原持有者 Scheduler 的 Bind 尝试会被 Layer 0 拦截并转入 Layer 3 全局回退，最终不产生跨分区的 Bind API 调用，且不违反核心不变量 I。
+
+**故障注入方式**。在 T+30 s 时刻，对当前分配给 Scheduler 实例 `eno-scheduler-0` 的节点中随机抽取 10%（约 100/1000 节点），通过 `kubectl patch node --type=merge` 将其 `eno.io/scheduler-name` 注解改为 `eno-scheduler-1`，模拟 Dispatcher 的 `node-shuffler` 触发的强制重分区。10% 的比例经过权衡：一方面足以在 rate 时序上形成可辨识的峰值，另一方面不至于让 Dispatcher 的重分发队列本身成为新的瓶颈从而混淆归因。前置条件是集群必须先启用节点分区功能——Dispatcher 需要以 `--feature-gates=DispatcherNodeShuffle=true` 启动，且 `ClusterRole/eno` 必须包含 `nodes` 的 `update, patch` 权限（早期部署仅授了 `get, list, watch` 会让 node-shuffler 的 UpdateNode 全部被 apiserver 以 Forbidden 拒绝，从而 annotation 永远为空——这一 RBAC 缺口已由本文补齐）。注入脚本 `test/e2e/benchmark/faultinject/inject-layer0.sh` 将被 patch 的节点列表、起止时间戳写入 `inject-manifest.json` 与 `inject-events.log` 供事后对齐。
+
+**观测指标**：Layer 0 拦截数与 Dispatcher 回退数分别通过 `binder_node_validation_failures_total` 与 `binder_dispatcher_fallback_total` 的 90 s 窗口积分捕获——informer 传播 patch 后的 node annotation 需要约 10~30 s，拦截峰值往往落在 [T+30, T+90] s（fault-plot 双轴时序清晰显示 rate 从注入点起爬升、约 100 s 后到峰）。绑定成功率取 `sum(rate(bind_pods_total{result="success"}[1m])) / sum(rate(bind_pods_total[1m]))` 的窗口最小值，`bind_retries_total` 的 90 s 积分用于排除"拦截来自 API 冲突而非 Layer 0"这一竞争解释。挂起 Pod 数 `sum(scheduler_pending_pods)` 在注入后短暂上涨、随重分发完成回落。
+
+: 表 15  Layer 0 触发验证：六项判据实测结果（s2/w2/inst3，n=1；完整数据见 `results/faultinject/report-*.md`）
+
+| 判据 | 观测窗口 | 阈值 | 实测 | 结论 |
+|---|---|---|---|---|
+| L0-1 NodeValidator 拦截 | [inject, +90 s] | 积分 > 0 | 300 | ✅ |
+| L0-2 拦截 → Dispatcher 回退联动 | [inject, +90 s] | 积分 > 0 且与 L0-1 同源 | 300 | ✅ |
+| L0-3 不变量 I（apiserver 断言） | 实验结束时刻 | unbound = 0 ∧ dup = 0 | 50000 / 50000 | ✅ |
+| L0-4 拦截规模与 patched 节点相当 | [inject, +90 s] | ≥ max(patched × 0.3, 5) | 300 vs 100（阈值 30） | ✅ |
+| L0-5 Layer 1 重试未异常上涨 | [inject, +90 s] | ≤ max(pre × 3, 10) | pre = 0.0 / inject = 0.0 | ✅ |
+| L0-6 绑定成功率全程 100% | [inject − 30 s, +90 s] | min ≥ 0.99 | 1.00 | ✅ |
+
+Layer 0 六项判据全部通过。图 41 给出 `node_validation_failures:rate1m` 与 `dispatcher_fallback:rate1m` 的双轴时序：注入线（T+32 s）后 rate 立刻从 0 爬升，约 30 s 后到达约 11 events/s 的峰值，随后随 Assumed 队列消化速度平滑衰减，到 T+330 s 归零；两条曲线完全重叠，直接可视化了"Layer 0 拦截 → Dispatcher 回退"的联动。绿色 `bind_success_rate` 全程平稳 1.0，说明拦截是通过合规重排消化的、没有 Bind 请求被真正丢弃。
+
+与无故障基线（`results/a/s2/w2/inst3/run1` = 680 s）对比，Layer 0 单次注入的总耗时为 683 s（+3 s，+0.4%），性能开销可忽略——被拦截的 Pod 通过 Dispatcher 的 fallback 队列在 15 s 内被重排到合法节点。
+
+![图 41  Layer 0 触发验证（节点归属漂移，s2/w2/inst3，n=1）](../figures/fig6-29a-layer0-timeseries.png)
+
+### 6.4.3　Layer 3 触发验证
+
+**实验目标**：验证一个 Scheduler 实例意外失活时，Dispatcher 的 SchedulerMaintainer 与 PodStateReconciler 会将其名下 Dispatched 状态的 Pod 重置为 Pending 并交由存活实例接管（Layer 3 的实例级回收路径），最终全部 Pod 绑定成功、无孤儿数据、无双绑。
+
+**故障注入方式**。在 T+10 s 时刻，先执行 `kubectl scale deploy/scheduler-0 --replicas=0` 阻断 kube-controller-manager 的即时重建，再 `kubectl delete pod --grace-period=0 --force` 杀掉目标 Scheduler Pod；`LAYER3_OUTAGE_SEC = 180 s` 之后重新 `kubectl scale --replicas=1` 恢复。此前的实现只 delete pod 不 scale，Deployment 会在 1 s 内重建同 label 的新 Pod、Scheduler CR 的 `Status.LastUpdateTime` 从未老过 `MaxSchedulerCRDNotUpdateDuration = 2 min` 阈值，`SchedulerMaintainer` 因此从未把该实例移入 inactive 队列，Reconciler 的 orphan-reset 路径**根本没被激活**——这也解释了早期实验中 `dispatcher_fallback` 与 `node_validation_failures` 全程为 0 的观察。180 s 停机时长的选择是：（1）覆盖 2 min 失活阈值；（2）再多留 20~30 s 让 `SyncUpSchedulersStatus`（30 s 巡检）跑至少一次并完成 CR 的删除；（3）避免超出 workload 提交窗口（100 s workload + 90 s 尾窗 = 190 s，恢复曲线主体正好落在观察期内）。注入脚本 `inject-layer3.sh` 记录 `killed_ts` 与 `restored_ts` 供后处理脚本在时序图上标注两条竖线，并通过 `trap EXIT` 保证异常退出时也 scale 回 1，避免把集群留在 replicas = 0。
+
+**观测指标**：核心新增指标是 `dispatcher_orphan_pods_reset_total`——它是 Reconciler 感知失活并主动重排的直接信号，取代了早期版本用 `binder_dispatcher_fallback_total` 兼作 Layer 3 判据带来的语义模糊（后者本意是"Binder 因 MaxLocalRetries 溢出而回退"，跟 Layer 3 的 Scheduler 失活并不同源）。分实例绑定量 `sum by (pod) (increase(binder_embedded_bind_pods_total{result="success"}[90 s]))` 用于验证"被杀实例停止绑定 + 存活实例接管"；挂起 Pod 数 `sum(scheduler_pending_pods)` 应在 outage 后段出现峰值（Reconciler 把 Dispatched pods 反刍回 Pending 队列），然后随存活实例消化而回落。
+
+: 表 16  Layer 3 触发验证：六项判据实测结果（s2/w2/inst3，n=1；outage 实测 189 s）
+
+| 判据 | 观测窗口 | 阈值 | 实测 | 结论 |
+|---|---|---|---|---|
+| L3-1 Dispatcher 回退阶跃（Reconciler 触发） | [killed, restored + 15 s] | orphan_reset 积分 > 0 | 77.15 events/s（rate1m 积分） | ✅ |
+| L3-2 被杀实例停止绑定 | [killed, +90 s] | killed / (killed + others) < 5% | 68 / 8407 = 0.81% | ✅ |
+| L3-3 存活实例接管 | [killed, +90 s] | others_after > others_before × 0.9 | 0 → 8407 pods | ✅ |
+| L3-4 pending 尖峰后回落 | pre / peak / recover_valley | peak > pre + 5 且 recover_min ≤ pre + 15 | pre = 0 / peak = 353 / recover_min = 2 | ✅ |
+| L3-5 总绑定量守恒（全 run 累计） | [start, end] | 累计 ≥ 10% × TOTAL | 49607 / 50000 | ✅ |
+| L3-6 不变量 I（apiserver 断言） | 实验结束时刻 | unbound = 0 ∧ dup = 0 | 50000 / 50000 | ✅ |
+
+Layer 3 六项判据全部通过。图 42 展示了完整的失活—接管—恢复曲线：kill 竖线（T+14 s）后被杀实例 `scheduler-0-rz6fq`（紫色）的 bind rate 立刻降到 0；两个存活实例 `scheduler-1`（棕色）与 `scheduler-2`（粉色）分别拉升到约 135 pods/s 与 40 pods/s 分担存量负载；restored 竖线（T+203 s）标记 SchedulerMaintainer 完成 CR 删除、`PodStateReconciler` 通过 `DeleteScheduler` 事件把 Dispatched 但未 Bind 的 pod enqueue 到 stale-dispatched 队列的时刻——orphan_pods_reset counter 在这个瞬时被点亮（图中橙色 rate1m 曲线在 T+200~250 s 有一个矮而窄的峰），紧接着 pending_pods（蓝色右轴）冲高到峰值 353——这正是被 Reconciler 反刍回 Pending 队列的孤儿 Pod。之后重启的 scheduler-0（`5llg8`，绿色）与两个存活实例合力把 pending 在 60 s 内消化到 0。
+
+与无故障基线（680 s）对比，Layer 3 单次注入的总耗时为 784 s（+104 s，+15.3%）——这 100 s 的开销主要来自 180 s 停机期间被杀实例份额（约 1/3 workload = 16 K pods）的重排延迟。图 43 给出三项对比：(a) 完成时间相对基线的开销比较；(b) Layer 0 拦截规模与 patched 节点数的对应关系；(c) Layer 3 分实例接管量。
+
+![图 42  Layer 3 触发验证（scheduler-0 停机 180 s，s2/w2/inst3，n=1）](../figures/fig6-29b-layer3-timeseries.png)
+
+![图 43  Layer 0 / Layer 3 故障注入三项定量对比（s2/w2/inst3，n=1）](../figures/fig6-30-fault-recovery-comparison.png)
+
+### 6.4.4　故障注入专项实验的编排与可复现性
+
+两个专项实验复用 `test/e2e/benchmark/run-experiment.sh` 的主流程。为集中管理注入相关的参数，本节新增了三处扩展：（1）`run-experiment.sh` 增加 `--inject {layer0|layer3}`、`--inject-at <seconds>` 与 `--inject-args <passthrough>` 三个可选标志；（2）当 `--inject` 存在时，Step 6b 会在 Step 7 负载注入器启动的同时后台 `sleep $INJECT_AT` 秒并调用 `faultinject/inject-<layer>.sh <run_dir>`，Step 8 完成 100 % 调度等待后 `wait` 该子进程，再由 Step 8b 调用 `assert-invariant-i.sh` 校验不变量 I；（3）`faultinject/run-fault-experiment.sh` 是薄封装脚本，固化组 a / s3 / w2 / inst3 的场景配置，注入时点按 layer 分支（layer0 = T+30 s、layer3 = T+10 s，与 §6.4.2 / §6.4.3 一致），只暴露 `layer0 | layer3 | both` 与 `--repeats N` 两个参数。典型调用：
+
+```bash
+# 论文 6.4 节的一键复现入口
+bash test/e2e/benchmark/faultinject/run-6.6-all.sh
+
+# 只跑某个 phase（幂等；已有 run 会自动跳过）
+bash test/e2e/benchmark/faultinject/run-6.6-all.sh --phase preflight
+bash test/e2e/benchmark/faultinject/run-6.6-all.sh --phase inject --repeats 5
+bash test/e2e/benchmark/faultinject/run-6.6-all.sh --phase analyze
+```
+
+`run-6.6-all.sh` 把整套实验切成四个幂等 phase：`preflight`（校验集群与 recording rule）→ `baseline`（补跑 §6.5 `a/s3/w2/inst3` 无故障基线）→ `inject`（`layer0 × N` + `layer3 × N`）→ `analyze`（对每个 run 目录跑 `fault-plot.py` 与 `fault-summary.py`）。若只想跑注入部分或使用不同参数（例如把 Layer 0 的漂移比例改成 20%），可透传 `--fraction` / `--from` / `--to` 等给底层 `inject-<layer>.sh`；细粒度的手动接口 `run-fault-experiment.sh {layer0|layer3|both}` 仍保留供调试使用。
+
+其余环节（Prometheus 时段导出、元数据落盘、节点分布快照）与 §6.5 完全一致。全部实验产物——PromQL 时序 JSON、注入事件时间戳、被 patch 的节点/被删的 Pod 清单、不变量 I 断言输出、生成的双轴时序图与分段汇总——落在 `test/e2e/benchmark/results/faultinject/{layer0|layer3}/a_s3_w2_inst3/run{N}/` 之下。目录命名与 `results/compare/` 保持一致的 `<scale>_<workload>[_inst<M>]` 前缀，可直接被现有 `plot-results.py --average --stat median` 消费；per-instance 曲线由 `fault-plot.py` 单独处理，因为 `plot-results.py` 的默认聚合会把 `pod` 维度剥离。
+
+## 6.5　性能评估
+
+本节按"先总体、再分场景"的顺序组织实验结果。§6.5.1~§6.5.3 汇总各类别的柱状图与对应数据表，用于回答"整体上 ENO 相比其他方案如何"；§6.5.4 按具体测试场景 drill-down 到时序图，用于回答"某个具体场景下差距的分布形态如何"。
+
+### 6.5.1　五组调度器基线对比（场景 1~5）
 
 表 6 的序号 1~5 定义了五组调度器同场对比的基线场景（s1/w1、s2/w2、s2/w3、s3/w2、s3/w3，均为 inst1）。图 14 汇总五组在这些场景下的有效吞吐。
 
@@ -154,7 +240,7 @@ s2、s3 与 s4 覆盖了从中等到超大规模的集群场景（跨度 10×）
 
 结论：五组呈现明显的三档差异——ENO 与 Gödel 处于第一档（两者接近，ENO 略领先），kube-scheduler 处于第二档（同量级但略低），Volcano 与 Koordinator 分列第三、第四档（分别稳定在约 48 与 24 pods/s，几乎不随集群规模或负载变化，反映其批处理与 QoS 感知调度机制的固有处理速率上限）。定量地，ENO 在 s2/s3 × w2/w3 主评估四组场景下有效吞吐较 kube-scheduler 高 +1.8%~+22.5%（s2/w2 +22.5%，s3/w2 +21.7%，s2/w3 +18.7%，s3/w3 +1.8%），较 Volcano 与 Koordinator 分别高约 6 倍与 12 倍以上。s1/w1（100 节点、10K pods 低负载）是唯一 ENO 有效吞吐略低于 kube-scheduler 的场景（−7.2%）——该负载在两类调度器上都未达饱和处理阈值，完成时间主要由 podgen 注入速率决定，个位数秒级的启动差异即可反转对比方向；主评估结论仍以 w2/w3 稳态负载为准。
 
-### 6.4.2　Gang 调度专项对比（场景 6，a/b/d）
+### 6.5.2　Gang 调度专项对比（场景 6，a/b/d）
 
 表 6 的序号 6（s3/w6/inst1）是 Gang 调度的专项场景，只有 ENO（a）、Gödel（b）与 Volcano（d）三组参与采集（c、e 未参与）。图 15 与图 16 分别汇总三组在该场景下的有效吞吐与 P99 调度延迟。
 
@@ -169,13 +255,13 @@ s2、s3 与 s4 覆盖了从中等到超大规模的集群场景（跨度 10×）
 | 有效吞吐（pods/s） | 251.3 | 211.0 | 47.8 |
 | P99 调度延迟（秒） | 0.428 | 0.175 | 3.182 |
 
-结论：两种分布式方案（ENO/Gödel）的完成时间口径吞吐均达到 Volcano 单实例架构的 4~5 倍；P99 调度延迟方面，Volcano 3.182 s 比 ENO 与 Gödel 分别高出约 6.4 倍与 17.2 倍。这一对照展示了分区独立处理 PodGroup 的分布式架构相比集中式单实例架构在完成时间与尾延迟两个维度上的量级差异，不构成对 Volcano 本身架构选择的否定评价——Volcano 面向的场景与其提供的公平共享、队列语义并非本文 w6 负载所直接考察的目标。ENO 与 Gödel 在 Gang 场景下的方向差异（ENO 有效吞吐更高但单 Pod P99 反而更高）见 6.4.3.3、6.4.3.4 的说明与 6.7 节第（2）条的入计口径讨论。
+结论：两种分布式方案（ENO/Gödel）的完成时间口径吞吐均达到 Volcano 单实例架构的 4~5 倍；P99 调度延迟方面，Volcano 3.182 s 比 ENO 与 Gödel 分别高出约 6.4 倍与 17.2 倍。这一对照展示了分区独立处理 PodGroup 的分布式架构相比集中式单实例架构在完成时间与尾延迟两个维度上的量级差异，不构成对 Volcano 本身架构选择的否定评价——Volcano 面向的场景与其提供的公平共享、队列语义并非本文 w6 负载所直接考察的目标。ENO 与 Gödel 在 Gang 场景下的方向差异（ENO 有效吞吐更高但单 Pod P99 反而更高）见 6.5.3.3、6.5.3.4 的说明与 6.6 节第（2）条的入计口径讨论。
 
-### 6.4.3　ENO 与 Gödel 全场景对比
+### 6.5.3　ENO 与 Gödel 全场景对比
 
 本小节汇总 ENO 与 Gödel 在全部 16 个场景下的定量对比（含表 6 序号 1~5 的单实例基线与序号 7~16 的多实例扩展场景），按有效吞吐、峰值吞吐、调度延迟、Pod E2E 延迟、绑定成功率五项指标依次展开。
 
-#### 6.4.3.1　有效吞吐
+#### 6.5.3.1　有效吞吐
 
 ![图 17  ENO 与 Gödel 各场景有效吞吐对比（总工作量 / 总完成时间，n=3 中位数）](../figures/fig6-2-effective-throughput.png)
 
@@ -202,13 +288,13 @@ s2、s3 与 s4 覆盖了从中等到超大规模的集群场景（跨度 10×）
 
 结论：ENO 的有效吞吐在 14 个场景高于 Gödel、2 个场景持平（s1/w1 与 s4/w7），提升幅度 +2.0%~+22.9%，平均 +11.9%；所有场景的调度完成率均为 100%（差异来自完成时间而非完成度）。提升在高负载与多实例配置下最为明显：s2/w3 +22.9%，s3/w3（inst3）+21.7%，s3/w5（inst3）+21.3%，s3/w7（inst3）+21.2%。Gang 场景（w6）为 +4.3%~+19.1%。低负载场景两者接近，原因是负载未使调度器饱和，完成时间主要由负载注入速率决定。
 
-#### 6.4.3.2　峰值吞吐
+#### 6.5.3.2　峰值吞吐
 
 ![图 18  ENO 与 Gödel 峰值吞吐 15 场景对比（scheduling_peak_throughput，n=3 中位数，s1/w1 无有效采样）](../figures/fig6-20-peak-throughput-a-vs-b-all.png)
 
-结论：以峰值吞吐（`scheduling_peak_throughput`）衡量，ENO 在 12 个场景领先、提升幅度 0.2%~68.0%，其中 s4/w6（inst3）达 +68.0%（893.2 对 531.6 pods/s）、s4/w7（inst3）+14.9%、s2/w3 +13.4%、s3/w3（inst1）+14.0%；Gödel 略领先的场景 2 个：s3/w5（inst3，-10.4%）与 s3/w6（inst3，-2.0%）；s4/w3（inst3）两者基本持平（-0.3%）。s3/w3 场景下 inst1/inst3 的绝对峰值另见 6.5.4 节表 13（ENO 858.2→1023.1 pods/s，Gödel 752.8→999.5 pods/s）。ENO 未在峰值吞吐上一律领先说明其有效吞吐的整体优势并非源自更高的瞬时调度速率，而是来自更快的启动进入稳态与更短的整体完成时间——这一口径差异在 §6.7 第（7）条中作为局限进一步说明。
+结论：以峰值吞吐（`scheduling_peak_throughput`）衡量，ENO 在 12 个场景领先、提升幅度 0.2%~68.0%，其中 s4/w6（inst3）达 +68.0%（893.2 对 531.6 pods/s）、s4/w7（inst3）+14.9%、s2/w3 +13.4%、s3/w3（inst1）+14.0%；Gödel 略领先的场景 2 个：s3/w5（inst3，-10.4%）与 s3/w6（inst3，-2.0%）；s4/w3（inst3）两者基本持平（-0.3%）。s3/w3 场景下 inst1/inst3 的绝对峰值另见 6.5.4.4 节表 13（ENO 858.2→1023.1 pods/s，Gödel 752.8→999.5 pods/s）。ENO 未在峰值吞吐上一律领先说明其有效吞吐的整体优势并非源自更高的瞬时调度速率，而是来自更快的启动进入稳态与更短的整体完成时间——这一口径差异在 §6.6 第（7）条中作为局限进一步说明。
 
-#### 6.4.3.3　调度延迟分布（P90/P99）
+#### 6.5.3.3　调度延迟分布（P90/P99）
 
 ![图 19  全场景 ENO 与 Gödel P99 调度延迟对比（scheduling_latency_p99，n=3 中位数，log 纵轴）](../figures/fig6-4-latency-p99-all.png)
 
@@ -234,9 +320,9 @@ s2、s3 与 s4 覆盖了从中等到超大规模的集群场景（跨度 10×）
 
 > 附注：本表仅列出 ENO 与 Gödel 的调度延迟对比，未包含 kube-scheduler（c）、Volcano（d）、Koordinator（e）。原因见 6.3.1 节：单实例调度器在 1000 pods/s 过载压力下的 latency histogram 存在幸存者偏差，其表面上的低 P99 值不与分布式方案 a/b 的真实尾延迟直接可比。c/d/e 与 a/b 的整体对比通过吞吐、队列堆积（pending_pods）与绑定成功率进行。
 
-结论：在 s2/w2 之外的 11 个非 Gang 场景中，ENO 的 P90 与 P99 调度延迟均低于 Gödel，P90 改善 4.7%~79.5%、P99 改善 0.3%~82.9%。高负载场景的改善最为明显：s2/w3 的 P99 由 23.48 s 降至 4.00 s（降低 82.9%），s3/w3（inst1）由 32.57 s 降至 16.22 s（降低 50.2%），s3/w4（inst3）降低 49.7%，s4/w3（inst3）降低 33.4%。多实例配置下两者的绝对延迟都进入亚秒级（s3/w3 inst3：ENO 0.127 s、Gödel 0.150 s），说明增加实例数能同时缓解两种架构的排队压力、差距收窄。未饱和的 s2/w2 差距很小：ENO P99 为 0.123 s、Gödel 为 0.112 s，绝对差 0.011 s。三个 Gang 场景（s3/w6 的 inst1 与 inst3、s4/w6 的 inst3）方向相反：ENO 明显更高，P99 相差 1.6~4.1 倍。Gang 负载下 ENO 的完成时间反而更短（表 9），这一"吞吐与延迟方向相反"的现象及其可能的入计口径原因见 6.4.3.4 与 6.7 节第（2）条。
+结论：在 s2/w2 之外的 11 个非 Gang 场景中，ENO 的 P90 与 P99 调度延迟均低于 Gödel，P90 改善 4.7%~79.5%、P99 改善 0.3%~82.9%。高负载场景的改善最为明显：s2/w3 的 P99 由 23.48 s 降至 4.00 s（降低 82.9%），s3/w3（inst1）由 32.57 s 降至 16.22 s（降低 50.2%），s3/w4（inst3）降低 49.7%，s4/w3（inst3）降低 33.4%。多实例配置下两者的绝对延迟都进入亚秒级（s3/w3 inst3：ENO 0.127 s、Gödel 0.150 s），说明增加实例数能同时缓解两种架构的排队压力、差距收窄。未饱和的 s2/w2 差距很小：ENO P99 为 0.123 s、Gödel 为 0.112 s，绝对差 0.011 s。三个 Gang 场景（s3/w6 的 inst1 与 inst3、s4/w6 的 inst3）方向相反：ENO 明显更高，P99 相差 1.6~4.1 倍。Gang 负载下 ENO 的完成时间反而更短（表 9），这一"吞吐与延迟方向相反"的现象及其可能的入计口径原因见 6.5.3.4 与 6.6 节第（2）条。
 
-#### 6.4.3.4　Pod E2E 延迟（Dispatcher → Bound）
+#### 6.5.3.4　Pod E2E 延迟（Dispatcher → Bound）
 
 ![图 20  ENO 与 Gödel Pod E2E 延迟 P99 15 场景对比（pod_e2e_latency_p99，n=3 中位数，s1/w1 无有效采样，log 纵轴）](../figures/fig6-8-e2e-latency-p99-all.png)
 
@@ -260,19 +346,15 @@ s2、s3 与 s4 覆盖了从中等到超大规模的集群场景（跨度 10×）
 | s4/w6（inst3） | 1.018 | 0.910 | -11.9% |
 | s4/w7（inst3） | 0.141 | 0.300 | 52.9% |
 
-结论：在 12 个非 Gang 场景中，ENO 的 Pod E2E P99 延迟都不高于 Gödel，改善 0.6%~75.3%，其中 s2/w3 降低 75.3%、s3/w7（inst3）降低 68.2%、s3/w5（inst3）降低 53.8%、s3/w3（inst3）降低 51.9%；改善幅度最小的是 s4/w5（inst3，0.6%，两者均在 4 s 上下），未饱和的 s2/w2 也仅有 3.5% 的改善（0.231 对 0.240 s）。三个 Gang 场景例外：ENO 分别为 0.662、1.779、1.018 s，Gödel 为 0.546、0.800、0.910 s，ENO 高出 11.9%~122.2%。E2E 延迟直接包含 Scheduler 与 Binder 之间的协作开销，非 Gang 场景的结果量化验证了 ENO 消除 Scheduler → Binder 事件传递环节（第 5 章 §5.1 步骤 ④）对端到端时延的收益；Gang 场景的反向结果说明该收益在"同一时刻只处理少量同组 Pod"的负载形态下不再占主导。一个与架构一致的观察是：Gang 组调度要求同组 5 个 Pod 全部预留成功后才进入绑定，ENO 的绑定在调度进程内完成，同组成员的预留等待、绑定调用与后续 Pod 的调度决策共用同一个进程与队列，因而单个 Pod 的等待时间被拉长；Gödel 的绑定由独立 Binder Deployment 承担，这部分等待仅部分计入调度器 histogram。该解释尚未通过独立的故障/计时实验分离验证，列为局限（6.7 节第（2）条）。
+结论：在 12 个非 Gang 场景中，ENO 的 Pod E2E P99 延迟都不高于 Gödel，改善 0.6%~75.3%，其中 s2/w3 降低 75.3%、s3/w7（inst3）降低 68.2%、s3/w5（inst3）降低 53.8%、s3/w3（inst3）降低 51.9%；改善幅度最小的是 s4/w5（inst3，0.6%，两者均在 4 s 上下），未饱和的 s2/w2 也仅有 3.5% 的改善（0.231 对 0.240 s）。三个 Gang 场景例外：ENO 分别为 0.662、1.779、1.018 s，Gödel 为 0.546、0.800、0.910 s，ENO 高出 11.9%~122.2%。E2E 延迟直接包含 Scheduler 与 Binder 之间的协作开销，非 Gang 场景的结果量化验证了 ENO 消除 Scheduler → Binder 事件传递环节（第 5 章 §5.1 步骤 ④）对端到端时延的收益；Gang 场景的反向结果说明该收益在"同一时刻只处理少量同组 Pod"的负载形态下不再占主导。一个与架构一致的观察是：Gang 组调度要求同组 5 个 Pod 全部预留成功后才进入绑定，ENO 的绑定在调度进程内完成，同组成员的预留等待、绑定调用与后续 Pod 的调度决策共用同一个进程与队列，因而单个 Pod 的等待时间被拉长；Gödel 的绑定由独立 Binder Deployment 承担，这部分等待仅部分计入调度器 histogram。该解释尚未通过独立的故障/计时实验分离验证，列为局限（6.6 节第（2）条）。
 
-#### 6.4.3.5　绑定成功率
+### 6.5.4　分场景 drill-down（时序图）
 
-结论：在全部已测场景（s1~s4、w1~w7、inst1/inst3）下，ENO 与 Gödel 的绑定成功率均为 100%，未出现绑定失败或请求丢失。绑定成功率用于验证正确性而非性能：在 1000~2000 pods/s 的高压注入下两组均保持全量绑定成功，说明第 4 章的分层容错机制在已测规模下正确工作，ENO 的架构改造未引入任何正确性回退。
+本节按具体测试场景 drill-down 到时序图，展示 §6.5.1~§6.5.3 汇总数据背后的分布形态。所有时序图均为 3 次重复 run 逐点中位数聚合的结果（`plot-results.py --stat median`）。
 
-## 6.5　分场景 drill-down（时序图）
+#### 6.5.4.1　主对比场景：s3/w3, inst1
 
-本节按具体测试场景 drill-down 到时序图，展示 6.4 节汇总数据背后的分布形态。所有时序图均为 3 次重复 run 逐点中位数聚合的结果（`plot-results.py --stat median`）。
-
-### 6.5.1　主对比场景：s3/w3, inst1
-
-s3/w3（5000 节点，1000 pods/s，100 000 pods）为本文的主评估场景，也是 ENO 与 Gödel 在 P99 延迟上差距最大的场景之一（表 10）。图 21~23 分别给出该场景下的调度吞吐、P90 与 P99 调度延迟随时间的走势；Pod E2E 延迟与绑定成功率不再单列时序图——前者的全场景数值已在图 20 与表 11 汇总，后者在全部已测场景下始终为 100%（见 6.4.3.5）。
+s3/w3（5000 节点，1000 pods/s，100 000 pods）为本文的主评估场景，也是 ENO 与 Gödel 在 P99 延迟上差距最大的场景之一（表 10）。图 21~23 分别给出该场景下的调度吞吐、P90 与 P99 调度延迟随时间的走势；Pod E2E 延迟与绑定成功率不再单列时序图——前者的全场景数值已在图 20 与表 11 汇总，后者在全部已测场景下始终为 100%（见 6.5.1）。
 
 **（1）调度吞吐 — s3/w3 · inst1**
 
@@ -286,7 +368,7 @@ s3/w3（5000 节点，1000 pods/s，100 000 pods）为本文的主评估场景�
 
 ![图 23  P99 调度延迟时序（s3, w3, inst1，n=3 中位数）](../figures/fig6-6-latency-p99-s3-w3.png)
 
-### 6.5.2　中等规模对照：s2/w3, inst1
+#### 6.5.4.2　中等规模对照：s2/w3, inst1
 
 图 24~26 切换到 1000 节点规模同一 w3 负载，作为 s3/w3 的中等规模对照——该场景是 ENO 相对 Gödel 的 P99 改善幅度最大的场景（-82.9%，表 10）。
 
@@ -302,7 +384,7 @@ s3/w3（5000 节点，1000 pods/s，100 000 pods）为本文的主评估场景�
 
 ![图 26  P99 调度延迟时序（s2, w3, inst1，n=3 中位数）](../figures/fig6-11-latency-p99-s2-w3.png)
 
-### 6.5.3　集群规模扩展：s3 → s4（w3, inst3）
+#### 6.5.4.3　集群规模扩展：s3 → s4（w3, inst3）
 
 表 12 汇总在相同实例配置（inst3）与负载（w3）下，集群规模从 5000 节点（s3）扩展到 10000 节点（s4）时各指标的变化；图 27~29 给出 s4/w3/inst3 场景下的调度吞吐、P90 与 P99 延迟时序。
 
@@ -327,11 +409,11 @@ s3/w3（5000 节点，1000 pods/s，100 000 pods）为本文的主评估场景�
 
 ![图 29  ENO 与 Gödel P99 调度延迟时序（s4, w3, inst3，n=3 中位数）](../figures/fig6-13-latency-p99-s4-w3-inst3.png)
 
-结论：规模从 5000 节点扩展到 10000 节点后，两者的处理速度都有所下降：ENO 有效吞吐下降 15.2%、P99 延迟上升 46.2%，Gödel 吞吐基本持平（-2.3%）但 P99 延迟上升 86.7%。ENO 在 s4 场景仍保持领先——有效吞吐 296.7 对 280.9 pods/s（+5.6%）、P99 延迟 0.19 对 0.28 s（低 33.4%），队列堆积峰值也明显更低（9 对 61）。需要指出的是，s3 与 s4 均固定使用 3 个实例，规模翻倍而未同步增加实例数，因此本节反映的是"实例数不变、规模增长"的情形，ENO 吞吐的回落与这一设定有关（6.7 节）。
+结论：规模从 5000 节点扩展到 10000 节点后，两者的处理速度都有所下降：ENO 有效吞吐下降 15.2%、P99 延迟上升 46.2%，Gödel 吞吐基本持平（-2.3%）但 P99 延迟上升 86.7%。ENO 在 s4 场景仍保持领先——有效吞吐 296.7 对 280.9 pods/s（+5.6%）、P99 延迟 0.19 对 0.28 s（低 33.4%），队列堆积峰值也明显更低（9 对 61）。需要指出的是，s3 与 s4 均固定使用 3 个实例，规模翻倍而未同步增加实例数，因此本节反映的是"实例数不变、规模增长"的情形，ENO 吞吐的回落与这一设定有关（6.6 节）。
 
-### 6.5.4　实例数扩展：inst1 → inst3（s3, w3）
+#### 6.5.4.4　实例数扩展：inst1 → inst3（s3, w3）
 
-表 13 给出 s3/w3 场景下调度器实例数从 1 增加到 3 时的指标变化；图 30~32 给出 s3/w3/inst3 场景下的调度吞吐、P90 与 P99 延迟时序，与 6.5.1 节 inst1 时序形成 1 vs 3 对照。
+表 13 给出 s3/w3 场景下调度器实例数从 1 增加到 3 时的指标变化；图 30~32 给出 s3/w3/inst3 场景下的调度吞吐、P90 与 P99 延迟时序，与 6.5.4.1 节 inst1 时序形成 1 vs 3 对照。
 
 : 表 13  inst1 → inst3 实例扩展下的关键指标变化（s3, w3）
 
@@ -357,9 +439,9 @@ s3/w3（5000 节点，1000 pods/s，100 000 pods）为本文的主评估场景�
 
 结论：实例数从 1 增至 3 后，两种架构的延迟都出现数量级改善——P99 调度延迟下降约 99%、Pod E2E 延迟下降约 97%，队列堆积峰值从一万以上降至数十，说明原先的排队等待主要源于单实例处理能力不足，多实例分摊后瓶颈基本消除。有效吞吐方面两者表现不同：ENO 提升 17.5%，Gödel 仅提升 1.4%（两者峰值吞吐分别上升 19.2% 与 32.8%）。这说明 ENO 能把增加的并发能力较完整地转化为端到端完成速度，而 Gödel 增加的瞬时调度能力有相当一部分被下游独立 Binder 的串行绑定环节吸收。
 
-### 6.5.5　复杂负载场景（w4 极限 / w5 突发）
+#### 6.5.4.5　复杂负载场景（w4 极限 / w5 突发）
 
-表 14 汇总极限负载与突发洪峰两类复杂负载下的有效吞吐与延迟对比（w6 Gang 场景已在 6.4.2 节独立展示，w7 异构资源无独立时序图，数据见表 9~11 相应行）。图 33~40 给出 w4/w5 在 s3、s4 两档规模下共 4 个场景的调度吞吐与 P99 延迟时序，先按负载分组（w4 极限 → w5 突发），组内先 s3 再 s4。
+表 14 汇总极限负载与突发洪峰两类复杂负载下的有效吞吐与延迟对比（w6 Gang 场景已在 6.5.2 节独立展示，w7 异构资源无独立时序图，数据见表 9~11 相应行）。图 33~40 给出 w4/w5 在 s3、s4 两档规模下共 4 个场景的调度吞吐与 P99 延迟时序，先按负载分组（w4 极限 → w5 突发），组内先 s3 再 s4。
 
 : 表 14  复杂负载场景对比（有效吞吐单位 pods/s，延迟单位秒）
 
@@ -411,96 +493,18 @@ s3/w3（5000 节点，1000 pods/s，100 000 pods）为本文的主评估场景�
 
 - w4（2000 pods/s 极限负载）：ENO 在两个规模下的有效吞吐分别较 Gödel 提升 9.3% 与 16.0%，P99 调度延迟分别低 49.7% 与 14.8%，Pod E2E 延迟低 32.6%~35.3%。两个场景下队列均出现明显积压（s4 场景下堆积峰值分别为 37 554 与 48 303 pods），说明 2000 pods/s 已超出两者处理能力上限；在该极限压力下 ENO 的吞吐与延迟优势依然保持。
 - w5（突发洪峰）：s3 场景下 ENO 有效吞吐较 Gödel 高 21.3%、Pod E2E 延迟低 53.8%（0.93 对 2.01 s）；s4 场景下吞吐高 2.8%，延迟基本持平。这表明在负载突增时 ENO 能更快进入稳定处理状态。
-- w6（Gang 调度）：见 6.4.2 节的三组对比与本节表 14 的 a/b 数据——ENO 在三个场景下有效吞吐均高于 Gödel（19.1%、4.3%、18.6%），但单 Pod 尾延迟明显更高，其成因见 6.4.3.4 与 6.7 节第（2）条。
+- w6（Gang 调度）：见 6.5.2 节的三组对比与本节表 14 的 a/b 数据——ENO 在三个场景下有效吞吐均高于 Gödel（19.1%、4.3%、18.6%），但单 Pod 尾延迟明显更高，其成因见 6.5.3.4 与 6.6 节第（2）条。
 - w7（异构资源）：s3 场景下 ENO 有效吞吐较 Gödel 高 21.2%、Pod E2E 延迟低 67.6%；s4 场景下两者基本持平。ENO 的优势主要体现在 s3 规模。
 
-## 6.6　一致性容错机制的专项验证
-
-除性能对比外，本文对第 4 章设计的 4 层容错机制进行了专项验证。Layer 1（同步重试）与 Layer 2（异步 Reconciler）在 6.5 节的全部对比场景中已被稳态负载持续覆盖——16 个场景 100% 的绑定成功率意味着这两层的暂态错误处理路径在实测流量下工作正常，无需额外的独立实验。本节聚焦 Layer 0（Bind 前置的节点归属校验）与 Layer 3（跨 Scheduler 实例回退）——两者的触发条件在稳态负载下发生频率极低，需要故意注入故障才能观察，因此单列专项。
-
-**通用实验设定**。两个专项实验共用一套基线配置，以便与 6.5 节交叉引用：调度器组 a（ENO）、规模 s2（1000 节点，可用于笔电级复现；论文场景 s3 = 5000 节点由环境变量 `FI_SCALE=s3` 切换）、负载 w2（500 pods/s × 50K pods，标称完成时间约 100 s）、实例数 inst3（3 个 Scheduler）、每种故障重复 n=3。选择 w2 而非 w3/w4 是为了让集群工作在未饱和区——由此观测到的 `node_validation_failures` 与 `dispatcher_fallback` 计数变化可以确定性归因于注入的故障，而非过载导致的连锁反应。Layer 0 与 Layer 3 的注入时点不同：Layer 0 在 T+30 s（拦截效应立即可见），Layer 3 在 T+10 s（因为要等 `MaxSchedulerCRDNotUpdateDuration = 2 min` 的失活探测阈值 + `SchedulerMaintainer.SyncUpSchedulersStatus` 的 30 s 巡检才会触发 `PodStateReconciler`，若注入晚了整段接管曲线会溢出 workload 提交窗口）。
-
-**Prometheus 采集**。两个实验的时序数据均通过 `test/e2e/benchmark/collect/export-prometheus.sh` 拉取，导出集覆盖 `binder_node_validation_failures_total`、`binder_dispatcher_fallback_total` 及其对应的 rate1m recording rule；为支持 Layer 3 的分实例观察，本节额外注册了三条按 `pod` 分组的 recording rule：`eno:binder_embedded_bind_pods:success_rate1m_by_pod`、`eno:binder_dispatcher_fallback:rate1m_by_pod`、`eno:binder_node_validation_failures:rate1m_by_pod`。为让判据能确定性区分"Reconciler 感知失活并重排"vs"Layer 1 局部重试"，本节还在 Dispatcher 侧新增了一个 counter `dispatcher_orphan_pods_reset_total{reason=stale_dispatched|abnormal}`（源码见 `pkg/dispatcher/metrics/metrics.go`，埋点位于 `pkg/dispatcher/reconciler/podstatesyncer.go` 两处 reset 调用）——该 counter 在 `Register()` 时被显式 `Add(0)` 到 registry 以避免"series 首次出现即为终值、`rate()` 算不出正增量"这一 Prometheus 边角。核心不变量 I 的实测验证由 `assert-invariant-i.sh` 直接查询 kube-apiserver 完成——遍历目标命名空间下的全部 Pod，断言 `spec.nodeName` 非空且每个 Pod 只出现一次，脚本在 Step 8b 自动调用，结果写入 `invariant-i.txt`。
-
-### 6.6.1　Layer 0 触发验证
-
-**实验目标**：验证当 Node 的 `eno.io/scheduler-name` 注解在 Bind 前发生漂移时，原持有者 Scheduler 的 Bind 尝试会被 Layer 0 拦截并转入 Layer 3 全局回退，最终不产生跨分区的 Bind API 调用，且不违反核心不变量 I。
-
-**故障注入方式**。在 T+30 s 时刻，对当前分配给 Scheduler 实例 `eno-scheduler-0` 的节点中随机抽取 10%（约 100/1000 节点），通过 `kubectl patch node --type=merge` 将其 `eno.io/scheduler-name` 注解改为 `eno-scheduler-1`，模拟 Dispatcher 的 `node-shuffler` 触发的强制重分区。10% 的比例经过权衡：一方面足以在 rate 时序上形成可辨识的峰值，另一方面不至于让 Dispatcher 的重分发队列本身成为新的瓶颈从而混淆归因。前置条件是集群必须先启用节点分区功能——Dispatcher 需要以 `--feature-gates=DispatcherNodeShuffle=true` 启动，且 `ClusterRole/eno` 必须包含 `nodes` 的 `update, patch` 权限（早期部署仅授了 `get, list, watch` 会让 node-shuffler 的 UpdateNode 全部被 apiserver 以 Forbidden 拒绝，从而 annotation 永远为空——这一 RBAC 缺口已由本文补齐）。注入脚本 `test/e2e/benchmark/faultinject/inject-layer0.sh` 将被 patch 的节点列表、起止时间戳写入 `inject-manifest.json` 与 `inject-events.log` 供事后对齐。
-
-**观测指标**：Layer 0 拦截数与 Dispatcher 回退数分别通过 `binder_node_validation_failures_total` 与 `binder_dispatcher_fallback_total` 的 90 s 窗口积分捕获——informer 传播 patch 后的 node annotation 需要约 10~30 s，拦截峰值往往落在 [T+30, T+90] s（fault-plot 双轴时序清晰显示 rate 从注入点起爬升、约 100 s 后到峰）。绑定成功率取 `sum(rate(bind_pods_total{result="success"}[1m])) / sum(rate(bind_pods_total[1m]))` 的窗口最小值，`bind_retries_total` 的 90 s 积分用于排除"拦截来自 API 冲突而非 Layer 0"这一竞争解释。挂起 Pod 数 `sum(scheduler_pending_pods)` 在注入后短暂上涨、随重分发完成回落。
-
-: 表 15  Layer 0 触发验证：六项判据实测结果（s2/w2/inst3，n=1；完整数据见 `results/faultinject/report-*.md`）
-
-| 判据 | 观测窗口 | 阈值 | 实测 | 结论 |
-|---|---|---|---|---|
-| L0-1 NodeValidator 拦截 | [inject, +90 s] | 积分 > 0 | 300 | ✅ |
-| L0-2 拦截 → Dispatcher 回退联动 | [inject, +90 s] | 积分 > 0 且与 L0-1 同源 | 300 | ✅ |
-| L0-3 不变量 I（apiserver 断言） | 实验结束时刻 | unbound = 0 ∧ dup = 0 | 50000 / 50000 | ✅ |
-| L0-4 拦截规模与 patched 节点相当 | [inject, +90 s] | ≥ max(patched × 0.3, 5) | 300 vs 100（阈值 30） | ✅ |
-| L0-5 Layer 1 重试未异常上涨 | [inject, +90 s] | ≤ max(pre × 3, 10) | pre = 0.0 / inject = 0.0 | ✅ |
-| L0-6 绑定成功率全程 100% | [inject − 30 s, +90 s] | min ≥ 0.99 | 1.00 | ✅ |
-
-Layer 0 六项判据全部通过。图 41 给出 `node_validation_failures:rate1m` 与 `dispatcher_fallback:rate1m` 的双轴时序：注入线（T+32 s）后 rate 立刻从 0 爬升，约 30 s 后到达约 11 events/s 的峰值，随后随 Assumed 队列消化速度平滑衰减，到 T+330 s 归零；两条曲线完全重叠，直接可视化了"Layer 0 拦截 → Dispatcher 回退"的联动。绿色 `bind_success_rate` 全程平稳 1.0，说明拦截是通过合规重排消化的、没有 Bind 请求被真正丢弃。
-
-与无故障基线（`results/a/s2/w2/inst3/run1` = 680 s）对比，Layer 0 单次注入的总耗时为 683 s（+3 s，+0.4%），性能开销可忽略——被拦截的 Pod 通过 Dispatcher 的 fallback 队列在 15 s 内被重排到合法节点。
-
-![图 41  Layer 0 触发验证（节点归属漂移，s2/w2/inst3，n=1）](../figures/fig6-29a-layer0-timeseries.png)
-
-### 6.6.2　Layer 3 触发验证
-
-**实验目标**：验证一个 Scheduler 实例意外失活时，Dispatcher 的 SchedulerMaintainer 与 PodStateReconciler 会将其名下 Dispatched 状态的 Pod 重置为 Pending 并交由存活实例接管（Layer 3 的实例级回收路径），最终全部 Pod 绑定成功、无孤儿数据、无双绑。
-
-**故障注入方式**。在 T+10 s 时刻，先执行 `kubectl scale deploy/scheduler-0 --replicas=0` 阻断 kube-controller-manager 的即时重建，再 `kubectl delete pod --grace-period=0 --force` 杀掉目标 Scheduler Pod；`LAYER3_OUTAGE_SEC = 180 s` 之后重新 `kubectl scale --replicas=1` 恢复。此前的实现只 delete pod 不 scale，Deployment 会在 1 s 内重建同 label 的新 Pod、Scheduler CR 的 `Status.LastUpdateTime` 从未老过 `MaxSchedulerCRDNotUpdateDuration = 2 min` 阈值，`SchedulerMaintainer` 因此从未把该实例移入 inactive 队列，Reconciler 的 orphan-reset 路径**根本没被激活**——这也解释了早期实验中 `dispatcher_fallback` 与 `node_validation_failures` 全程为 0 的观察。180 s 停机时长的选择是：（1）覆盖 2 min 失活阈值；（2）再多留 20~30 s 让 `SyncUpSchedulersStatus`（30 s 巡检）跑至少一次并完成 CR 的删除；（3）避免超出 workload 提交窗口（100 s workload + 90 s 尾窗 = 190 s，恢复曲线主体正好落在观察期内）。注入脚本 `inject-layer3.sh` 记录 `killed_ts` 与 `restored_ts` 供后处理脚本在时序图上标注两条竖线，并通过 `trap EXIT` 保证异常退出时也 scale 回 1，避免把集群留在 replicas = 0。
-
-**观测指标**：核心新增指标是 `dispatcher_orphan_pods_reset_total`——它是 Reconciler 感知失活并主动重排的直接信号，取代了早期版本用 `binder_dispatcher_fallback_total` 兼作 Layer 3 判据带来的语义模糊（后者本意是"Binder 因 MaxLocalRetries 溢出而回退"，跟 Layer 3 的 Scheduler 失活并不同源）。分实例绑定量 `sum by (pod) (increase(binder_embedded_bind_pods_total{result="success"}[90 s]))` 用于验证"被杀实例停止绑定 + 存活实例接管"；挂起 Pod 数 `sum(scheduler_pending_pods)` 应在 outage 后段出现峰值（Reconciler 把 Dispatched pods 反刍回 Pending 队列），然后随存活实例消化而回落。
-
-: 表 16  Layer 3 触发验证：六项判据实测结果（s2/w2/inst3，n=1；outage 实测 189 s）
-
-| 判据 | 观测窗口 | 阈值 | 实测 | 结论 |
-|---|---|---|---|---|
-| L3-1 Dispatcher 回退阶跃（Reconciler 触发） | [killed, restored + 15 s] | orphan_reset 积分 > 0 | 77.15 events/s（rate1m 积分） | ✅ |
-| L3-2 被杀实例停止绑定 | [killed, +90 s] | killed / (killed + others) < 5% | 68 / 8407 = 0.81% | ✅ |
-| L3-3 存活实例接管 | [killed, +90 s] | others_after > others_before × 0.9 | 0 → 8407 pods | ✅ |
-| L3-4 pending 尖峰后回落 | pre / peak / recover_valley | peak > pre + 5 且 recover_min ≤ pre + 15 | pre = 0 / peak = 353 / recover_min = 2 | ✅ |
-| L3-5 总绑定量守恒（全 run 累计） | [start, end] | 累计 ≥ 10% × TOTAL | 49607 / 50000 | ✅ |
-| L3-6 不变量 I（apiserver 断言） | 实验结束时刻 | unbound = 0 ∧ dup = 0 | 50000 / 50000 | ✅ |
-
-Layer 3 六项判据全部通过。图 42 展示了完整的失活—接管—恢复曲线：kill 竖线（T+14 s）后被杀实例 `scheduler-0-rz6fq`（紫色）的 bind rate 立刻降到 0；两个存活实例 `scheduler-1`（棕色）与 `scheduler-2`（粉色）分别拉升到约 135 pods/s 与 40 pods/s 分担存量负载；restored 竖线（T+203 s）标记 SchedulerMaintainer 完成 CR 删除、`PodStateReconciler` 通过 `DeleteScheduler` 事件把 Dispatched 但未 Bind 的 pod enqueue 到 stale-dispatched 队列的时刻——orphan_pods_reset counter 在这个瞬时被点亮（图中橙色 rate1m 曲线在 T+200~250 s 有一个矮而窄的峰），紧接着 pending_pods（蓝色右轴）冲高到峰值 353——这正是被 Reconciler 反刍回 Pending 队列的孤儿 Pod。之后重启的 scheduler-0（`5llg8`，绿色）与两个存活实例合力把 pending 在 60 s 内消化到 0。
-
-与无故障基线（680 s）对比，Layer 3 单次注入的总耗时为 784 s（+104 s，+15.3%）——这 100 s 的开销主要来自 180 s 停机期间被杀实例份额（约 1/3 workload = 16 K pods）的重排延迟。图 43 给出三项对比：(a) 完成时间相对基线的开销比较；(b) Layer 0 拦截规模与 patched 节点数的对应关系；(c) Layer 3 分实例接管量。
-
-![图 42  Layer 3 触发验证（scheduler-0 停机 180 s，s2/w2/inst3，n=1）](../figures/fig6-29b-layer3-timeseries.png)
-
-![图 43  Layer 0 / Layer 3 故障注入三项定量对比（s2/w2/inst3，n=1）](../figures/fig6-30-fault-recovery-comparison.png)
-
-### 6.6.3　实验编排与可复现性
-
-两个专项实验复用 `test/e2e/benchmark/run-experiment.sh` 的主流程。为集中管理注入相关的参数，本节新增了三处扩展：（1）`run-experiment.sh` 增加 `--inject {layer0|layer3}`、`--inject-at <seconds>` 与 `--inject-args <passthrough>` 三个可选标志；（2）当 `--inject` 存在时，Step 6b 会在 Step 7 负载注入器启动的同时后台 `sleep $INJECT_AT` 秒并调用 `faultinject/inject-<layer>.sh <run_dir>`，Step 8 完成 100 % 调度等待后 `wait` 该子进程，再由 Step 8b 调用 `assert-invariant-i.sh` 校验不变量 I；（3）`faultinject/run-fault-experiment.sh` 是薄封装脚本，固化组 a / s3 / w2 / inst3 的场景配置，注入时点按 layer 分支（layer0 = T+30 s、layer3 = T+10 s，与 6.6.1 / 6.6.2 一致），只暴露 `layer0 | layer3 | both` 与 `--repeats N` 两个参数。典型调用：
-
-```bash
-# 论文 6.6 节的一键复现入口
-bash test/e2e/benchmark/faultinject/run-6.6-all.sh
-
-# 只跑某个 phase（幂等；已有 run 会自动跳过）
-bash test/e2e/benchmark/faultinject/run-6.6-all.sh --phase preflight
-bash test/e2e/benchmark/faultinject/run-6.6-all.sh --phase inject --repeats 5
-bash test/e2e/benchmark/faultinject/run-6.6-all.sh --phase analyze
-```
-
-`run-6.6-all.sh` 把整套实验切成四个幂等 phase：`preflight`（校验集群与 recording rule）→ `baseline`（补跑 6.5 节 `a/s3/w2/inst3` 无故障基线）→ `inject`（`layer0 × N` + `layer3 × N`）→ `analyze`（对每个 run 目录跑 `fault-plot.py` 与 `fault-summary.py`）。若只想跑注入部分或使用不同参数（例如把 Layer 0 的漂移比例改成 20%），可透传 `--fraction` / `--from` / `--to` 等给底层 `inject-<layer>.sh`；细粒度的手动接口 `run-fault-experiment.sh {layer0|layer3|both}` 仍保留供调试使用。
-
-其余环节（Prometheus 时段导出、元数据落盘、节点分布快照）与 6.5 节完全一致。全部实验产物——PromQL 时序 JSON、注入事件时间戳、被 patch 的节点/被删的 Pod 清单、不变量 I 断言输出、生成的双轴时序图与分段汇总——落在 `test/e2e/benchmark/results/faultinject/{layer0|layer3}/a_s3_w2_inst3/run{N}/` 之下。目录命名与 `results/compare/` 保持一致的 `<scale>_<workload>[_inst<M>]` 前缀，可直接被现有 `plot-results.py --average --stat median` 消费；per-instance 曲线由 `fault-plot.py` 单独处理，因为 `plot-results.py` 的默认聚合会把 `pod` 维度剥离。
-
-## 6.7　讨论：局限性与威胁效力
+## 6.6　讨论：局限性与威胁效力
 
 本章实验有以下局限：
 
 （1）KWOK 仿真的真实性差距：KWOK 未模拟真实节点上的资源压力（例如 kubelet 与容器运行时的 CPU/内存开销、磁盘 IO 排队）。因此本文的绝对数值不能直接外推到生产环境。
 
-（2）Gang 场景下延迟口径的可比性与字段缺口：w6（Gang 调度）的延迟数据在负载扩容重采后补齐，但该场景的调度分位在两种架构下并不同质——ENO 的绑定在调度进程内完成，同组预留等待与绑定耗时都计入调度周期；Gödel 的绑定由独立 Binder 承担，这部分等待只有一部分进入 `scheduler_e2e_scheduling_duration_seconds`。因此表 10 中 w6 三行的数值差异不宜全部归因于调度器本身的处理速度，本章在 6.4.3.3、6.4.3.4 已按此限定解读，尚未通过独立的计时实验把两种来源分离。此外，s3/w4 的元数据缺少调度完成率字段（不影响完成时间与吞吐计算）。
+（2）Gang 场景下延迟口径的可比性与字段缺口：w6（Gang 调度）的延迟数据在负载扩容重采后补齐，但该场景的调度分位在两种架构下并不同质——ENO 的绑定在调度进程内完成，同组预留等待与绑定耗时都计入调度周期；Gödel 的绑定由独立 Binder 承担，这部分等待只有一部分进入 `scheduler_e2e_scheduling_duration_seconds`。因此表 10 中 w6 三行的数值差异不宜全部归因于调度器本身的处理速度，本章在 6.5.3.3、6.5.3.4 已按此限定解读，尚未通过独立的计时实验把两种来源分离。此外，s3/w4 的元数据缺少调度完成率字段（不影响完成时间与吞吐计算）。
 
-（3）规模增长未同步增加实例数：本章 s3 与 s4 的对比均固定使用 3 个实例，规模翻倍时未同步扩充实例，因此 6.5.3 节反映的是"实例数不变、规模增长"的情形，ENO 在 s4 的吞吐回落与该设定有关。若按规模比例增加实例，其扩展性表现可能更好，这一点留作后续验证。
+（3）规模增长未同步增加实例数：本章 s3 与 s4 的对比均固定使用 3 个实例，规模翻倍时未同步扩充实例，因此 6.5.4.3 节反映的是"实例数不变、规模增长"的情形，ENO 在 s4 的吞吐回落与该设定有关。若按规模比例增加实例，其扩展性表现可能更好，这一点留作后续验证。
 
 （4）ENO 与 Gödel 的资源公平性：ENO 因合并 Binder，单个 Scheduler Pod 的负载可能高于原 Gödel 的 Scheduler Pod；但同时 ENO 集群整体少了 Binder Deployment。为公平对比，本文采用每 Deployment 的资源规格保持一致这一策略，即两者的 Scheduler Pod 均按 2 CPU / 4 GB 分配。这一策略对 ENO 略不利（ENO 单个 Pod 要同时跑 Scheduler + Binder），但确保了单 Pod 层面的对比公平；ENO 由于不需要额外的 Binder Deployment，在集群总资源开销层面的优势本文未展开量化。
 
@@ -514,17 +518,17 @@ bash test/e2e/benchmark/faultinject/run-6.6-all.sh --phase analyze
 
 **本文的对齐处理**：在 recording rules 层（`manifests/monitoring/overlays/group-d/prometheus-config.yaml`）本文做了三件事——一是把毫秒换算为秒（除以 1000）以匹配 `_seconds` 后缀的量纲；二是把 `volcano_task_scheduling_latency` 作为与 `scheduler_scheduling_attempt_duration` 最接近的对应指标（记为 `volcano:task_scheduling_latency:pXX_seconds`）；三是把 Session E2E 与 Action 级别的延迟单独记录（`volcano:e2e_scheduling_latency`、`volcano:action_scheduling_latency`）供参考。上述对齐仅保证了量纲一致与单位可比，无法消除前述三个语义层面的差异。
 
-**在结论中的处理**：本章 6.4.2 节以吞吐（完成时间口径）与 P99 延迟同时列出 Volcano 数据，用于说明分布式与单实例架构在数量级上的差异，而不作为对 Volcano 单调度器实现的精细评价；6.4.3.3 节的 P99 对比表明确只保留 ENO 与 Gödel 两组（同源指标、口径完全一致），Volcano 的 latency 分位数不进入该表；6.7 节第（6）条对 c/d/e 的 latency 分位数直接引用给出了统一的方法学限定。
+**在结论中的处理**：本章 6.5.2 节以吞吐（完成时间口径）与 P99 延迟同时列出 Volcano 数据，用于说明分布式与单实例架构在数量级上的差异，而不作为对 Volcano 单调度器实现的精细评价；6.5.3.3 节的 P99 对比表明确只保留 ENO 与 Gödel 两组（同源指标、口径完全一致），Volcano 的 latency 分位数不进入该表；6.6 节第（6）条对 c/d/e 的 latency 分位数直接引用给出了统一的方法学限定。
 
 （6）延迟指标的跨调度器可比性：kube-scheduler（c）、Volcano（d）、Koordinator（e）上报的 P99 延迟数值本身都是真实采样，并不存在失真；但在 1000 pods/s 及以上的过载场景下，其 histogram **仅覆盖"已被 pop 出队处理的少数 Pod"**——大量长时间堵塞在 activeQ 中的 Pod 从未进入 latency histogram 的采样窗口。这属于统计学上的幸存者偏差（Survivor Bias），使 c/d/e 与 a/b 的 P99 数值代表不同的样本群体，直接对齐分位数在语义上并不严格。本文在 6.3.1 节已明确该方法学立场，并在数值对比中回避了对 c/d/e 的 latency 数值直接引用。将来的研究若希望做严格的跨调度器 latency 数值对比，可在负载生成端记录每个 Pod 的入队与绑定时间戳，从外部计算覆盖全部 Pod 的用户感知 P99。
 
 （7）吞吐指标的口径权衡：本文以有效吞吐（总工作量／总完成时间）作为吞吐主口径，其优点是只依赖"完成时间"这一可核验事实、不受采样窗口长度影响，缺点是把"处理速率"与"启动/爬升快慢"合并为一个数，无法区分 ENO 的优势有多少来自更高的稳定处理速率、多少来自更快的启动。本文以峰值吞吐（稳定段瞬时速率）作为补充：在 s3/w5 与 s4/w3 等场景中，ENO 的峰值吞吐并不高于 Gödel，但有效吞吐仍领先，说明其收益部分来自更短的整体完成时间。后续工作可在负载生成端记录每个 Pod 的创建与绑定时间戳，从而把启动段与稳态段分别统计。
 
-## 6.8　本章小结
+## 6.7　本章小结
 
 对全部 16 个对比场景（s1~s4 × w1~w7、inst1/inst3）的评估收敛到两个层面的结论。
 
-第一层是 ENO 与 Gödel 的直接对比。**s3/w3 主评估场景**（5000 节点、1000 pods/s）的 P99 调度延迟从 Gödel 的 32.57 s 下降到 ENO 的 16.22 s（inst1），是本文最有代表性的一组读数；在 s2/w2 之外的其余非 Gang 场景，ENO 的 P90/P99 调度延迟都低于 Gödel（P99 改善 0.3%~82.9%），Pod E2E 延迟也不高于 Gödel（改善 0.6%~75.3%）；未饱和的 s2/w2 场景 ENO 的 P90/P99 略高（+0.001 s / +0.011 s，绝对差在采样噪声范围内），有效吞吐在 14 个场景领先 2%~23%、2 个持平。**规模从 s3 扩到 s4**（3 实例不变），ENO 仍保持吞吐 +5.6%、P99 低 33.4%；**实例数从 1 增到 3**，两者 P99 都下降约 99%、Pod E2E 下降约 97%，但 ENO 的有效吞吐提升 17.5% 而 Gödel 只有 1.4%——这是 ENO 消除跨进程绑定环节的直接证据。**唯一的反向情形**在 w6（Gang 调度）：ENO 有效吞吐仍高，但单 Pod 尾延迟反而高出 1.6~4.1 倍，其成因（同组预留等待与后续调度决策共用同一进程队列）作为局限列在 6.7 节第（2）条。
+第一层是 ENO 与 Gödel 的直接对比。**s3/w3 主评估场景**（5000 节点、1000 pods/s）的 P99 调度延迟从 Gödel 的 32.57 s 下降到 ENO 的 16.22 s（inst1），是本文最有代表性的一组读数；在 s2/w2 之外的其余非 Gang 场景，ENO 的 P90/P99 调度延迟都低于 Gödel（P99 改善 0.3%~82.9%），Pod E2E 延迟也不高于 Gödel（改善 0.6%~75.3%）；未饱和的 s2/w2 场景 ENO 的 P90/P99 略高（+0.001 s / +0.011 s，绝对差在采样噪声范围内），有效吞吐在 14 个场景领先 2%~23%、2 个持平。**规模从 s3 扩到 s4**（3 实例不变），ENO 仍保持吞吐 +5.6%、P99 低 33.4%；**实例数从 1 增到 3**，两者 P99 都下降约 99%、Pod E2E 下降约 97%，但 ENO 的有效吞吐提升 17.5% 而 Gödel 只有 1.4%——这是 ENO 消除跨进程绑定环节的直接证据。**唯一的反向情形**在 w6（Gang 调度）：ENO 有效吞吐仍高，但单 Pod 尾延迟反而高出 1.6~4.1 倍，其成因（同组预留等待与后续调度决策共用同一进程队列）作为局限列在 6.6 节第（2）条。
 
 第二层是与其他三个主流调度器（kube-scheduler、Volcano、Koordinator）的整体扩展性对照。这些单实例架构的有效吞吐在多数场景显著低于 ENO/Gödel，且其 P99 延迟数值受幸存者偏差影响（6.3.1 节的讨论），不与 a/b 做直接数值对齐。全部已测场景下 ENO 与 Gödel 的绑定成功率始终为 100%，说明第 4 章的一致性容错机制在实测流量下未被打穿。
 
