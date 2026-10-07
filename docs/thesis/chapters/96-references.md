@@ -28,7 +28,7 @@
 
 ::: {#ref5 custom-style="Bibliography"}
 
-[5] VOLCANO-SH C/. Volcano: A Kubernetes Native Batch System[EB/OL]. https://github.com/volcano-sh/volcano [2026-08-25].
+[5] VOLCANO-SH COMMUNITY. Volcano: A Kubernetes Native Batch System[EB/OL]. https://github.com/volcano-sh/volcano [2026-08-25].
 
 :::
 
@@ -154,7 +154,7 @@
 
 ::: {#ref26 custom-style="Bibliography"}
 
-[26] AUTHORS E. etcd Documentation[EB/OL]. https://etcd.io/docs/ [2026-08-25].
+[26] ETCD AUTHORS. etcd Documentation[EB/OL]. https://etcd.io/docs/ [2026-08-25].
 
 :::
 
@@ -196,7 +196,7 @@
 
 ::: {#ref33 custom-style="Bibliography"}
 
-[33] FOUNDATION TL. Kubernetes API Concepts[EB/OL]. https://kubernetes.io/docs/reference/using-api/api-concepts/ [2026-08-25].
+[33] KUBERNETES AUTHORS. Kubernetes API Concepts[EB/OL]. https://kubernetes.io/docs/reference/using-api/api-concepts/ [2026-08-25].
 
 :::
 
@@ -214,12 +214,12 @@
 
 ::: {#ref36 custom-style="Bibliography"}
 
-[36] AUTHORS P. Prometheus Documentation[EB/OL]. https://prometheus.io/docs/ [2026-08-25].
+[36] PROMETHEUS AUTHORS. Prometheus Documentation[EB/OL]. https://prometheus.io/docs/ [2026-08-25].
 
 :::
 
 ::: {#ref37 custom-style="Bibliography"}
 
-[37] LABS G. Grafana Documentation[EB/OL]. https://grafana.com/docs/ [2026-08-25].
+[37] GRAFANA LABS. Grafana Documentation[EB/OL]. https://grafana.com/docs/ [2026-08-25].
 
 :::
