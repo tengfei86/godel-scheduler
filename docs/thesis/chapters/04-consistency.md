@@ -103,7 +103,7 @@ Layer 0 的价值因此可以精确描述为：在稳定期显著减少跨分区
 
 - `409 Conflict`：Pod 的 `resourceVersion` 已被其他修改抢先更新（例如用户 patch 了标签）；
 - `429 Too Many Requests`：API Server 限流；
-- 网络 timeout：临时的连接问题。
+- `ServerTimeout`：apiserver 处理请求时自身判定超时（例如内部 webhook 阻塞、etcd 后端慢响应），返回带 `Reason = ServerTimeout` 的结构化响应。注意这里不是客户端连接层超时（`context.DeadlineExceeded`）或 TCP 层连接问题——后者在源码中并未归入 Layer 1 可重试范畴。
 
 危害：若不重试，Pod 将长期停留在 Assumed 状态，可用性下降。
 
