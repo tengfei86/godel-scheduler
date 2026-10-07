@@ -109,7 +109,7 @@ Layer 0 的价值因此可以精确描述为：在稳定期显著减少跨分区
 
 ### 4.3.2　Layer 1 的设计
 
-Layer 1 在 `embedded_binder.go` 的 `bindPodToNode` 函数中实现，核心逻辑是**线性退避 + 有限次同步重试**：第 n 次重试前等待 `n × 100ms`（首次 100ms、第二次 200ms、第三次 300ms），累计最多 `MaxBindRetries` 次（默认 3，由 `DefaultMaxBindRetries` 定义于 `embedded_binder_config.go`）。重试仅对 `409 Conflict`、`429 Too Many Requests`、`ServerTimeout` 三类瞬态错误生效；其他错误立即返回上层。
+Layer 1 在 `embedded_binder.go` 的 `bindPodToNode` 函数中实现，核心逻辑是**线性退避 + 有限次同步重试**：第 n 次重试前等待 `n × 100ms`（首次 100ms、第二次 200ms、第三次 300ms），累计最多 `MaxBindRetries` 次（默认 3，由 `DefaultMaxBindRetries` 定义于 `embedded_binder_config.go`）。重试仅对 `409 Conflict`、`429 Too Many Requests`、`ServerTimeout` 三类瞬态错误生效；其他错误（400/500/其它）视为非可重试错误，Layer 1 立即返回上层，由 `EmbeddedBinder` 主循环与"重试耗尽"情形同样处理——将失败 Pod 加入 `APICallFailedTaskQueue` 交由 Layer 2 做 etcd 注解清理，并根据本地重试计数决定本地重试还是触发 Layer 3 全局回退。
 
 每次重试均在当前 goroutine 中同步执行，不涉及跨 goroutine 或跨进程通信。这样设计的原因是：
 
