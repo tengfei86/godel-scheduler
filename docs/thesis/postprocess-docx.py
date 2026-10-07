@@ -239,6 +239,28 @@ def move_toc_after_abstract(doc: str) -> str:
     if first_chapter is None or first_chapter < spans[toc_idx[-1]][1]:
         return doc
     start, end = spans[toc_idx[0]][0], spans[toc_idx[-1]][1]
+    # 目录在 pandoc 输出里被包在 <w:sdt>（docPartGallery="Table of Contents"）内。
+    # 只能整体搬迁这个内容控件：若只搬走里面的 <w:p>，会留下一个空的目录控件，
+    # Word 打开时可能直接报 "experienced an error trying to open the file"。
+    sdt_start = doc.rfind("<w:sdt>", 0, start + 1)
+    if sdt_start != -1:
+        depth, k, sdt_end = 0, sdt_start, -1
+        while True:
+            nxt_open = doc.find("<w:sdt>", k + 1)
+            nxt_close = doc.find("</w:sdt>", k + 1)
+            if nxt_close == -1:
+                break
+            if nxt_open != -1 and nxt_open < nxt_close:
+                depth += 1
+                k = nxt_open
+            elif depth == 0:
+                sdt_end = nxt_close
+                break
+            else:
+                depth -= 1
+                k = nxt_close
+        if sdt_end != -1 and sdt_end >= end:
+            start, end = sdt_start, sdt_end + len("</w:sdt>")
     block = doc[start:end]
     rest = doc[:start] + doc[end:]
     insert_at = first_chapter - (end - start)
