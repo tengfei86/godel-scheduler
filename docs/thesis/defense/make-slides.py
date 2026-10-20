@@ -716,8 +716,8 @@ def cards_grid(slide, cards: list[tuple[str, str]], left=0.62, top=2.15, width=1
         x = left + c * (box_w + gap)
         y = top + r * (box_h + gap)
         if TEMPLATE_PATH:
-            # 模板语言：浅钢蓝块 + 左上编号圆
-            rect(slide, x, y, box_w, box_h, fill=C["light2"], line=C["line"], radius=True)
+            # 模板构件：白底卡片 + 淡蓝描边 + 左上编号圆（文字用深色保证可读）
+            rect(slide, x, y, box_w, box_h, fill=C["white"], line=C.get("soft", C["line"]), radius=True)
             badge = slide.shapes.add_shape(MSO_SHAPE.OVAL, Inches(x + 0.16), Inches(y + 0.15),
                                            Inches(0.30), Inches(0.30))
             badge.fill.solid(); badge.fill.fore_color.rgb = C["navy"]
@@ -727,13 +727,13 @@ def cards_grid(slide, cards: list[tuple[str, str]], left=0.62, top=2.15, width=1
             add_text(btf, f"{idx + 1:02d}", 9, True, C["white"], first=True, align=PP_ALIGN.CENTER)
             tf = textbox(slide, x + 0.56, y + 0.15, box_w - 0.7, box_h - 0.22)
             add_text(tf, head, 13.5, True, C["navy"], first=True)
-            add_text(tf, body, 11, False, C["muted"], space_before=4, line=1.1)
+            add_text(tf, body, 11, False, C["text"], space_before=4, line=1.1)
         else:
             rect(slide, x, y, box_w, box_h, fill=C["light"], line=C["line"], radius=True)
             rect(slide, x, y, 0.055, box_h, fill=C["blue"])
             tf = textbox(slide, x + 0.18, y + 0.14, box_w - 0.3, box_h - 0.2)
             add_text(tf, head, 14, True, C["navy"], first=True)
-            add_text(tf, body, 11.5, False, C["muted"], space_before=4, line=1.1)
+            add_text(tf, body, 11.5, False, C["text"], space_before=4, line=1.1)
     return rows
 
 
@@ -744,7 +744,7 @@ def big_stats(slide, stats: list[tuple[str, str]], top=2.0, height=1.55) -> None
     for i, (num, label) in enumerate(stats):
         x = 0.72 + i * (box_w + gap)
         if TEMPLATE_PATH:
-            rect(slide, x, top, box_w, height, fill=C["light2"], line=C["line"], radius=True)
+            rect(slide, x, top, box_w, height, fill=C["white"], line=C.get("soft", C["line"]), radius=True)
             rect(slide, x, top, box_w, 0.05, fill=C["navy"])
             tf = textbox(slide, x, top + 0.14, box_w, 0.92, anchor=MSO_ANCHOR.MIDDLE)
             add_text(tf, num, 46, True, C["navy"], first=True, align=PP_ALIGN.CENTER)
@@ -843,10 +843,10 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
             add_text(_tf, _main, 13.5, True, C["navy"], first=True, align=PP_ALIGN.RIGHT)
             if _sub:
                 add_text(_tf, _sub, 10.5, False, C["muted"], align=PP_ALIGN.RIGHT, space_before=1)
-            rect(slide, 2.68, _y, 9.80, 0.92, fill=C["light2"], line=C["line"], radius=True)
+            rect(slide, 2.68, _y, 9.80, 0.92, fill=C["white"], line=C.get("soft", C["line"]), radius=True)
             _tf2 = textbox(slide, 2.86, _y + 0.11, 9.45, 0.72)
             add_text(_tf2, "威胁：" + _threat, 11.5, False, C["text"], first=True)
-            add_text(_tf2, "etcd：" + _sem, 10.5, False, C["muted"], space_before=2)
+            add_text(_tf2, "etcd：" + _sem, 10.5, False, C["text"], space_before=2)
     elif kind == "ladder":
         rows = s["rows"]
         _x, _y0, _w, _h, _gap = 0.62, 1.95, 12.1, 0.98, 0.1
