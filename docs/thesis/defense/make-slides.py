@@ -593,7 +593,7 @@ def slide_title(slide, title: str, kicker: str | None = None) -> None:
     if TEMPLATE_PATH:
         _template_marker(slide)
         # 右上角校名横图（与模板一致：10.21, 0.10，2.89×0.55）
-        add_picture(slide, "beihang-logo.png", 10.21, 0.10, 2.89, 0.55, base=ASSETS)
+        add_picture(slide, "beihang-logo-navy.png", 10.21, 0.10, 2.89, 0.55, base=ASSETS)
         # 标题避让校名：长标题降一档字号
         _size = 30 if len(title) <= 18 else 24
         tf = textbox(slide, 1.11, 0.17, 8.75, 0.68, anchor=MSO_ANCHOR.MIDDLE)
@@ -768,7 +768,7 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
 
     if kind == "cover" and TEMPLATE_PATH:
         # 北航模板封面：白底 + 校名横图 + 双分隔线 + 标题 + 信息位 + 底边条
-        add_picture(slide, "beihang-logo.png", 4.14, 1.03, 4.62, 0.88, base=ASSETS)
+        add_picture(slide, "beihang-logo-navy.png", 4.14, 1.03, 4.62, 0.88, base=ASSETS)
         rect(slide, 1.31, 2.36, 10.79, 0.022, fill=C["navy"])
         rect(slide, 1.31, 3.59, 10.79, 0.022, fill=C["navy"])
         tf = textbox(slide, 0.84, 2.44, 11.73, 1.10, anchor=MSO_ANCHOR.MIDDLE)
@@ -922,7 +922,7 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
                   widths=s.get("widths"))
         bullets_block(slide, s["bullets"], top=5.55, width=12.0, size=13, gap=6, height=1.05)
     elif kind == "thanks" and TEMPLATE_PATH:
-        add_picture(slide, "beihang-logo.png", 10.21, 0.10, 2.89, 0.55, base=ASSETS)
+        add_picture(slide, "beihang-logo-navy.png", 10.21, 0.10, 2.89, 0.55, base=ASSETS)
         rect(slide, 1.31, 2.42, 10.79, 0.022, fill=C["navy"])
         tf = textbox(slide, 1.0, 2.62, 11.3, 1.0, anchor=MSO_ANCHOR.MIDDLE)
         add_text(tf, s["title"], 34, True, C["navy"], first=True, align=PP_ALIGN.CENTER)
