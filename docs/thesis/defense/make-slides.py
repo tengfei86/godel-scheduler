@@ -726,7 +726,7 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
         add_text(tf2, s["core"], 18, False, C["blue"], first=True, align=PP_ALIGN.CENTER)
         tf3 = textbox(slide, 1.31, 5.05, 10.79, 0.9)
         add_text(tf3, "　　".join(s["meta"]), 15, False, C["muted"], first=True, align=PP_ALIGN.CENTER)
-        rect(slide, 0.04, 7.38, 13.34, 0.05, fill=C["navy"])
+        rect(slide, 0.04, 7.38, 13.22, 0.05, fill=C["navy"])
         if SHOW_PAGE_NO:
             page_number(slide, s["n"])
         return
@@ -740,7 +740,7 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
         tf3 = textbox(slide, 0.9, 4.95, 5.4, 1.6)
         for i, m in enumerate(s["meta"]):
             add_text(tf3, m, 12.5, False, C["muted"], first=(i == 0), space_before=(0 if i == 0 else 5))
-        rect(slide, 0.04, 7.38, 13.34, 0.05, fill=C["navy"])
+        rect(slide, 0.04, 7.38, 13.22, 0.05, fill=C["navy"])
         if SHOW_PAGE_NO:
             page_number(slide, s["n"])
         return
@@ -860,7 +860,7 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
             add_text(tf3, m, 13, False, C["muted"], first=(i == 0), align=PP_ALIGN.CENTER,
                      space_before=(0 if i == 0 else 4))
         rect(slide, 1.31, 5.55, 10.79, 0.022, fill=C["navy"])
-        rect(slide, 0.04, 7.38, 13.34, 0.05, fill=C["navy"])
+        rect(slide, 0.04, 7.38, 13.22, 0.05, fill=C["navy"])
         if SHOW_PAGE_NO:
             page_number(slide, s["n"])
         return
@@ -876,7 +876,7 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
             add_text(tf3, m, 13, False, C["muted"], first=(i == 0), align=PP_ALIGN.CENTER,
                      space_before=(0 if i == 0 else 4))
         rect(slide, 1.31, 5.55, 10.79, 0.022, fill=C["navy"])
-        rect(slide, 0.04, 7.38, 13.34, 0.05, fill=C["navy"])
+        rect(slide, 0.04, 7.38, 13.22, 0.05, fill=C["navy"])
         if SHOW_PAGE_NO:
             page_number(slide, s["n"])
         return
