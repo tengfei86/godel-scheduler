@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 from pptx import Presentation
@@ -24,8 +25,18 @@ from PIL import Image
 
 HERE = Path(__file__).resolve().parent
 FIG = HERE.parent / "figures"
+ASSETS = HERE / "assets"
 OUT_PPTX = HERE / "答辩PPT-基于etcd的分布式Kubernetes调度器.pptx"
 OUT_MD = HERE / "outline.md"
+
+# --template <pptx>：用该模板的母版/主题/配色重新出图（内容不变）
+TEMPLATE_PATH: Path | None = None
+_args = sys.argv[1:]
+for _i, _a in enumerate(_args):
+    if _a == "--template" and _i + 1 < len(_args):
+        TEMPLATE_PATH = Path(_args[_i + 1])
+    elif _a == "-o" and _i + 1 < len(_args):
+        OUT_PPTX = Path(_args[_i + 1])
 
 # ── 配色（设计规范） ──
 C = dict(
@@ -40,7 +51,22 @@ C = dict(
     muted=RGBColor(0x6B, 0x7A, 0x8F),
     line=RGBColor(0xD8, 0xDF, 0xE8),
 )
-EA_FONT = "Microsoft YaHei"
+if TEMPLATE_PATH:
+    # 取自模板：标题/装饰 #113E6A，强调 #0070C0，正文 #2E2C2C，浅灰 #F2F4F7
+    C = dict(
+        navy=RGBColor(0x11, 0x3E, 0x6A),
+        blue=RGBColor(0x00, 0x70, 0xC0),
+        orange=RGBColor(0x00, 0x70, 0xC0),
+        green=RGBColor(0x00, 0x70, 0xC0),
+        red=RGBColor(0xC0, 0x00, 0x00),
+        white=RGBColor(0xFF, 0xFF, 0xFF),
+        light=RGBColor(0xF2, 0xF4, 0xF7),
+        text=RGBColor(0x2E, 0x2C, 0x2C),
+        muted=RGBColor(0x7F, 0x7F, 0x7F),
+        line=RGBColor(0xD9, 0xDE, 0xE5),
+    )
+
+EA_FONT = "微软雅黑"
 LATIN_FONT = "Arial"
 TOTAL = 25
 # 页脚（左侧论文简称 + 分隔线）由作者要求关闭；如需恢复改为 True 即可
@@ -535,7 +561,16 @@ def rect(slide, left, top, width, height, fill=None, line=None, radius=False):
 
 
 def slide_title(slide, title: str, kicker: str | None = None) -> None:
-    """结论式标题：左侧橙色竖条 + 28pt 深蓝加粗"""
+    """标题：默认版式用橙色竖条；--template 模式用模板的深蓝标记与位置"""
+    if TEMPLATE_PATH:
+        rect(slide, 0.47, 0.24, 0.10, 0.56, fill=C["navy"])
+        rect(slide, 0.47, 0.24, 0.30, 0.10, fill=C["navy"])
+        tf = textbox(slide, 1.11, 0.17, 11.4, 0.68, anchor=MSO_ANCHOR.MIDDLE)
+        add_text(tf, title, 30, True, C["navy"], first=True, line=1.0)
+        if kicker:
+            tf2 = textbox(slide, 1.11, 0.88, 11.4, 0.3)
+            add_text(tf2, kicker, 12, False, C["muted"], first=True)
+        return
     rect(slide, 0.42, 0.46, 0.085, 0.52, fill=C["orange"])
     tf = textbox(slide, 0.62, 0.36, 12.1, 0.78, anchor=MSO_ANCHOR.MIDDLE)
     add_text(tf, title, 27, True, C["navy"], first=True, line=1.05)
@@ -545,6 +580,11 @@ def slide_title(slide, title: str, kicker: str | None = None) -> None:
 
 
 def core_line(slide, core: str, top=1.42) -> None:
+    if TEMPLATE_PATH:      # 与模板标题左对齐（在 1.11 缩进处）
+        rect(slide, 1.11, top, 0.03, 0.34, fill=C["blue"])
+        tf = textbox(slide, 1.27, top - 0.03, 11.2, 0.42, anchor=MSO_ANCHOR.MIDDLE)
+        add_text(tf, core, 15.5, True, C["blue"], first=True)
+        return
     rect(slide, 0.62, top, 0.03, 0.34, fill=C["blue"])
     tf = textbox(slide, 0.78, top - 0.03, 12.0, 0.42, anchor=MSO_ANCHOR.MIDDLE)
     add_text(tf, core, 15.5, True, C["blue"], first=True)
@@ -585,8 +625,8 @@ def bullets_block(slide, items: list[str], left=0.62, top=2.1, width=5.7, size=1
 
 
 def add_picture(slide, name: str, left: float, top: float, max_w: float, max_h: float,
-                caption: str | None = None, alpha: int | None = None):
-    path = FIG / name
+                caption: str | None = None, alpha: int | None = None, base: Path | None = None):
+    path = (base or FIG) / name
     if not path.exists():
         rect(slide, left, top, max_w, max_h * 0.75, fill=C["light"], line=C["line"])
         tf = textbox(slide, left, top + max_h * 0.32, max_w, 0.4)
@@ -674,6 +714,22 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
     kind = s["kind"]
     slide.background.fill.solid()
     slide.background.fill.fore_color.rgb = C["white"]
+
+    if kind == "cover" and TEMPLATE_PATH:
+        # 北航模板封面：白底 + 校名横图 + 双分隔线 + 标题 + 信息位 + 底边条
+        add_picture(slide, "beihang-logo.png", 4.14, 1.03, 4.62, 0.88, base=ASSETS)
+        rect(slide, 1.31, 2.36, 10.79, 0.022, fill=C["navy"])
+        rect(slide, 1.31, 3.59, 10.79, 0.022, fill=C["navy"])
+        tf = textbox(slide, 0.84, 2.44, 11.73, 1.10, anchor=MSO_ANCHOR.MIDDLE)
+        add_text(tf, s["title"], 28, True, C["navy"], first=True, align=PP_ALIGN.CENTER, line=1.15)
+        tf2 = textbox(slide, 0.84, 3.78, 11.73, 0.45)
+        add_text(tf2, s["core"], 18, False, C["blue"], first=True, align=PP_ALIGN.CENTER)
+        tf3 = textbox(slide, 1.31, 5.05, 10.79, 0.9)
+        add_text(tf3, "　　".join(s["meta"]), 15, False, C["muted"], first=True, align=PP_ALIGN.CENTER)
+        rect(slide, 0.04, 7.38, 13.34, 0.05, fill=C["navy"])
+        if SHOW_PAGE_NO:
+            page_number(slide, s["n"])
+        return
 
     if kind == "cover":
         rect(slide, 0, 0, 13.333, 7.5, fill=C["navy"])
@@ -791,6 +847,22 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
                   row_h=s.get("row_h", 0.46), font=s.get("font", 12),
                   widths=s.get("widths"))
         bullets_block(slide, s["bullets"], top=5.55, width=12.0, size=13, gap=6, height=1.05)
+    elif kind == "thanks" and TEMPLATE_PATH:
+        rect(slide, 1.31, 2.42, 10.79, 0.022, fill=C["navy"])
+        tf = textbox(slide, 1.0, 2.62, 11.3, 1.0, anchor=MSO_ANCHOR.MIDDLE)
+        add_text(tf, s["title"], 34, True, C["navy"], first=True, align=PP_ALIGN.CENTER)
+        tf2 = textbox(slide, 1.0, 3.75, 11.3, 0.5)
+        add_text(tf2, s["core"], 16, False, C["muted"], first=True, align=PP_ALIGN.CENTER)
+        tf3 = textbox(slide, 1.0, 4.75, 11.3, 0.8)
+        for i, m in enumerate(s["meta"]):
+            add_text(tf3, m, 13, False, C["muted"], first=(i == 0), align=PP_ALIGN.CENTER,
+                     space_before=(0 if i == 0 else 4))
+        rect(slide, 1.31, 5.55, 10.79, 0.022, fill=C["navy"])
+        rect(slide, 0.04, 7.38, 13.34, 0.05, fill=C["navy"])
+        if SHOW_PAGE_NO:
+            page_number(slide, s["n"])
+        return
+
     elif kind == "thanks":
         slide.background.fill.solid()
         slide.background.fill.fore_color.rgb = C["navy"]
@@ -815,10 +887,21 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
 
 
 def build() -> None:
-    prs = Presentation()
-    prs.slide_width = Inches(13.333)
-    prs.slide_height = Inches(7.5)
-    blank = prs.slide_layouts[6]
+    if TEMPLATE_PATH:
+        prs = Presentation(str(TEMPLATE_PATH))
+        # 清空模板自带的示例页，只保留母版/主题/配色
+        # 注意：必须同时 drop_rel，否则旧 slide 部件仍留在包里，与新建页同名
+        _sld = prs.slides._sldIdLst
+        for _sid in list(_sld):
+            _rid = _sid.rId
+            prs.part.drop_rel(_rid)
+            _sld.remove(_sid)
+        blank = prs.slide_layouts[6]          # 「空白」版式
+    else:
+        prs = Presentation()
+        prs.slide_width = Inches(13.333)
+        prs.slide_height = Inches(7.5)
+        blank = prs.slide_layouts[6]
 
     md = ["# 答辩 PPT 逐页提要", "", f"共 {len(SLIDES)} 页正文 + {len(BACKUP)} 页备用", ""]
     for s in SLIDES:
