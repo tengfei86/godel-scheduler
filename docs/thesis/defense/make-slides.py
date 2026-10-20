@@ -957,9 +957,38 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
         page_number(slide, s["n"])
 
 
+def _strip_decor(prs) -> None:
+    """去掉模板版式与母版里的背景填充、装饰图片与全屏形状，让页面真正呈白底"""
+    from lxml import etree
+    from pptx.oxml.ns import qn
+
+    def clean(container) -> None:
+        cSld = container.find(qn("p:cSld"))
+        if cSld is None:
+            return
+        bg = cSld.find(qn("p:bg"))
+        if bg is not None:
+            cSld.remove(bg)
+        spTree = cSld.find(qn("p:spTree"))
+        if spTree is None:
+            return
+        for child in list(spTree):
+            local = etree.QName(child).localname
+            if local in ("pic", "graphicFrame", "grpSp", "cxnSp"):
+                spTree.remove(child)
+            elif local == "sp" and child.find(".//" + qn("p:ph")) is None:
+                spTree.remove(child)
+
+    for lay in prs.slide_layouts:
+        clean(lay._element)
+    for m in prs.slide_masters:
+        clean(m._element)
+
+
 def build() -> None:
     if TEMPLATE_PATH:
         prs = Presentation(str(TEMPLATE_PATH))
+        _strip_decor(prs)
         # 清空模板自带的示例页，只保留母版/主题/配色
         # 注意：必须同时 drop_rel，否则旧 slide 部件仍留在包里，与新建页同名
         _sld = prs.slides._sldIdLst
