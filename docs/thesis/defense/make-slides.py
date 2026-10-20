@@ -592,8 +592,12 @@ def slide_title(slide, title: str, kicker: str | None = None) -> None:
     """标题：默认版式用橙色竖条；--template 模式用模板的深蓝标记与位置"""
     if TEMPLATE_PATH:
         _template_marker(slide)
-        tf = textbox(slide, 1.11, 0.17, 11.4, 0.68, anchor=MSO_ANCHOR.MIDDLE)
-        add_text(tf, title, 30, True, C["navy"], first=True, line=1.0)
+        # 右上角校名横图（与模板一致：10.21, 0.10，2.89×0.55）
+        add_picture(slide, "beihang-logo.png", 10.21, 0.10, 2.89, 0.55, base=ASSETS)
+        # 标题避让校名：长标题降一档字号
+        _size = 30 if len(title) <= 18 else 24
+        tf = textbox(slide, 1.11, 0.17, 8.75, 0.68, anchor=MSO_ANCHOR.MIDDLE)
+        add_text(tf, title, _size, True, C["navy"], first=True, line=1.0)
         if kicker:
             tf2 = textbox(slide, 1.11, 0.88, 11.4, 0.3)
             add_text(tf2, kicker, 12, False, C["muted"], first=True)
@@ -918,6 +922,7 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
                   widths=s.get("widths"))
         bullets_block(slide, s["bullets"], top=5.55, width=12.0, size=13, gap=6, height=1.05)
     elif kind == "thanks" and TEMPLATE_PATH:
+        add_picture(slide, "beihang-logo.png", 10.21, 0.10, 2.89, 0.55, base=ASSETS)
         rect(slide, 1.31, 2.42, 10.79, 0.022, fill=C["navy"])
         tf = textbox(slide, 1.0, 2.62, 11.3, 1.0, anchor=MSO_ANCHOR.MIDDLE)
         add_text(tf, s["title"], 34, True, C["navy"], first=True, align=PP_ALIGN.CENTER)
