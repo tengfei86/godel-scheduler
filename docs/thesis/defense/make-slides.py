@@ -732,22 +732,24 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
         return
 
     if kind == "cover":
-        rect(slide, 0, 0, 13.333, 7.5, fill=C["navy"])
-        add_picture(slide, "fig3-1-system-arch.png", 6.3, 1.05, 6.7, 5.4, alpha=20000)
+        add_picture(slide, "fig3-1-system-arch.png", 6.3, 1.05, 6.7, 5.4, alpha=18000)
         tf = textbox(slide, 0.9, 1.55, 5.4, 2.4)
-        add_text(tf, s["title"], 30, True, C["white"], first=True, line=1.15)
+        add_text(tf, s["title"], 30, True, C["navy"], first=True, line=1.15)
         tf2 = textbox(slide, 0.9, 4.15, 5.4, 0.5)
-        add_text(tf2, s["core"], 17, False, C["orange"], first=True)
+        add_text(tf2, s["core"], 17, False, C["blue"], first=True)
         tf3 = textbox(slide, 0.9, 4.95, 5.4, 1.6)
         for i, m in enumerate(s["meta"]):
-            add_text(tf3, m, 12.5, False, RGBColor(0xC9, 0xD4, 0xE2), first=(i == 0), space_before=(0 if i == 0 else 5))
+            add_text(tf3, m, 12.5, False, C["muted"], first=(i == 0), space_before=(0 if i == 0 else 5))
+        rect(slide, 0.04, 7.38, 13.34, 0.05, fill=C["navy"])
         if SHOW_PAGE_NO:
-            page_number(slide, s["n"], dark_bg=True)
+            page_number(slide, s["n"])
         return
 
-    slide_title(slide, s["title"])
-    if s.get("core"):
-        core_line(slide, s["core"])
+    # 致谢页自带标题/核心句版式，避免与通用标题重复绘制
+    if kind != "thanks":
+        slide_title(slide, s["title"])
+        if s.get("core"):
+            core_line(slide, s["core"])
 
     if kind == "bullets":
         bullets_block(slide, s["bullets"], top=2.15, width=11.6, size=17, gap=18)
@@ -864,18 +866,19 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
         return
 
     elif kind == "thanks":
-        slide.background.fill.solid()
-        slide.background.fill.fore_color.rgb = C["navy"]
-        tf = textbox(slide, 1.0, 2.6, 11.3, 1.2, anchor=MSO_ANCHOR.MIDDLE)
-        add_text(tf, s["title"], 34, True, C["white"], first=True, align=PP_ALIGN.CENTER)
-        tf2 = textbox(slide, 1.0, 3.95, 11.3, 0.6)
-        add_text(tf2, s["core"], 15, False, C["orange"], first=True, align=PP_ALIGN.CENTER)
-        tf3 = textbox(slide, 1.0, 5.2, 11.3, 0.9)
+        rect(slide, 1.31, 2.42, 10.79, 0.022, fill=C["navy"])
+        tf = textbox(slide, 1.0, 2.62, 11.3, 1.0, anchor=MSO_ANCHOR.MIDDLE)
+        add_text(tf, s["title"], 34, True, C["navy"], first=True, align=PP_ALIGN.CENTER)
+        tf2 = textbox(slide, 1.0, 3.75, 11.3, 0.5)
+        add_text(tf2, s["core"], 16, False, C["muted"], first=True, align=PP_ALIGN.CENTER)
+        tf3 = textbox(slide, 1.0, 4.75, 11.3, 0.8)
         for i, m in enumerate(s["meta"]):
-            add_text(tf3, m, 12.5, False, RGBColor(0xC9, 0xD4, 0xE2), first=(i == 0), align=PP_ALIGN.CENTER,
+            add_text(tf3, m, 13, False, C["muted"], first=(i == 0), align=PP_ALIGN.CENTER,
                      space_before=(0 if i == 0 else 4))
+        rect(slide, 1.31, 5.55, 10.79, 0.022, fill=C["navy"])
+        rect(slide, 0.04, 7.38, 13.34, 0.05, fill=C["navy"])
         if SHOW_PAGE_NO:
-            page_number(slide, s["n"], dark_bg=True)
+            page_number(slide, s["n"])
         return
 
     if s.get("legend"):
