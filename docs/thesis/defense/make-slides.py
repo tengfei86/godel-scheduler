@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 
 from pptx import Presentation
+from pptx.enum.shapes import MSO_SHAPE
 from pptx.dml.color import RGBColor
 from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.oxml.ns import qn
@@ -61,6 +62,8 @@ if TEMPLATE_PATH:
         red=RGBColor(0xC0, 0x00, 0x00),
         white=RGBColor(0xFF, 0xFF, 0xFF),
         light=RGBColor(0xF2, 0xF4, 0xF7),
+        light2=RGBColor(0xEA, 0xEF, 0xF4),      # 模板浅钢蓝块
+        soft=RGBColor(0xD6, 0xE3, 0xF0),        # 模板浅蓝描边
         text=RGBColor(0x2E, 0x2C, 0x2C),
         muted=RGBColor(0x7F, 0x7F, 0x7F),
         line=RGBColor(0xD9, 0xDE, 0xE5),
@@ -560,11 +563,35 @@ def rect(slide, left, top, width, height, fill=None, line=None, radius=False):
     return shp
 
 
+_MARKER_EL = None
+self_ns = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
+
+
+def _template_marker(slide) -> None:
+    """把模板里的花括号标记（Freeform 5）原样克隆到当前页，保留其 custGeom 与填充"""
+    global _MARKER_EL
+    if _MARKER_EL is None:
+        import zipfile
+        from pptx.oxml import parse_xml   # 必须用 python-pptx 的解析器，否则元素没有注册类
+        P = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
+        with zipfile.ZipFile(str(TEMPLATE_PATH)) as z:
+            root = parse_xml(z.read("ppt/slides/slide4.xml"))
+        for sp in root.iter(f"{P}sp"):
+            if sp.find(f"{P}nvSpPr/{P}cNvPr").get("name") == "Freeform 5":
+                _MARKER_EL = sp
+                break
+    if _MARKER_EL is None:
+        return
+    from copy import deepcopy
+    el = deepcopy(_MARKER_EL)
+    el.find(f"{self_ns}nvSpPr/{self_ns}cNvPr").set("id", str(9000 + len(slide.shapes)))
+    slide.shapes._spTree.append(el)
+
+
 def slide_title(slide, title: str, kicker: str | None = None) -> None:
     """标题：默认版式用橙色竖条；--template 模式用模板的深蓝标记与位置"""
     if TEMPLATE_PATH:
-        rect(slide, 0.47, 0.24, 0.10, 0.56, fill=C["navy"])
-        rect(slide, 0.47, 0.24, 0.30, 0.10, fill=C["navy"])
+        _template_marker(slide)
         tf = textbox(slide, 1.11, 0.17, 11.4, 0.68, anchor=MSO_ANCHOR.MIDDLE)
         add_text(tf, title, 30, True, C["navy"], first=True, line=1.0)
         if kicker:
@@ -688,11 +715,25 @@ def cards_grid(slide, cards: list[tuple[str, str]], left=0.62, top=2.15, width=1
         r, c = divmod(idx, cols)
         x = left + c * (box_w + gap)
         y = top + r * (box_h + gap)
-        rect(slide, x, y, box_w, box_h, fill=C["light"], line=C["line"], radius=True)
-        rect(slide, x, y, 0.055, box_h, fill=C["blue"])
-        tf = textbox(slide, x + 0.18, y + 0.14, box_w - 0.3, box_h - 0.2)
-        add_text(tf, head, 14, True, C["navy"], first=True)
-        add_text(tf, body, 11.5, False, C["muted"], space_before=4, line=1.1)
+        if TEMPLATE_PATH:
+            # 模板语言：浅钢蓝块 + 左上编号圆
+            rect(slide, x, y, box_w, box_h, fill=C["light2"], line=C["line"], radius=True)
+            badge = slide.shapes.add_shape(MSO_SHAPE.OVAL, Inches(x + 0.16), Inches(y + 0.15),
+                                           Inches(0.30), Inches(0.30))
+            badge.fill.solid(); badge.fill.fore_color.rgb = C["navy"]
+            badge.line.fill.background(); badge.shadow.inherit = False
+            btf = badge.text_frame; btf.margin_left = btf.margin_right = Emu(0)
+            btf.margin_top = btf.margin_bottom = Emu(0)
+            add_text(btf, f"{idx + 1:02d}", 9, True, C["white"], first=True, align=PP_ALIGN.CENTER)
+            tf = textbox(slide, x + 0.56, y + 0.15, box_w - 0.7, box_h - 0.22)
+            add_text(tf, head, 13.5, True, C["navy"], first=True)
+            add_text(tf, body, 11, False, C["muted"], space_before=4, line=1.1)
+        else:
+            rect(slide, x, y, box_w, box_h, fill=C["light"], line=C["line"], radius=True)
+            rect(slide, x, y, 0.055, box_h, fill=C["blue"])
+            tf = textbox(slide, x + 0.18, y + 0.14, box_w - 0.3, box_h - 0.2)
+            add_text(tf, head, 14, True, C["navy"], first=True)
+            add_text(tf, body, 11.5, False, C["muted"], space_before=4, line=1.1)
     return rows
 
 
@@ -702,9 +743,15 @@ def big_stats(slide, stats: list[tuple[str, str]], top=2.0, height=1.55) -> None
     box_w = (11.9 - gap * (n - 1)) / n
     for i, (num, label) in enumerate(stats):
         x = 0.72 + i * (box_w + gap)
-        rect(slide, x, top, box_w, height, fill=C["light"], line=C["line"], radius=True)
-        tf = textbox(slide, x, top + 0.12, box_w, 0.92, anchor=MSO_ANCHOR.MIDDLE)
-        add_text(tf, num, 46, True, C["orange"], first=True, align=PP_ALIGN.CENTER)
+        if TEMPLATE_PATH:
+            rect(slide, x, top, box_w, height, fill=C["light2"], line=C["line"], radius=True)
+            rect(slide, x, top, box_w, 0.05, fill=C["navy"])
+            tf = textbox(slide, x, top + 0.14, box_w, 0.92, anchor=MSO_ANCHOR.MIDDLE)
+            add_text(tf, num, 46, True, C["navy"], first=True, align=PP_ALIGN.CENTER)
+        else:
+            rect(slide, x, top, box_w, height, fill=C["light"], line=C["line"], radius=True)
+            tf = textbox(slide, x, top + 0.12, box_w, 0.92, anchor=MSO_ANCHOR.MIDDLE)
+            add_text(tf, num, 46, True, C["orange"], first=True, align=PP_ALIGN.CENTER)
         tf2 = textbox(slide, x, top + height - 0.42, box_w, 0.3)
         add_text(tf2, label, 12, False, C["muted"], first=True, align=PP_ALIGN.CENTER)
 
@@ -779,6 +826,27 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
             tf = textbox(slide, 0.62, 5.62, 12.1, 1.2)
             for i, b in enumerate(s["bullets"]):
                 add_text(tf, "▪  " + b, 14, False, C["text"], first=(i == 0), space_before=(0 if i == 0 else 6))
+    elif kind == "ladder" and TEMPLATE_PATH:
+        # 模板语言：竖向时间轴（深蓝竖线 + 节点圆 + 左侧层级名 + 右侧浅钢蓝块）
+        rows = s["rows"]
+        rect(slide, 2.42, 2.10, 0.028, 4.34, fill=C["navy"])
+        for _i, (_t, _threat, _sem) in enumerate(rows):
+            _y = 2.12 + _i * 1.07
+            node = slide.shapes.add_shape(MSO_SHAPE.OVAL, Inches(2.34), Inches(_y + 0.28),
+                                          Inches(0.22), Inches(0.22))
+            node.fill.solid(); node.fill.fore_color.rgb = C["navy"]
+            node.line.color.rgb = C["white"]; node.line.width = Pt(2)
+            node.shadow.inherit = False
+            _main, _sub = (_t.split("·")[0].strip(), _t.split("·")[1].strip()) if "·" in _t else (_t, "")
+            _main = _main.lstrip("①②③④ ")
+            _tf = textbox(slide, 0.62, _y + 0.10, 1.58, 0.72)
+            add_text(_tf, _main, 13.5, True, C["navy"], first=True, align=PP_ALIGN.RIGHT)
+            if _sub:
+                add_text(_tf, _sub, 10.5, False, C["muted"], align=PP_ALIGN.RIGHT, space_before=1)
+            rect(slide, 2.68, _y, 9.80, 0.92, fill=C["light2"], line=C["line"], radius=True)
+            _tf2 = textbox(slide, 2.86, _y + 0.11, 9.45, 0.72)
+            add_text(_tf2, "威胁：" + _threat, 11.5, False, C["text"], first=True)
+            add_text(_tf2, "etcd：" + _sem, 10.5, False, C["muted"], space_before=2)
     elif kind == "ladder":
         rows = s["rows"]
         _x, _y0, _w, _h, _gap = 0.62, 1.95, 12.1, 0.98, 0.1
