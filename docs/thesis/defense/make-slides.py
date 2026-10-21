@@ -904,7 +904,11 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
         big_stats(slide, s["stats"], top=1.95)
         bullets_block(slide, s["bullets"], top=3.85, width=11.8, size=15.5, gap=12)
     elif kind == "cards":
-        cards_grid(slide, s["cards"], top=2.05,
+        if s.get("lead"):
+            _lx = 1.11 if TEMPLATE_PATH else 0.62
+            _tf = textbox(slide, _lx, s.get("lead_top", 1.88), 11.0, s.get("lead_h", 1.05))
+            add_text(_tf, s["lead"], 13, False, C["text"], first=True, line=1.35)
+        cards_grid(slide, s["cards"], top=s.get("cards_top", 2.05),
                    box_h=s.get("box_h", 1.15), cols=s.get("cols", 3))
         if s.get("takeaway"):
             _y = s.get("takeaway_top", 3.85)
@@ -1104,12 +1108,16 @@ _NEW_P3 = dict(
     kind="cards",
     title="研究背景",
     core="生产集群进入万节点量级，单实例架构在吞吐与高可用上同时受制",
-    cards=[("规模", "生产集群已进入万节点级，规模仍在增长"),
-           ("吞吐", "业务要求秒级承接海量 Pod"),
-           ("可用性", "长期运行不能因单点失效中断服务")],
-    takeaway="单实例架构难以同时满足高吞吐与高可用，分布式改造成为必然；但改造会带来新的一致性难题。",
-    box_h=1.5,
-    takeaway_top=4.0,
+    lead="Kubernetes 已成为云原生的事实标准，调度器处在 Pod 生命周期的关键路径上：它的吞吐与延迟"
+         "直接决定集群资源利用率与业务响应速度。千节点规模下单实例尚可支撑，集群进入万节点量级后，"
+         "三个瓶颈同时显现。",
+    cards=[("吞吐存在上限", "activeQ 串行处理 Pod，大规模弹性伸缩与批任务启动被拖慢"),
+           ("尾延迟持续抬升", "Filter/Score 遍历节点开销随规模线性上升，5000 节点下 P99 明显恶化"),
+           ("单点故障风险", "Leader 崩溃后需等待 Standby 接管，这段窗口内集群完全无法调度")],
+    takeaway="分布式改造是必然选择；但多实例并发又把“任一 Pod 至多绑定一次”推到设计前台。",
+    cards_top=3.10,
+    box_h=1.48,
+    takeaway_top=5.05,
     notes="先说为什么要做。云原生负载规模持续增长，生产集群已进入万节点量级，业务对调度器提出双重要求："
           "既要秒级承接海量 Pod，又要长期运行不因单点失效中断服务。原生 kube-scheduler 在这两头上都是瓶颈："
           "主循环从 activeQ 串行取 Pod，CPU 核再多也用不上；Filter 和 Score 的代价随节点数增长，尾延迟被抬起来；"
@@ -1300,9 +1308,10 @@ for _i, _s in enumerate(SLIDES, 1):
 
 # ── 讲稿微调：把总时长压到 19.8 分钟，第 6 章占比稳在 55% 以上 ──
 _SHORTEN: dict[int, str] = {
-    2: "先说为什么要做。云原生负载规模持续增长，生产集群已到万节点量级；业务对调度器有双重要求，"
-       "既要秒级承接海量 Pod，又要长期运行不因单点中断。原生 kube-scheduler 是三堵墙：activeQ 串行取 Pod；"
-       "Filter 与 Score 随节点数增长，尾延迟被抬高；Leader Election 只允许一个活跃实例。",
+    2: "先说背景。Kubernetes 已经是云原生的事实标准，调度器在 Pod 生命周期的关键路径上，它的吞吐和延迟"
+       "直接决定资源利用率与业务响应速度。千节点规模下单实例还能撑住，到了万节点量级就有三个瓶颈："
+       "activeQ 串行处理 Pod，吞吐有上限；Filter 和 Score 随节点数线性增长，五千节点下 P99 明显恶化；"
+       "Leader 崩溃要等 Standby 接管，这段窗口集群完全不能调度。",
     3: "现状分国外与国内两条线。国外从集中式走到共享状态：Borg、Omega、Mesos，再到 kube-scheduler 的插件框架。"
        "国内代表是 Gödel，字节跳动开源，用节点分区做分片式多实例；Volcano 与 Koordinator 走插件增强。"
        "共同缺口在落盘侧，本文正落在这个缺口上。",
