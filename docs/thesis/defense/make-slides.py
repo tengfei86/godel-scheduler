@@ -1603,5 +1603,16 @@ for _s in SLIDES:
     if _s["title"].startswith("五组基线"):
         _s["notes"] += "这个排序在 16 个场景上是一致的。"
 
+# ── 顺序调整：故障注入两页移到「归因闭环」之后 ──
+_fi = [s for s in SLIDES if s["title"].startswith("故障注入")]
+if len(_fi) == 2:
+    for _s in _fi:
+        SLIDES.remove(_s)
+    _i = next(i for i, s in enumerate(SLIDES) if s["title"].startswith("归因闭环")) + 1
+    for _off, _s in enumerate(_fi):
+        SLIDES.insert(_i + _off, _s)
+    for _i2, _s in enumerate(SLIDES, 1):
+        _s["n"] = _i2
+
 if __name__ == "__main__":
     build()
