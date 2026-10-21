@@ -1348,9 +1348,11 @@ for _s in SLIDES:
 _arch = next(s for s in SLIDES if s["title"].startswith("三层职责"))
 _flow1 = next(s for s in SLIDES if s["title"].startswith("Dispatcher 内部流程"))
 _flow2 = next(s for s in SLIDES if s["title"].startswith("Scheduler 内部流程"))
+# 作者要求删除「分布式改造真正的难点在“绑定阶段”」一页
+SLIDES = [s for s in SLIDES if not s["title"].startswith("分布式改造真正的难点")]
 for _s in (_arch, _flow1, _flow2):
     SLIDES.remove(_s)
-_i = next(i for i, s in enumerate(SLIDES) if s["title"].startswith("分布式改造真正的难点")) + 1
+_i = next(i for i, s in enumerate(SLIDES) if s["title"].startswith("研究内容与创新点")) + 1
 for _off, _s in enumerate((_arch, _flow1, _flow2)):
     SLIDES.insert(_i + _off, _s)
 for _i2, _s in enumerate(SLIDES, 1):
