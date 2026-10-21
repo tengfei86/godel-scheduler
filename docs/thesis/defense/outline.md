@@ -37,16 +37,14 @@
 
 ## P6 Dispatcher 内部流程
 
-- 核心信息：先校验归属、再选分区、然后入队——它不选节点，只决定 Pod 去哪
-- 要点：归属校验：把漂移的 Pod 拦住；分区选择：按实例负载均衡；入队：交给对应 Scheduler 实例
+- 核心信息：
 - 视觉：fig3-3-dispatcher-flow.png
 - 讲稿：技术路线：并发做在分区上，一致性做在 etcd 上。Dispatcher 统一分发，Scheduler 在分区内并行决策，落盘走 dispatching、assuming、binding 三步事务。一致性不靠加锁，靠 etcd 三种原子语义：resourceVersion 乐观并发、Watch 一致性视图、Bind 子资源原子写。这三步事务，就是后面四层容错的落点。
 - 来源：3.3 节；图 3-3
 
 ## P7 Scheduler 内部流程
 
-- 核心信息：Filter → Score → Reserve → Permit，产出目标节点后交给 Binder 落盘
-- 要点：Filter：在分区内过滤候选节点；Score：打分选出最优节点；Reserve/Permit 后交 Binder
+- 核心信息：
 - 视觉：fig3-4-scheduler-flow.png
 - 讲稿：先看 Dispatcher 的内部流程。它进来先做归属校验，把分区漂移的 Pod 拦住；再按实例负载做分区选择，决定交给哪个 Scheduler；然后入队。注意它不选节点，只决定 Pod 去哪，选节点是下一环的事，这也是它能并行分发的原因。
 - 来源：3.4 节；图 3-4
