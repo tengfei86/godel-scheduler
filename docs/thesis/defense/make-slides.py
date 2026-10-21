@@ -396,7 +396,7 @@ SLIDES: list[dict] = [
     dict(
         n=20, kind="tablepic",
         legend=True,
-        title="实例 1→3：ENO 把并发变成完成速度",
+        title="ENO vs Gödel 实例扩展对比",
         core="ENO 有效吞吐 +17.5%，Gödel 仅 +1.4%",
         figure="fig6-16-throughput-s3-w3-inst3.png",
         caption="s3/w3 inst3 吞吐时序",
