@@ -275,7 +275,6 @@ SLIDES: list[dict] = [
     ),
     dict(
         n=12, kind="cards",
-        legend=True,
         cols=3,
         box_h=1.62,
         cards_top=1.55,
