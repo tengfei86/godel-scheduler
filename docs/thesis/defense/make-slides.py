@@ -191,14 +191,22 @@ SLIDES: list[dict] = [
         source="第 5 章 §5.1；图 5-1a/5-1b",
     ),
     dict(
-        n=8, kind="figure",
+        n=8, kind="arch",
         title="CacheAdapter：共享同一份 SchedulerCache",
-        core="状态以对象引用共享，不再复制，也没有跨进程同步延迟",
         figure="fig5-2-cache-zero-copy.png",
-        bullets=["对象引用而非序列化拷贝", "进程内 Binder 与 Scheduler 同视图", "为一致性校验提供同一份真相"],
-        notes="难点在于缓存。以前 Binder 在另一个进程，SchedulerCache 要么复制、要么重新构建，代价高还有延迟。"
-              "CacheAdapter 让进程内 Binder 直接拿到同一份 SchedulerCache 的对象引用，所以叫零拷贝。"
-              "这不只是性能问题：两边看到的是同一份状态，Layer 0 的节点归属校验才有同一个真相可依。",
+        fig_h=4.05,
+        comp_top=5.20,
+        comp_h=1.55,
+        comps=[("① 共享同一实例",
+                "CacheAdapter 把 Scheduler 的 SchedulerCache 交给进程内 Binder，两边持有同一份缓存对象"),
+               ("② 零拷贝、零同步",
+                "状态以引用传递，不做序列化复制，也没有跨进程的同步延迟与网络往返"),
+               ("③ 同一份真相",
+                "Layer 0 的节点归属校验读的就是这份缓存，Scheduler 与 Binder 看到的状态一致")],
+        notes="这一页讲缓存。以前 Binder 在另一个进程，SchedulerCache 要么复制、要么重新构建，代价高还有延迟。"
+              "CacheAdapter 的做法是共享同一个实例：把 Scheduler 的缓存直接交给进程内 Binder，两边持有同一个对象，"
+              "状态以引用传递，既没有序列化复制，也没有跨进程同步延迟。这不只是性能问题——两边看到的是同一份状态，"
+              "Layer 0 的归属校验才有同一个真相可依。",
         source="第 5 章 §5.2；图 5-2",
     ),
     dict(
