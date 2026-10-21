@@ -368,7 +368,7 @@ SLIDES: list[dict] = [
     dict(
         n=18, kind="figure",
         legend=True,
-        title="尾延迟：11 个非 Gang 场景全面领先",
+        title="ENO vs Gödel 各场景尾延迟对比",
         core="s2/w3 从 23.48 s 降到 4.00 s，降幅 82.9%",
         figure="fig6-4-latency-p99-all.png",
         bullets=["P99 改善 0.3%~82.9%（除 s2/w2）", "s3/w3 inst1 32.57→16.22 s（-50.2%）", "Pod E2E P99 改善 0.6%~75.3%"],
@@ -650,7 +650,7 @@ def slide_title(slide, title: str, kicker: str | None = None) -> None:
         # 右上角校名横图（与模板一致：10.21, 0.10，2.89×0.55）
         add_picture(slide, "beihang-logo-navy.png", 10.21, 0.10, 2.89, 0.55, base=ASSETS)
         # 标题避让校名：长标题降一档字号
-        _size = 30 if len(title) <= 18 else 24
+        _size = 30 if len(title) <= 21 else 24
         tf = textbox(slide, 0.62, 0.17, 9.35, 0.68, anchor=MSO_ANCHOR.MIDDLE)
         add_text(tf, title, _size, True, C["navy"], first=True, line=1.0)
         if kicker:
