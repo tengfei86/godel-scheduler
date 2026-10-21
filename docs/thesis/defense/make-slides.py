@@ -1292,7 +1292,7 @@ _INNOV = dict(
             "单 Dispatcher、多独立 Scheduler；Binder 与决策同域；CacheAdapter 零拷贝共享 SchedulerCache"),
            ("创新 2 · 四层容错",
             "L0 归属校验 · L1 同步退避 · L2 异步回收 · L3 全局回退，全部建立在 etcd 原子语义上")],
-    takeaway="两条创新指向同一目标：不改 API 的前提下，让分布式调度既跑得快，又绑得对。",
+    takeaway="两条创新指向同一目标：不改 API 的前提下，让分布式调度既跑得快，稳定性更高。",
     cards_top=1.92,
     box_h=2.55,
     takeaway_top=4.98,
