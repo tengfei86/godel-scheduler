@@ -302,7 +302,7 @@ SLIDES: list[dict] = [
         core="144 次 run 的 apiserver 断言全部通过：unbound = 0 且 dup = 0",
         stats=[("100%", "绑定成功率"), ("144", "次 run 全部通过"), ("0", "unbound / dup")],
         bullets=["ENO 48 次 run：绑定成功率 100%",
-                 "Layer 0 / Layer 3 故障注入均通过 6 项判据",
+                 "Layer 0 / Layer 3 故障注入均通过",
                  "断言在 apiserver 侧可复核"],
         notes="在给性能数字之前，先说正确性。144 次 run，每一次跑完都在 apiserver 侧做断言：未绑定的 Pod 数为零，"
               "重复绑定的 Pod 数为零，全部通过；ENO 自己那 48 次 run 绑定成功率都是 100%。"
