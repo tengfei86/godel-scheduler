@@ -1102,8 +1102,8 @@ for _s in SLIDES:
 # 说明：先按旧编号套用上面的讲稿，再插入/移位/重编号，避免讲稿错位。
 _NEW_P3 = dict(
     kind="cards",
-    title="万节点规模下，吞吐上限与单点风险同时暴露",
-    core="业务要求秒级承接海量 Pod，又不能因单点中断；单实例架构在两头受制",
+    title="研究背景",
+    core="生产集群进入万节点量级，单实例架构在吞吐与高可用上同时受制",
     cards=[("规模", "生产集群已进入万节点级，规模仍在增长"),
            ("吞吐", "业务要求秒级承接海量 Pod"),
            ("可用性", "长期运行不能因单点失效中断服务")],
@@ -1288,7 +1288,7 @@ _INNOV = dict(
     source="第 4、5 章",
 )
 _old_overview = next(s for s in SLIDES if s["title"].startswith("让分布式调度"))
-_bg = next(s for s in SLIDES if s["title"].startswith("万节点规模下"))
+_bg = next(s for s in SLIDES if s["title"].startswith("研究背景"))
 _st = next(s for s in SLIDES if s["title"].startswith("国内外研究现状"))
 for _s in (_old_overview, _bg, _st):
     SLIDES.remove(_s)
