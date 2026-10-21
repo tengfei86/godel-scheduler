@@ -152,7 +152,7 @@ SLIDES: list[dict] = [
     ),
     dict(
         n=6, kind="figure",
-        title="三层职责：Dispatcher 管分区、Scheduler 管决策、Binder 管落盘",
+        title="整体架构图",
         core="分区之间无锁并发，状态推进全部由 Watch 事件驱动",
         figure="fig3-1-system-arch.png",
         bullets=["Dispatcher：分区分配与回退", "Scheduler：Filter/Score/Reserve", "Binder：Bind 原子写与失败处理"],
@@ -1345,7 +1345,7 @@ for _s in SLIDES:
                        "这两条同时满足很吃力——这正是工业界做分布式改造的起点，也是本文要处理的问题。")
 
 # ── 顺序：架构（三层职责）在前，内部流程在后 ──
-_arch = next(s for s in SLIDES if s["title"].startswith("三层职责"))
+_arch = next(s for s in SLIDES if s["title"].startswith("整体架构"))
 _flow1 = next(s for s in SLIDES if s["title"].startswith("Dispatcher 内部流程"))
 _flow2 = next(s for s in SLIDES if s["title"].startswith("Scheduler 内部流程"))
 # 作者要求删除「分布式改造真正的难点在“绑定阶段”」一页

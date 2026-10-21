@@ -28,7 +28,7 @@
 - 讲稿：这一页把全文压成两句。架构上，单 Dispatcher、多独立 Scheduler，Binder 合并进 Scheduler 进程，CacheAdapter 零拷贝共享缓存，去掉跨进程的事件传递与序列化。一致性上，四层容错，L0 到 L3 覆盖 Bind 前中后，每层对应一类 etcd 原子语义。两条创新指向同一个目标：不改 API，跑得快且绑得对。
 - 来源：第 4、5 章
 
-## P5 三层职责
+## P5 整体架构图
 
 - 核心信息：分区之间无锁并发，状态推进全部由 Watch 事件驱动
 - 要点：Dispatcher：分区分配与回退；Scheduler：Filter/Score/Reserve；Binder：Bind 原子写与失败处理
