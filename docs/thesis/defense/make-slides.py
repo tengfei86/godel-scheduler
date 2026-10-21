@@ -256,11 +256,16 @@ SLIDES: list[dict] = [
         core="16 个对比场景，每场景 3 次重复，共 144 次 run，n=3 取中位数",
         table=[["维度", "取值"],
                ["规模 s1–s4", "100 / 1000 / 5000 / 10000 节点"],
-               ["负载 w1–w7", "w1 100 → w4 2000 pods/s（极限）；w5 突发、w6 Gang、w7 异构"],
+               ["速率型 w1–w4", "100 / 500 / 1000 / 2000 pods/s（1 万 / 5 万 / 10 万 / 20 万 Pod，w4 为极限）"],
+               ["突发 w5", "0 → 2000 → 0 pods/s，5 万 Pod，考察涌入与退潮"],
+               ["Gang w6", "200 组/s × 5 Pod，共 5 万 Pod，组内必须同时调度"],
+               ["异构 w7", "500 pods/s，5 万 Pod，节点资源规格异构"],
                ["实例 inst", "inst1 = 1 个实例；inst3 = 3 个实例"],
                ["对比组", "a=ENO  b=Gödel  c=kube-scheduler  d=Volcano  e=Koordinator"],
                ["公平性", "每 Pod 2C/4G；客户端 QPS=Burst=10000"]],
+        row_h=0.42, font=11.5,
         bullets=["KWOK 仿真，kind 内 K8s v1.34.8", "Prometheus 15 s 抓取 + recording rules", "warmup/cooldown 各剔除 30 s"],
+        bullets_top=5.94,
         notes="先看表头这套编码：s 是规模档位，100 到 10000 节点；w 是负载强度，w2 是 500、w3 是 1000 pods per second，"
               "w4 到 2000 是极限，w5 到 w7 分别是突发、Gang 与异构；inst 是实例数。后面所有场景名都由这三段拼成。"
               "再说明三点公平性。第一，平台是 KWOK 仿真，在 kind 集群里跑，Kubernetes 版本与对照组一致。"
@@ -988,7 +993,8 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
         add_table(slide, s["table"], 0.62, 2.0, 12.1,
                   row_h=s.get("row_h", 0.46), font=s.get("font", 12),
                   widths=s.get("widths"))
-        bullets_block(slide, s["bullets"], top=5.55, width=12.0, size=13, gap=6, height=1.05)
+        bullets_block(slide, s["bullets"], top=s.get("bullets_top", 5.55), width=12.0,
+                      size=13, gap=6, height=1.0)
     elif kind == "thanks" and TEMPLATE_PATH:
         add_picture(slide, "beihang-logo-navy.png", 10.21, 0.10, 2.89, 0.55, base=ASSETS)
         rect(slide, 1.31, 2.42, 10.79, 0.022, fill=C["navy"])
