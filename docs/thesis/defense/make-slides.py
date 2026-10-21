@@ -262,7 +262,7 @@ SLIDES: list[dict] = [
                ["异构 w7", "500 pods/s，5 万 Pod，节点资源规格异构"],
                ["实例 inst", "inst1 = 1 个实例；inst3 = 3 个实例"],
                ["对比组", "a=ENO  b=Gödel  c=kube-scheduler  d=Volcano  e=Koordinator"],
-               ["公平性", "每 Pod 2C/4G；客户端 QPS=Burst=10000"]],
+               ["公平性", "每 Pod 2C/4G；各调度器 client-go QPS=Burst=10000（不设限流瓶颈）"]],
         row_h=0.42, font=11.5,
         bullets=["KWOK 仿真，kind 内 K8s v1.34.8", "Prometheus 15 s 抓取 + recording rules", "warmup/cooldown 各剔除 30 s"],
         bullets_top=5.94,
@@ -1478,7 +1478,8 @@ NOTES_BY_TITLE: dict[str, str] = {
         "P2 是 Assumed 清理，Reject 阶段 ForgetPod 清内存态，Layer 2 清 etcd 注解。P3 是清理到重分发的时序，"
         "一次 PatchPod 原子提交。P4 是 Layer 0 前置拦截，缓存滞后由 P1 兜底。",
     "实验设计": "先讲编码：s 是规模档位，w 是负载强度，inst 是实例数，后面场景名都由这三段拼成。再说公平性："
-        "KWOK 仿真、kind 集群内运行；五个调度器 Pod 规格相同，客户端 QPS 与 Burst 都是 10000；每场景三次取中位数，共 144 次 run。",
+        "KWOK 仿真、kind 集群内运行；五个调度器 Pod 规格相同，各自的 client-go QPS 与 Burst 都放到 10000，"
+        "避免把客户端限流误读成调度能力差异；每场景三次取中位数，共 144 次 run。",
     "评估指标": "这一页是方法学核心。吞吐时序是爬升、平台、归零三段，直接取平均会被尾段零值稀释，稀释程度还取决于跑多久，"
         "跨调度器就不可比，所以主口径是总工作量除以总完成时间。时序类先对三条 run 逐点取中位数，再剔首尾各两点。"
         "c、d、e 是单实例，过载时 Pod 没进直方图，存在幸存者偏差，只做定性说明。",
