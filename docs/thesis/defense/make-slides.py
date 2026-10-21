@@ -133,11 +133,15 @@ SLIDES: list[dict] = [
         fig_h=4.05,
         comp_top=5.20,
         comp_h=1.55,
-        comps=[("① 归属校验", "Bind 前校验目标节点的 eno.io/scheduler-name 注解，把分区归属漂移的 Pod 拦在门外"),
-               ("② 分区选择", "依据节点分区表与实例负载，决定这个 Pod 交给哪个 Scheduler 实例处理"),
-               ("③ 入队", "放入对应实例的调度队列；它不选节点，只决定 Pod 去哪，失败时触发回退")],
-        notes="先看 Dispatcher 的内部流程。它进来先做归属校验，把分区漂移的 Pod 拦住；再按实例负载做分区选择，"
-              "决定这个 Pod 交给哪个 Scheduler；然后入队。注意它不选节点，只决定 Pod 去哪，选节点是下一环的事。",
+        comps=[("① 排序入队",
+                "Informer 观察到 nodeName 为空、且无 scheduler-name 注解的新 Pod，按 FIFO 排序后进入有序队列"),
+               ("② 分发决策",
+                "PodGroup 成员复用该组已分配的实例；否则按负载均衡（MaxIdle 加权轮询）挑选最空闲的 Scheduler"),
+               ("③ 写入并跟踪",
+                "PatchPod 写入 scheduler-name 完成分发；持续观察绑定结果，失败进入不可调度队列等待重分")],
+        notes="Dispatcher 的内部流转分三步。第一步排序入队：Informer 看到 nodeName 为空、还没有 scheduler-name 注解的新 Pod，"
+              "按 FIFO 排序后进有序队列。第二步分发决策：Pod 属于某个 PodGroup 就复用该组已分配的实例，否则按负载均衡挑最空闲的；"
+              "第三步写入并跟踪： PatchPod 写上 scheduler-name，Pod 对该实例可见，之后持续观察绑定结果，失败就进不可调度队列等下一轮。",
         source="3.3 节；图 3-3",
     ),
     dict(
@@ -147,11 +151,16 @@ SLIDES: list[dict] = [
         fig_h=4.05,
         comp_top=5.20,
         comp_h=1.55,
-        comps=[("① Filter", "只在本分区内的节点上过滤，排除资源不足、约束不满足的候选"),
-               ("② Score", "对候选节点打分排序，选出最优节点作为目标"),
-               ("③ Reserve / Permit", "预留资源并放行，产出目标节点后交给 Binder 落盘")],
-        notes="再看 Scheduler。它在自己分区内跑 Filter 过滤候选节点，Score 打分选最优，Reserve 预留资源，Permit 放行，"
-              "产出目标节点后交给 Binder 落盘。落盘走 dispatching、assuming、binding 三步事务，这是后面一致性的抓手。",
+        comps=[("① 入队与预处理",
+                "只接 scheduler-name 匹配自身的 Pod；pre-queue 插件校验 PodGroup 成员与亲和依赖，不通过则退回 Dispatcher"),
+               ("② 调度循环",
+                "从 activeQ 弹出后依次 Filter（剔除硬约束不满足）、Score（打分）、Reserve（标记候选并写 Assumed 状态）"),
+               ("③ 绑定与回流",
+                "Reserve 后调用 Binder 执行 Bind；失败进入 backoffQ 指数退避，多次失败则退回 Dispatcher 触发跨实例回退")],
+        notes="Scheduler 内部也分三步。第一步入队与预处理：只接 scheduler-name 指向自己的 Pod，pre-queue 插件先看 PodGroup 成员是否齐全、"
+              "亲和依赖是否满足，不通过就退回 Dispatcher。第二步调度循环：从 activeQ 弹出，Filter 剔除硬约束不满足的节点，"
+              "Score 打分，Reserve 标记候选并写 Assumed 状态。第三步绑定与回流：调 Binder 执行 Bind，失败进 backoffQ 指数退避，"
+              "多次失败就退回 Dispatcher 触发跨实例回退。",
         source="3.4 节；图 3-4",
     ),
     dict(
