@@ -355,7 +355,7 @@ SLIDES: list[dict] = [
     dict(
         n=17, kind="figure",
         legend=True,
-        title="ENO vs Gödel：16 个场景中 14 个领先",
+        title="ENO vs Gödel 各场景吞吐对比",
         core="平均 +11.9%，高负载与多实例场景优势最大",
         figure="fig6-2-effective-throughput.png",
         bullets=["14 领先、2 持平（s1/w1、s4/w7）", "提升 +2.0%~+22.9%，平均 +11.9%", "亮点：s2/w3 +22.9%、s3/w3 inst3 +21.7%"],
