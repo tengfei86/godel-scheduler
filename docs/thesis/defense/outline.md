@@ -32,7 +32,7 @@
 
 - 核心信息：
 - 视觉：fig3-1-system-arch.png
-- 讲稿：这张图是总体架构。上层 Dispatcher 单实例，维护节点分区表，把 Pod 按分区分发给对应 Scheduler，绑定出问题时清理注解、触发重分发。中间多个 Scheduler 只调度本分区节点。下层 Binder 与 Scheduler 同进程，负责真正写进 apiserver。三层职责清晰，故障面也就容易划清，后面的四层容错正是按这三层分工展开的。
+- 讲稿：这张图是总体架构。上层 Dispatcher 单实例，维护节点分区表，把 Pod 按分区分发给对应 Scheduler，绑定出问题时清理注解、触发重分发。中间多个 Scheduler 只调度本分区节点。下层 Binder 与 Scheduler 同进程，负责真正写进 apiserver。
 - 来源：3.1 节；图 3-1
 
 ## P6 Dispatcher 内部流程
@@ -46,7 +46,7 @@
 
 - 核心信息：
 - 视觉：fig3-4-scheduler-flow.png
-- 讲稿：Scheduler 内部也是三步。入队前 pre-queue 先校验 PodGroup 成员与亲和依赖，不通过退回 Dispatcher。进 activeQ 后跑 Filter、Score、Reserve，Reserve 阶段写 Assumed 状态。最后调 Binder 执行 Bind；失败进 backoffQ 退避，多次失败退回 Dispatcher。Scheduler 决定何时放弃本地重试，Dispatcher 决定何时重新分发，这是双向协作。
+- 讲稿：Scheduler 内部也是三步。入队前 pre-queue 先校验 PodGroup 成员与亲和依赖，不通过退回 Dispatcher。进 activeQ 后跑 Filter、Score、Reserve，Reserve 阶段写 Assumed 状态。最后调 Binder 执行 Bind；失败进 backoffQ 退避，多次失败退回 Dispatcher。
 - 来源：3.4 节；图 3-4
 
 ## P8 进程内 Binder 架构
@@ -67,7 +67,7 @@
 ## P10 四层绑定容错
 
 - 核心信息：每一层对应一类威胁，并分别依赖一种 etcd 原子语义
-- 讲稿：四层是一条时间轴。Bind 前 Layer 0 校验归属注解，把漂移拦在门外；Bind 中 Layer 1 用同步退避处理暂态错误；失败后 Layer 2 异步回收孤儿状态；重试耗尽 Layer 3 由 Dispatcher 清注解、触发全局重分发。每层依赖一种 etcd 语义。四层之间是衔接关系，不是四个独立补丁。
+- 讲稿：四层是一条时间轴。Bind 前 Layer 0 校验归属注解，非本分区直接拒绝并回退。Bind 中 Layer 1 只处理 409、429、ServerTimeout 三类暂态错误：线性退避 100、200、300 毫秒，最多三次，其它错误立即上抛。失败后 Layer 2 异步清理残留注解，按失败计数决定本地重试还是上升。重试耗尽 Layer 3 用一次原子 patch 交回 Dispatcher 重分发。四层之间是衔接关系，不是四个独立补丁。
 - 来源：第 4 章 §4.3~§4.6
 
 ## P11 正确性根基
@@ -123,7 +123,7 @@
 - 要点：较 kube-scheduler +1.8%~+22.5%；较 Volcano 约 6×，较 Koordinator 12× 以上；s1/w1 低负载例外 -7.2%（未饱和）
 - 视觉：fig6-3-throughput-5group.png
 - 表格：场景 | ENO | Gödel | k-sched | Volcano | Koord
-- 讲稿：五组横向对比，结论是三档。第一档 ENO 与 Gödel，都是几百 pods/s；第二档 kube-scheduler；第三档 Volcano 与 Koordinator，只有约 48 和约 24 pods/s，几乎不随规模变化。主评估四场景里，ENO 比 kube-scheduler 高 1.8% 到 22.5%。唯一例外是 s1/w1 低负载低 7.2%，那个场景没饱和。柱状图按场景排序，第三档几乎是一条水平线，说明它们的瓶颈不在调度吞吐这一维。从 s1 到 s3，第一档的曲线始终压在最上面，第三档几乎不随规模变化。
+- 讲稿：五组横向对比，结论是三档。第一档 ENO 与 Gödel，都是几百 pods/s；第二档 kube-scheduler；第三档 Volcano 与 Koordinator，只有约 48 和约 24 pods/s，几乎不随规模变化。主评估四场景里，ENO 比 kube-scheduler 高 1.8% 到 22.5%。唯一例外是 s1/w1 低负载低 7.2%，那个场景没饱和。柱状图按场景排序，第三档几乎是一条水平线，说明它们的瓶颈不在调度吞吐这一维。从 s1 到 s3，第一档的曲线始终压在最上面，第三档几乎不随规模变化。这个排序在 16 个场景上是一致的。
 - 来源：6.4.1 节；图 6-3；表 6-5
 
 ## P18 ENO vs Gödel

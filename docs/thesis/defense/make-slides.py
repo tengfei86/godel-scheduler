@@ -1461,8 +1461,9 @@ NOTES_BY_TITLE: dict[str, str] = {
         "这一刀去掉三段开销：事件传递、跨进程调用、序列化。我把它称为第一性来源。",
     "CacheAdapter": "难点在缓存。以前 Binder 在另一个进程，缓存要么复制要么重建。CacheAdapter 让进程内 Binder "
         "直接拿到同一份 SchedulerCache 的对象引用，所以叫零拷贝。两边看到同一份状态，Layer 0 的校验才有同一个真相可依。",
-    "四层绑定容错": "四层是一条时间轴。Bind 前 Layer 0 校验归属注解，把漂移拦在门外；Bind 中 Layer 1 用同步退避处理暂态错误；"
-        "失败后 Layer 2 异步回收孤儿状态；重试耗尽 Layer 3 由 Dispatcher 清注解、触发全局重分发。每层依赖一种 etcd 语义。",
+    "四层绑定容错": "四层是一条时间轴。Bind 前 Layer 0 校验归属注解，非本分区直接拒绝并回退。Bind 中 Layer 1 只处理 409、429、"
+        "ServerTimeout 三类暂态错误：线性退避 100、200、300 毫秒，最多三次，其它错误立即上抛。失败后 Layer 2 异步清理残留注解，"
+        "按失败计数决定本地重试还是上升。重试耗尽 Layer 3 用一次原子 patch 交回 Dispatcher 重分发。",
     "正确性根基": "所有机制最后都回到不变量 I：任一 Pod 至多绑定到一个节点。证明拆四点：P1 来自 Bind 子资源原子写；"
         "P2 是 Assumed 状态清理；P3 是注解清理与重分发的时序；P4 是 Layer 0 前置拦截。四层都不破坏 I，且可在 apiserver 侧复核。",
     "实验设计": "先讲编码：s 是规模档位，w 是负载强度，inst 是实例数，后面场景名都由这三段拼成。再说公平性："
@@ -1565,6 +1566,19 @@ for _s in SLIDES:
         if _s["title"].startswith(_k):
             _s["notes"] = _s["notes"] + _v
             break
+
+# ── 最后微调：去掉两句冗余，给第 6 章补一句，保证 ≤20 分钟且第 6 章 ≥55% ──
+_CUT = [
+    "三层职责清晰，故障面也就容易划清，后面的四层容错正是按这三层分工展开的。",
+    "Scheduler 决定何时放弃本地重试，Dispatcher 决定何时重新分发，这是双向协作。",
+]
+for _s in SLIDES:
+    for _c in _CUT:
+        if _s["notes"].endswith(_c):
+            _s["notes"] = _s["notes"][: -len(_c)]
+for _s in SLIDES:
+    if _s["title"].startswith("五组基线"):
+        _s["notes"] += "这个排序在 16 个场景上是一致的。"
 
 if __name__ == "__main__":
     build()
