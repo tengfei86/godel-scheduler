@@ -274,18 +274,20 @@ SLIDES: list[dict] = [
         source="6.2 节；表 6-1~6-4",
     ),
     dict(
-        n=12, kind="metricrow",
+        n=12, kind="cards",
         legend=True,
+        cols=3,
+        box_h=1.45,
+        cards_top=1.95,
+        bullets_top=5.30,
         title="评估指标：为什么用“有效吞吐”作主口径",
         core="吞吐时序会“归零”，只有“总工作量 ÷ 总完成时间”跨场景可比",
-        figure="fig6-throughput-s2-w3.png",
-        caption="s2/w3 吞吐时序：爬升—平台—归零",
-        cards=[("有效吞吐 pods/s", "名义工作量 ÷ 完成时间（主口径）"),
-               ("峰值吞吐 pods/s", "过程中的最高瞬时调度速率"),
-               ("P90 / P99 延迟 s", "入 activeQ 到 Bind 完成"),
-               ("Pod E2E P99 s", "Dispatcher 观察到绑定完成"),
-               ("绑定成功率", "Bind 成功 / Bind 尝试"),
-               ("队列堆积峰值 pods", "pending_pods 最大值")],
+        cards=[("有效吞吐 pods/s", "名义总工作量 ÷ 总完成时间；本文吞吐主口径，与采样窗口长度无关"),
+               ("峰值吞吐 pods/s", "处理过程中的最高瞬时调度速率，反映瞬时处理能力上限"),
+               ("P90 / P99 调度延迟", "从 Pod 进入 activeQ 到完成 Bind 的分位延迟"),
+               ("Pod E2E 延迟 P99", "从 Dispatcher 观察到 Pod 起，直至绑定完成"),
+               ("绑定成功率", "Bind 成功次数 ÷ Bind 尝试次数，直接对应正确性"),
+               ("队列堆积峰值 pods", "pending_pods 在处理过程中的最大值，反映消化能力")],
         bullets=["三段结构：爬升—平台—归零，均值被尾段零值稀释", "时序类：3 run 逐点中位数，再去首尾各 2 点（约 30 s）", "c/d/e 单实例过载存在幸存者偏差，只与 a/b 比吞吐、队列、成功率"],
         notes="这一页是方法学核心。吞吐时序是三段结构：爬升、平台、归零，直接取平均会被尾段零值稀释，"
               "而且稀释程度取决于实验跑多久，跨调度器就不可比。所以主口径用有效吞吐：总工作量除以总完成时间，"
@@ -986,7 +988,7 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
             _tf = textbox(slide, 0.86, _y + 0.1, 11.6, 0.75, anchor=MSO_ANCHOR.MIDDLE)
             add_text(_tf, s["takeaway"], 15, True, C["navy"], first=True, line=1.15)
         if s.get("bullets"):
-            tf = textbox(slide, 0.62, 6.2, 12.1, 0.85)
+            tf = textbox(slide, 0.62, s.get("bullets_top", 6.2), 12.1, 0.85)
             for i, b in enumerate(s["bullets"]):
                 add_text(tf, "▪  " + b, 12, False, C["muted"], first=(i == 0), space_before=(0 if i == 0 else 3))
     elif kind == "table":
