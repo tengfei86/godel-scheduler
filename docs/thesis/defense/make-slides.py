@@ -181,7 +181,7 @@ SLIDES: list[dict] = [
     ),
     dict(
         n=7, kind="twopic",
-        title="创新点 1：把 Binder 放进 Scheduler 进程",
+        title="进程内 Binder 架构",
         core="去掉一次跨进程绑定链路，是吞吐提升的第一性来源",
         figures=["fig5-1a-shared-binder.png", "fig5-1b-eno-arch.png"],
         bullets=["绑定与决策同域，事件传递归零", "序列化与网络往返被消除", "保留 CLI 开关，可回退"],
@@ -204,7 +204,7 @@ SLIDES: list[dict] = [
     ),
     dict(
         n=9, kind="ladder",
-        title="创新点 2：四层容错覆盖 Bind 前、中、后",
+        title="四层绑定容错",
         core="每一层对应一类威胁，并分别依赖一种 etcd 原子语义",
         rows=[("① Layer 0 · 预防", "分区归属漂移", "resourceVersion 乐观并发"),
               ("② Layer 1 · 即时恢复", "apiserver 暂态错误", "Bind 原子写 / 409 冲突"),
