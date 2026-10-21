@@ -151,14 +151,19 @@ SLIDES: list[dict] = [
         source="3.4 节；图 3-4",
     ),
     dict(
-        n=6, kind="figure",
+        n=6, kind="arch",
         title="整体架构图",
-        core="分区之间无锁并发，状态推进全部由 Watch 事件驱动",
         figure="fig3-1-system-arch.png",
-        bullets=["Dispatcher：分区分配与回退", "Scheduler：Filter/Score/Reserve", "Binder：Bind 原子写与失败处理"],
-        notes="这是系统总体架构。最上面是 Dispatcher，它只做分区怎么分、出事怎么退；中间是多个 Scheduler 实例，"
-              "各自在自己的分区里跑 Filter、Score、Reserve；最下面一层负责把决策真正写进 apiserver。"
-              "要注意的是，分区之间没有共享锁，状态推进靠 Watch 事件驱动，这也是后面能横向扩展的前提。",
+        comps=[("Dispatcher",
+                "单实例（Leader Election）。维护节点分区表，按分区把待调度 Pod 分发到对应 Scheduler；绑定失败时清理调度注解，触发全局重分发。"),
+               ("Scheduler",
+                "多实例水平扩展。只调度本分区内的节点，依次执行 Filter / Score / Reserve，产出目标节点后交给 Binder 落盘。"),
+               ("Binder",
+                "与 Scheduler 同进程。执行 Bind 子资源原子写；失败时按四层机制重试、回收孤儿状态，必要时上升到跨实例回退。")],
+        notes="这张图是系统总体架构。上层 Dispatcher 是单实例，靠 Leader Election 保证；它维护一张节点分区表，"
+              "把 Pod 按分区分发给对应的 Scheduler，绑定出问题时负责清理注解、触发全局重分发。中间是多个 Scheduler 实例，"
+              "只调度自己分区内的节点，跑 Filter、Score、Reserve，产出目标节点。下层 Binder 与 Scheduler 同进程，"
+              "负责把决策真正写进 apiserver；失败时按四层机制重试、回收、回退。",
         source="3.1 节；图 3-1",
     ),
     dict(
@@ -886,6 +891,20 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
             add_text(_tf, _head, 11.5, True, C["navy"], first=True)
             add_text(_tf, _body, 9.5, False, C["muted"], space_before=2, line=1.05)
         bullets_block(slide, s["bullets"], top=5.45, width=12.0, size=12, gap=5, height=1.15)
+    elif kind == "arch":
+        # 架构图居中放大，图下方三列组件说明
+        add_picture(slide, s["figure"], 0.62, s.get("fig_top", 0.95), 12.06,
+                    s.get("fig_h", 3.85), caption=s.get("caption"))
+        _cw = (12.10 - 0.50) / 3
+        for _i, (_head, _body) in enumerate(s["comps"]):
+            _x = 0.62 + _i * (_cw + 0.25)
+            _y = s.get("comp_top", 5.02)
+            _h = s.get("comp_h", 1.62)
+            rect(slide, _x, _y, _cw, _h, fill=C["white"], line=C.get("soft", C["line"]), radius=True)
+            rect(slide, _x, _y, 0.055, _h, fill=C["navy"])
+            _tf = textbox(slide, _x + 0.20, _y + 0.12, _cw - 0.34, _h - 0.2)
+            add_text(_tf, _head, 15, True, C["navy"], first=True)
+            add_text(_tf, _body, 12.5, False, C["text"], space_before=4, line=1.18)
     elif kind == "metricrow":
         add_picture(slide, s["figure"], 0.62, 1.92, 8.05, 3.3, caption=s.get("caption"))
         bullets_block(slide, s["bullets"], left=8.9, top=2.0, width=3.8, size=11, gap=8, height=3.1)

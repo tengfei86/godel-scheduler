@@ -30,8 +30,7 @@
 
 ## P5 整体架构图
 
-- 核心信息：分区之间无锁并发，状态推进全部由 Watch 事件驱动
-- 要点：Dispatcher：分区分配与回退；Scheduler：Filter/Score/Reserve；Binder：Bind 原子写与失败处理
+- 核心信息：
 - 视觉：fig3-1-system-arch.png
 - 讲稿：Gödel 是最有代表性的开源实现：Dispatcher 分发、Scheduler 决策、Binder 落盘，加节点分区。但它留了两个缺口：Binder 独立部署，绑定又变成跨进程串行环节；分区归属会漂移，严格一致性缺少完整论证。本文的两个问题就对着这两个缺口。
 - 来源：3.1 节；图 3-1
