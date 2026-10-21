@@ -738,8 +738,8 @@ def cards_grid(slide, cards: list[tuple[str, str]], left=0.62, top=2.15, width=1
             _big = box_h >= 2.0          # 高卡片（P2/P4）用更大字号
             tf = textbox(slide, x + 0.56, y + 0.15, box_w - 0.7, box_h - 0.22,
                          anchor=MSO_ANCHOR.MIDDLE if _big else MSO_ANCHOR.TOP)
-            add_text(tf, head, 15 if _big else 14, True, C["navy"], first=True)
-            add_text(tf, body, 13 if _big else 12, False, C["text"],
+            add_text(tf, head, 16 if _big else 14, True, C["navy"], first=True)
+            add_text(tf, body, 15 if _big else 12.5, False, C["text"],
                      space_before=5 if _big else 4, line=1.15 if _big else 1.1)
         else:
             rect(slide, x, y, box_w, box_h, fill=C["light"], line=C["line"], radius=True)
