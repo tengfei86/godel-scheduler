@@ -371,7 +371,10 @@ SLIDES: list[dict] = [
         title="ENO vs Gödel 各场景尾延迟对比",
         core="s2/w3 从 23.48 s 降到 4.00 s，降幅 82.9%",
         figure="fig6-4-latency-p99-all.png",
-        bullets=["P99 改善 0.3%~82.9%（除 s2/w2）", "s3/w3 inst1 32.57→16.22 s（-50.2%）", "Pod E2E P99 改善 0.6%~75.3%"],
+        bullets=["16 个场景：11 好、1 持平（s2/w2）、3 个 Gang 反向、1 个无数据",
+                 "Gang（w6）3 个场景全部偏差：P99 高 1.6~4.1 倍，但吞吐仍 +4.3%~+19.1%",
+                 "Pod E2E P99：12 个非 Gang 改善 0.6%~75.3%，3 个 Gang 高 11.9%~122.2%"],
+        bullets_size=13.5, bullets_gap=10,
         notes="延迟这一页。除 s2/w2 之外的 11 个非 Gang 场景，ENO 的 P99 都低于 Gödel，改善 0.3% 到 82.9%。"
               "最具代表性的是 s2/w3：从 23.48 秒降到 4.00 秒。单实例的 s3/w3 从 32.57 秒降到 16.22 秒，"
               "少了一半。Pod 端到端 P99 在 12 个非 Gang 场景也都不高于 Gödel，改善 0.6% 到 75.3%。"
@@ -877,8 +880,9 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
             else:
                 _g = s.get("fig_geometry", (6.35, 1.95, 6.4, 4.6))
                 add_picture(slide, s["figure"], *_g)
-                bullets_block(slide, s["bullets"], left=0.62, top=2.2,
-                              width=s.get("bullets_width", 5.5))
+                bullets_block(slide, s["bullets"], left=0.62, top=s.get("bullets_top", 2.2),
+                              width=s.get("bullets_width", 5.5),
+                              size=s.get("bullets_size", 15.5), gap=s.get("bullets_gap", 14))
             if s.get("table"):
                 add_table(slide, s["table"], 0.62, 4.55, 5.5, row_h=0.34, font=10.5)
         else:
