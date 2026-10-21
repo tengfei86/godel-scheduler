@@ -213,10 +213,22 @@ SLIDES: list[dict] = [
         n=9, kind="ladder",
         title="四层绑定容错",
         core="每一层对应一类威胁，并分别依赖一种 etcd 原子语义",
-        rows=[("① Layer 0 · 预防", "分区归属漂移", "resourceVersion 乐观并发"),
-              ("② Layer 1 · 即时恢复", "apiserver 暂态错误", "Bind 原子写 / 409 冲突"),
-              ("③ Layer 2 · 后台回收", "孤儿 Assumed 状态", "Watch 一致性视图"),
-              ("④ Layer 3 · 全局回退", "实例失活、重试耗尽", "注解清理 + 全局重分发")],
+        rows=[("① Layer 0 · 预防",
+               "T0 节点分区归属漂移",
+               "Bind 前校验 Node 的 eno.io/scheduler-name 注解，非本分区直接拒绝并清理注解回退",
+               "resourceVersion 乐观并发"),
+              ("② Layer 1 · 即时恢复",
+               "T1 Bind 返回 409 Conflict / 429 TooManyRequests / ServerTimeout",
+               "线性退避 n×100ms（100/200/300ms），最多 3 次；仅这三类重试，其余错误立即上抛",
+               "Bind 原子性：重复 Bind 返回 409，可视为成功"),
+              ("③ Layer 2 · 后台回收",
+               "T2 Bind 失败后 scheduler-name、assumed-node 注解残留",
+               "异步 Reconciler 消费失败队列，PatchPod 清理调度注解，按失败计数决定本地重试或升 L3",
+               "Watch 一致性视图；NotFound 直接丢弃"),
+              ("④ Layer 3 · 全局回退",
+               "T3 本地重试耗尽、Scheduler 实例失活",
+               "一次 PatchPod 原子提交：置 pod-state=Pending、删 scheduler-name、追加 failed-schedulers",
+               "etcd 事务原子提交（Txn）")],
         notes="四层不是并列罗列，是一条时间轴。Bind 之前，Layer 0 先校验目标节点的归属注解，把漂移拦在门外；"
               "Bind 过程中，Layer 1 用同步退避处理 apiserver 的暂态错误；Bind 失败后，Layer 2 用异步 Reconciler"
               "把孤儿 Assumed 状态收回来；本地重试耗尽，Layer 3 由 Dispatcher 清掉归属注解，让 Pod 全局重分发。"
@@ -867,37 +879,39 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
     elif kind == "ladder" and TEMPLATE_PATH:
         # 模板语言：竖向时间轴（深蓝竖线 + 节点圆 + 左侧层级名 + 右侧浅钢蓝块）
         rows = s["rows"]
-        rect(slide, 2.42, 2.10, 0.028, 4.34, fill=C["navy"])
-        for _i, (_t, _threat, _sem) in enumerate(rows):
-            _y = 2.12 + _i * 1.07
-            node = slide.shapes.add_shape(MSO_SHAPE.OVAL, Inches(2.34), Inches(_y + 0.28),
+        rect(slide, 2.42, 2.02, 0.028, 4.42, fill=C["navy"])
+        for _i, (_t, _threat, _act, _sem) in enumerate(rows):
+            _y = 2.00 + _i * 1.14
+            node = slide.shapes.add_shape(MSO_SHAPE.OVAL, Inches(2.34), Inches(_y + 0.36),
                                           Inches(0.22), Inches(0.22))
             node.fill.solid(); node.fill.fore_color.rgb = C["navy"]
             node.line.color.rgb = C["white"]; node.line.width = Pt(2)
             node.shadow.inherit = False
             _main, _sub = (_t.split("·")[0].strip(), _t.split("·")[1].strip()) if "·" in _t else (_t, "")
             _main = _main.lstrip("①②③④ ")
-            _tf = textbox(slide, 0.62, _y + 0.10, 1.58, 0.72)
-            add_text(_tf, _main, 13.5, True, C["navy"], first=True, align=PP_ALIGN.RIGHT)
+            _tf = textbox(slide, 0.62, _y + 0.18, 1.58, 0.78)
+            add_text(_tf, _main, 13, True, C["navy"], first=True, align=PP_ALIGN.RIGHT)
             if _sub:
-                add_text(_tf, _sub, 10.5, False, C["muted"], align=PP_ALIGN.RIGHT, space_before=1)
-            rect(slide, 2.68, _y, 9.80, 0.92, fill=C["white"], line=C.get("soft", C["line"]), radius=True)
-            _tf2 = textbox(slide, 2.86, _y + 0.11, 9.45, 0.72)
-            add_text(_tf2, "威胁：" + _threat, 11.5, False, C["text"], first=True)
-            add_text(_tf2, "etcd：" + _sem, 10.5, False, C["text"], space_before=2)
+                add_text(_tf, _sub, 10, False, C["muted"], align=PP_ALIGN.RIGHT, space_before=1)
+            rect(slide, 2.68, _y, 9.80, 1.06, fill=C["white"], line=C.get("soft", C["line"]), radius=True)
+            _tf2 = textbox(slide, 2.86, _y + 0.07, 9.45, 0.94)
+            add_text(_tf2, "威胁：" + _threat, 10.5, False, C["text"], first=True, line=1.0)
+            add_text(_tf2, "动作：" + _act, 10, False, C["text"], space_before=1, line=1.0)
+            add_text(_tf2, "依赖：" + _sem, 9.5, False, C["muted"], space_before=1, line=1.0)
     elif kind == "ladder":
         rows = s["rows"]
         _x, _y0, _w, _h, _gap = 0.62, 1.95, 12.1, 0.98, 0.1
-        for _i, (_t, _threat, _sem) in enumerate(rows):
+        for _i, (_t, _threat, _act, _sem) in enumerate(rows):
             _y = _y0 + _i * (_h + _gap)
             rect(slide, _x, _y, _w, _h, fill=C["light"], line=C["line"], radius=True)
             rect(slide, _x, _y, 0.08, _h, fill=[C["blue"], C["blue"], C["orange"], C["red"]][_i])
             _tf = textbox(slide, _x + 0.22, _y + 0.14, 2.9, _h - 0.22)
-            add_text(_tf, _t, 14.5, True, C["navy"], first=True)
-            _tf2 = textbox(slide, _x + 3.25, _y + 0.14, 3.9, _h - 0.22)
-            add_text(_tf2, "威胁：" + _threat, 11.5, False, C["text"], first=True)
-            _tf3 = textbox(slide, _x + 7.35, _y + 0.14, 4.6, _h - 0.22)
-            add_text(_tf3, "etcd：" + _sem, 11, False, C["muted"], first=True)
+            add_text(_tf, _t, 13.5, True, C["navy"], first=True)
+            _tf2 = textbox(slide, _x + 3.25, _y + 0.10, 4.2, _h - 0.18)
+            add_text(_tf2, "威胁：" + _threat, 10.5, False, C["text"], first=True, line=1.0)
+            add_text(_tf2, "动作：" + _act, 10, False, C["text"], space_before=1, line=1.0)
+            _tf3 = textbox(slide, _x + 7.55, _y + 0.10, 4.35, _h - 0.18)
+            add_text(_tf3, "依赖：" + _sem, 9.5, False, C["muted"], first=True, line=1.05)
     elif kind == "metrics":
         add_picture(slide, s["figure"], 0.62, 1.96, 4.7, 3.1,
                     caption=s.get("caption"))
