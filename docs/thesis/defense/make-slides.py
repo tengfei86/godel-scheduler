@@ -1287,15 +1287,15 @@ for _s in SLIDES:
 _INNOV = dict(
     kind="cards",
     cols=2,
-    box_h=2.3,
     title="研究内容与创新点：一页看懂全文",
-    core="两个创新：把 Binder 放进 Scheduler 进程；用四层容错守住“至多绑定一次”",
     cards=[("创新 1 · ENO 架构",
             "单 Dispatcher、多独立 Scheduler；Binder 与决策同域；CacheAdapter 零拷贝共享 SchedulerCache"),
            ("创新 2 · 四层容错",
             "L0 归属校验 · L1 同步退避 · L2 异步回收 · L3 全局回退，全部建立在 etcd 原子语义上")],
     takeaway="两条创新指向同一目标：不改 API 的前提下，让分布式调度既跑得快，又绑得对。",
-    takeaway_top=4.75,
+    cards_top=1.92,
+    box_h=2.55,
+    takeaway_top=4.98,
     notes="这一页把全文压成两句。架构上，单 Dispatcher、多独立 Scheduler，Binder 合并进 Scheduler 进程，"
           "缓存用 CacheAdapter 零拷贝共享，去掉跨进程的事件传递与序列化。一致性上，四层容错，"
           "L0 到 L3 覆盖 Bind 前、中、后，每一层都建立在一类 etcd 原子语义上。两条创新指向同一个目标。",
