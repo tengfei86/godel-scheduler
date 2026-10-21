@@ -585,6 +585,13 @@ def _template_marker(slide) -> None:
     from copy import deepcopy
     el = deepcopy(_MARKER_EL)
     el.find(f"{self_ns}nvSpPr/{self_ns}cNvPr").set("id", str(9000 + len(slide.shapes)))
+    # 缩小并移到左侧留白处，使标题能与正文共用 0.62 in 的左边线
+    _xfrm = el.find(f"{self_ns}spPr/{{http://schemas.openxmlformats.org/drawingml/2006/main}}xfrm")
+    _A = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
+    _xfrm.find(f"{_A}off").set("x", str(int(0.20 * 914400)))
+    _xfrm.find(f"{_A}off").set("y", str(int(0.30 * 914400)))
+    _xfrm.find(f"{_A}ext").set("cx", str(int(0.34 * 914400)))
+    _xfrm.find(f"{_A}ext").set("cy", str(int(0.44 * 914400)))
     slide.shapes._spTree.append(el)
 
 
@@ -596,7 +603,7 @@ def slide_title(slide, title: str, kicker: str | None = None) -> None:
         add_picture(slide, "beihang-logo-navy.png", 10.21, 0.10, 2.89, 0.55, base=ASSETS)
         # 标题避让校名：长标题降一档字号
         _size = 30 if len(title) <= 18 else 24
-        tf = textbox(slide, 1.11, 0.17, 8.75, 0.68, anchor=MSO_ANCHOR.MIDDLE)
+        tf = textbox(slide, 0.62, 0.17, 9.35, 0.68, anchor=MSO_ANCHOR.MIDDLE)
         add_text(tf, title, _size, True, C["navy"], first=True, line=1.0)
         if kicker:
             tf2 = textbox(slide, 1.11, 0.88, 11.4, 0.3)
@@ -611,14 +618,13 @@ def slide_title(slide, title: str, kicker: str | None = None) -> None:
 
 
 def core_line(slide, core: str, top=1.42) -> None:
-    if TEMPLATE_PATH:      # 与模板标题左对齐（在 1.11 缩进处）
-        rect(slide, 1.11, top, 0.03, 0.34, fill=C["blue"])
-        tf = textbox(slide, 1.27, top - 0.03, 11.2, 0.42, anchor=MSO_ANCHOR.MIDDLE)
-        add_text(tf, core, 15.5, True, C["blue"], first=True)
-        return
-    rect(slide, 0.62, top, 0.03, 0.34, fill=C["blue"])
-    tf = textbox(slide, 0.78, top - 0.03, 12.0, 0.42, anchor=MSO_ANCHOR.MIDDLE)
-    add_text(tf, core, 15.5, True, C["blue"], first=True)
+    """核心结论句：与正文共用 0.62 in 左基准，18pt 亮蓝加粗（模板模式不加竖条，保证左对齐）"""
+    _x = 0.62 if TEMPLATE_PATH else 0.78
+    if not TEMPLATE_PATH:
+        rect(slide, 0.62, top, 0.035, 0.40, fill=C["blue"])
+    tf = textbox(slide, _x, top - 0.04, 11.9 if TEMPLATE_PATH else 11.75, 0.48,
+                 anchor=MSO_ANCHOR.MIDDLE)
+    add_text(tf, core, 18, True, C["blue"], first=True, line=1.1)
 
 
 SCENE_LEGEND = ("编码：s1–s4 = 100 / 1000 / 5000 / 10000 节点；"
@@ -906,9 +912,8 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
         bullets_block(slide, s["bullets"], top=3.85, width=11.8, size=15.5, gap=12)
     elif kind == "cards":
         if s.get("lead"):
-            _lx = 1.11 if TEMPLATE_PATH else 0.62
-            _tf = textbox(slide, _lx, s.get("lead_top", 1.88), 11.0, s.get("lead_h", 1.25))
-            add_text(_tf, s["lead"], 13.5, False, C["text"], first=True, line=1.4)
+            _tf = textbox(slide, 0.62, s.get("lead_top", 1.95), 11.9, s.get("lead_h", 1.35))
+            add_text(_tf, s["lead"], 15, False, C["text"], first=True, line=1.35)
         cards_grid(slide, s["cards"], top=s.get("cards_top", 2.05),
                    box_h=s.get("box_h", 1.15), cols=s.get("cols", 3))
         if s.get("takeaway"):
