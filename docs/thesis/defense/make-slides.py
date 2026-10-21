@@ -729,7 +729,8 @@ def cards_grid(slide, cards: list[tuple[str, str]], left=0.62, top=2.15, width=1
             btf = badge.text_frame; btf.margin_left = btf.margin_right = Emu(0)
             btf.margin_top = btf.margin_bottom = Emu(0)
             add_text(btf, f"{idx + 1:02d}", 9, True, C["white"], first=True, align=PP_ALIGN.CENTER)
-            tf = textbox(slide, x + 0.56, y + 0.15, box_w - 0.7, box_h - 0.22)
+            tf = textbox(slide, x + 0.56, y + 0.15, box_w - 0.7, box_h - 0.22,
+                         anchor=MSO_ANCHOR.MIDDLE if box_h >= 2.0 else MSO_ANCHOR.TOP)
             add_text(tf, head, 13.5, True, C["navy"], first=True)
             add_text(tf, body, 11, False, C["text"], space_before=4, line=1.1)
         else:
@@ -906,8 +907,8 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
     elif kind == "cards":
         if s.get("lead"):
             _lx = 1.11 if TEMPLATE_PATH else 0.62
-            _tf = textbox(slide, _lx, s.get("lead_top", 1.88), 11.0, s.get("lead_h", 1.05))
-            add_text(_tf, s["lead"], 13, False, C["text"], first=True, line=1.35)
+            _tf = textbox(slide, _lx, s.get("lead_top", 1.88), 11.0, s.get("lead_h", 1.25))
+            add_text(_tf, s["lead"], 13.5, False, C["text"], first=True, line=1.4)
         cards_grid(slide, s["cards"], top=s.get("cards_top", 2.05),
                    box_h=s.get("box_h", 1.15), cols=s.get("cols", 3))
         if s.get("takeaway"):
@@ -1114,10 +1115,8 @@ _NEW_P3 = dict(
     cards=[("吞吐存在上限", "activeQ 串行处理 Pod，大规模弹性伸缩与批任务启动被拖慢"),
            ("尾延迟持续抬升", "Filter/Score 遍历节点开销随规模线性上升，5000 节点下 P99 明显恶化"),
            ("单点故障风险", "Leader 崩溃后需等待 Standby 接管，这段窗口内集群完全无法调度")],
-    takeaway="分布式改造是必然选择；但多实例并发又把“任一 Pod 至多绑定一次”推到设计前台。",
-    cards_top=3.10,
-    box_h=1.48,
-    takeaway_top=5.05,
+    cards_top=3.15,
+    box_h=2.30,
     notes="先说为什么要做。云原生负载规模持续增长，生产集群已进入万节点量级，业务对调度器提出双重要求："
           "既要秒级承接海量 Pod，又要长期运行不因单点失效中断服务。原生 kube-scheduler 在这两头上都是瓶颈："
           "主循环从 activeQ 串行取 Pod，CPU 核再多也用不上；Filter 和 Score 的代价随节点数增长，尾延迟被抬起来；"
