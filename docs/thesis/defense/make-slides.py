@@ -371,7 +371,7 @@ SLIDES: list[dict] = [
         title="ENO vs Gödel 各场景尾延迟对比",
         core="s2/w3 从 23.48 s 降到 4.00 s，降幅 82.9%",
         figure="fig6-4-latency-p99-all.png",
-        bullets=["16 个场景：11 好、1 持平（s2/w2）、3 个 Gang 反向、1 个无数据",
+        bullets=["15 个场景：11 好、1 持平（s2/w2）、3 个 Gang 反向",
                  "Gang（w6）3 个场景全部偏差：P99 高 1.6~4.1 倍，但吞吐仍 +4.3%~+19.1%",
                  "Pod E2E P99：12 个非 Gang 改善 0.6%~75.3%，3 个 Gang 高 11.9%~122.2%"],
         bullets_size=13.5, bullets_gap=10,
