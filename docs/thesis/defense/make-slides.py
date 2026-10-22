@@ -419,13 +419,13 @@ SLIDES: list[dict] = [
         n=21, kind="table",
         legend=True,
         title="规模翻倍与复杂负载下仍保持领先",
-        core="s4 规模下吞吐仍 +5.6%、P99 低 33.4%；突发、极限、异构均不落后",
+
         table=[["场景（inst3）", "吞吐提升（vs Gödel）", "P99 降幅（vs Gödel）"],
                ["w3 稳态（s3 / s4）", "+21.7% / +5.6%", "−15.2% / −33.4%"],
                ["w4 极限（s3 / s4）", "+9.3% / +16.0%", "−49.7% / −14.8%"],
                ["w5 突发（s3 / s4）", "+21.3% / +2.8%", "−18.0% / −0.3%"],
                ["w7 异构（s3 / s4）", "+21.2% / 持平", "−22.1% / −3.9%"]],
-        widths=[2.65, 4.55, 4.90], row_h=0.72, font=12.5,
+        widths=[2.65, 4.55, 4.90], row_h=0.80, font=12.5, table_top=1.32,
 
         notes="两件事。第一，规模从 5000 翻到 10000，实例数不变，两边都退化：ENO 有效吞吐 -15.2%，Gödel -2.3%。"
               "但即使退化，ENO 仍然领先：吞吐 296.7 对 280.9，高 5.6%；P99 0.19 对 0.28 秒，低 33.4%；"
@@ -999,7 +999,7 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
             for i, b in enumerate(s["bullets"]):
                 add_text(tf, "▪  " + b, 12, False, C["muted"], first=(i == 0), space_before=(0 if i == 0 else 3))
     elif kind == "table":
-        add_table(slide, s["table"], 0.62, 2.0, 12.1,
+        add_table(slide, s["table"], 0.62, s.get("table_top", 2.0), 12.1,
                   row_h=s.get("row_h", 0.46), font=s.get("font", 12),
                   widths=s.get("widths"))
         if s.get("bullets"):
