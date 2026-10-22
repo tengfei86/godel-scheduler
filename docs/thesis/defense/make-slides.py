@@ -1250,12 +1250,9 @@ _NEW_P4 = dict(
     source="第 2 章 §2.1~§2.6；表 1",
 )
 
-# 1) 取出旧的「时序形态」页（旧编号 19）移到备用
+# 1) 「时序形态」页保留为正文页（原为备用页 B7），位置见文末调整
 _timing = [s for s in SLIDES if s["n"] == 19][0]
-SLIDES = [s for s in SLIDES if s is not _timing]
-_timing = dict(_timing, n="B7", title="主场景 s3/w3 的时序形态（备用）",
-               notes="备用页：" + _timing["notes"])
-BACKUP.append(_timing)
+_timing["title"] = "主场景 s3/w3 的时序形态"
 
 # 2) 在 P2 之后插入两页
 SLIDES.insert(2, _NEW_P3)
@@ -1638,6 +1635,15 @@ for _s in SLIDES:
 for _s in SLIDES:
     if _s["title"].startswith("五组基线"):
         _s["notes"] += "这个排序在 16 个场景上是一致的。"
+
+# ── 顺序调整：「主场景 s3/w3 的时序形态」放到「五组基线」之后 ──
+_tm = next(s for s in SLIDES if s["title"].startswith("主场景 s3/w3 的时序形态"))
+SLIDES.remove(_tm)
+_i = next(i for i, s in enumerate(SLIDES) if s["title"].startswith("五组基线")) + 1
+SLIDES.insert(_i, _tm)
+for _i2, _s in enumerate(SLIDES, 1):
+    _s["n"] = _i2
+TOTAL = len(SLIDES)
 
 # ── 作者要求删除「结论」页 ──
 SLIDES = [s for s in SLIDES if s["title"] != "结论"]
