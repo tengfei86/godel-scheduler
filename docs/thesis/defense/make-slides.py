@@ -420,12 +420,15 @@ SLIDES: list[dict] = [
         legend=True,
         title="规模翻倍与复杂负载下仍保持领先",
 
-        table=[["场景（inst3）", "吞吐提升（vs Gödel）", "P99 降幅（vs Gödel）"],
-               ["w3 稳态（s3 / s4）", "+21.7% / +5.6%", "−15.2% / −33.4%"],
-               ["w4 极限（s3 / s4）", "+9.3% / +16.0%", "−49.7% / −14.8%"],
-               ["w5 突发（s3 / s4）", "+21.3% / +2.8%", "−18.0% / −0.3%"],
-               ["w7 异构（s3 / s4）", "+21.2% / 持平", "−22.1% / −3.9%"]],
-        widths=[2.65, 4.55, 4.90], row_h=0.80, font=12.5, table_top=1.32,
+        table=[["场景（inst3）", "吞吐提升（vs Gödel）", "", "P99 降幅（vs Gödel）", ""],
+               ["", "s3（5k）", "s4（10k）", "s3（5k）", "s4（10k）"],
+               ["w3 稳态", "+21.7%", "+5.6%", "−15.2%", "−33.4%"],
+               ["w4 极限", "+9.3%", "+16.0%", "−49.7%", "−14.8%"],
+               ["w5 突发", "+21.3%", "+2.8%", "−18.0%", "−0.3%"],
+               ["w7 异构", "+21.2%", "持平", "−22.1%", "−3.9%"]],
+        widths=[2.50, 2.20, 2.20, 2.60, 2.60], row_h=0.66, font=12.5, table_top=1.32,
+        header_rows=2,
+        merges=[((0, 0), (1, 0)), ((0, 1), (0, 2)), ((0, 3), (0, 4))],
 
         notes="两件事。第一，规模从 5000 翻到 10000，实例数不变，两边都退化：ENO 有效吞吐 -15.2%，Gödel -2.3%。"
               "但即使退化，ENO 仍然领先：吞吐 296.7 对 280.9，高 5.6%；P99 0.19 对 0.28 秒，低 33.4%；"
@@ -739,7 +742,8 @@ def add_picture(slide, name: str, left: float, top: float, max_w: float, max_h: 
 
 def add_table(slide, data: list[list[str]], left: float, top: float, width: float,
               row_h: float = 0.42, font: float = 12, header_font: float | None = None,
-              highlight: int | None = None, widths: list[float] | None = None) -> None:
+              highlight: int | None = None, widths: list[float] | None = None,
+              header_rows: int = 1, merges: list | None = None) -> None:
     rows, cols = len(data), len(data[0])
     tbl = slide.shapes.add_table(rows, cols, Inches(left), Inches(top), Inches(width),
                                  Inches(row_h * rows)).table
@@ -759,14 +763,16 @@ def add_table(slide, data: list[list[str]], left: float, top: float, width: floa
             p.alignment = PP_ALIGN.LEFT if c == 0 else PP_ALIGN.CENTER
             run = p.add_run()
             run.text = str(data[r][c])
-            if r == 0:
+            if r < header_rows:
                 style_run(run, header_font or font, True, C["white"])
                 cell.fill.solid()
                 cell.fill.fore_color.rgb = C["navy"]
             else:
                 style_run(run, font, False, C["text"])
                 cell.fill.solid()
-                cell.fill.fore_color.rgb = C["white"] if r % 2 else C["light"]
+                cell.fill.fore_color.rgb = C["white"] if (r - header_rows) % 2 else C["light"]
+    for _a, _b in (merges or []):
+        tbl.cell(*_a).merge(tbl.cell(*_b))
     return tbl
 
 
@@ -1001,7 +1007,8 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
     elif kind == "table":
         add_table(slide, s["table"], 0.62, s.get("table_top", 2.0), 12.1,
                   row_h=s.get("row_h", 0.46), font=s.get("font", 12),
-                  widths=s.get("widths"))
+                  widths=s.get("widths"), header_rows=s.get("header_rows", 1),
+                  merges=s.get("merges"))
         if s.get("bullets"):
             bullets_block(slide, s["bullets"], top=s.get("bullets_top", 5.55), width=12.0,
                           size=13, gap=6, height=1.0)
