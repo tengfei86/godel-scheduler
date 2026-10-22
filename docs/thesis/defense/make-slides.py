@@ -1636,6 +1636,9 @@ for _s in SLIDES:
     if _s["title"].startswith("五组基线"):
         _s["notes"] += "这个排序在 16 个场景上是一致的。"
 
+# ── 作者要求删除第 24 页之后的全部备用页 ──
+BACKUP.clear()
+
 # ── 顺序调整：「主场景 s3/w3 的时序形态」放到「五组基线」之后 ──
 _tm = next(s for s in SLIDES if s["title"].startswith("主场景 s3/w3 的时序形态"))
 SLIDES.remove(_tm)
