@@ -1622,16 +1622,20 @@ for _s in SLIDES:
     if _s["title"].startswith("五组基线"):
         _s["notes"] += "这个排序在 16 个场景上是一致的。"
 
-# ── 顺序调整：故障注入两页移到「归因闭环」之后 ──
+# ── 作者要求删除「归因闭环」一页 ──
+SLIDES = [s for s in SLIDES if not s["title"].startswith("归因闭环")]
+
+# ── 顺序调整：故障注入两页放在「规模翻倍与复杂负载」之后 ──
 _fi = [s for s in SLIDES if s["title"].startswith("故障注入")]
 if len(_fi) == 2:
     for _s in _fi:
         SLIDES.remove(_s)
-    _i = next(i for i, s in enumerate(SLIDES) if s["title"].startswith("归因闭环")) + 1
+    _i = next(i for i, s in enumerate(SLIDES) if s["title"].startswith("规模翻倍")) + 1
     for _off, _s in enumerate(_fi):
         SLIDES.insert(_i + _off, _s)
     for _i2, _s in enumerate(SLIDES, 1):
         _s["n"] = _i2
+TOTAL = len(SLIDES)   # 最后一处结构改动后刷新总页数（页码分母）
 
 if __name__ == "__main__":
     build()
