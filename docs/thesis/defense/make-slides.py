@@ -425,10 +425,8 @@ SLIDES: list[dict] = [
                ["w4 极限（s3 / s4）", "+9.3% / +16.0%", "−49.7% / −14.8%"],
                ["w5 突发（s3 / s4）", "+21.3% / +2.8%", "−18.0% / −0.3%"],
                ["w7 异构（s3 / s4）", "+21.2% / 持平", "−22.1% / −3.9%"]],
-        widths=[2.65, 4.55, 4.90], row_h=0.56, font=11.5, bullets_top=5.16,
-        bullets=["s4 队列堆积峰值 9 vs 61（低 85%），过载积压明显更少",
-                 "规模翻倍后两者都退化：ENO −15.2%、Gödel −2.3%，但 ENO 仍领先 5.6%",
-                 "s3/s4 均固定 3 实例，本页衡量规模增长，不构成扩展上限"],
+        widths=[2.65, 4.55, 4.90], row_h=0.72, font=12.5,
+
         notes="两件事。第一，规模从 5000 翻到 10000，实例数不变，两边都退化：ENO 有效吞吐 -15.2%，Gödel -2.3%。"
               "但即使退化，ENO 仍然领先：吞吐 296.7 对 280.9，高 5.6%；P99 0.19 对 0.28 秒，低 33.4%；"
               "队列峰值 9 对 61。第二，复杂负载：极限负载高 9.3% 和 16.0%，突发高 21.3% 和 2.8%，"
@@ -1004,8 +1002,9 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
         add_table(slide, s["table"], 0.62, 2.0, 12.1,
                   row_h=s.get("row_h", 0.46), font=s.get("font", 12),
                   widths=s.get("widths"))
-        bullets_block(slide, s["bullets"], top=s.get("bullets_top", 5.55), width=12.0,
-                      size=13, gap=6, height=1.0)
+        if s.get("bullets"):
+            bullets_block(slide, s["bullets"], top=s.get("bullets_top", 5.55), width=12.0,
+                          size=13, gap=6, height=1.0)
     elif kind == "thanks" and TEMPLATE_PATH:
         add_picture(slide, "beihang-logo-navy.png", 10.21, 0.10, 2.89, 0.55, base=ASSETS)
         rect(slide, 1.31, 2.42, 10.79, 0.022, fill=C["navy"])
