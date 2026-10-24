@@ -1031,18 +1031,14 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
             bullets_block(slide, s["bullets"], top=s.get("bullets_top", 5.55), width=12.0,
                           size=13, gap=6, height=1.0)
     elif kind == "toc":
-        # 目录页：编号 · 章节 · 一句话说明 · 页码范围
-        for _i, (_num, _t, _d, _p) in enumerate(s["items"]):
-            _y = s.get("toc_top", 1.50) + _i * s.get("toc_h", 0.86)
-            _tf = textbox(slide, 0.62, _y + 0.05, 0.72, 0.46)
-            add_text(_tf, _num, 19, True, C["navy"], first=True)
-            _tf = textbox(slide, 1.38, _y, 3.45, 0.46)
-            add_text(_tf, _t, 17, True, C["text"], first=True)
-            _tf = textbox(slide, 4.90, _y + 0.06, 6.0, 0.42)
-            add_text(_tf, _d, 11.5, False, C["muted"], first=True)
-            _tf = textbox(slide, 10.92, _y + 0.03, 1.18, 0.42)
-            add_text(_tf, _p, 12.5, True, C["blue"], first=True, align=PP_ALIGN.RIGHT)
-            rect(slide, 0.62, _y + 0.76, 11.48, 0.008, fill=C["line"])
+        # 目录页：只保留编号 + 章节名
+        for _i, (_num, _t) in enumerate(s["items"]):
+            _y = s.get("toc_top", 1.72) + _i * s.get("toc_h", 1.00)
+            _tf = textbox(slide, 1.10, _y + 0.04, 0.85, 0.52)
+            add_text(_tf, _num, 22, True, C["navy"], first=True)
+            _tf = textbox(slide, 2.05, _y, 8.9, 0.60)
+            add_text(_tf, _t, 24, True, C["text"], first=True)
+            rect(slide, 1.10, _y + 0.84, 10.00, 0.008, fill=C["line"])
     elif kind == "thanks" and TEMPLATE_PATH:
         add_picture(slide, "beihang-logo-navy.png", 10.21, 0.10, 2.89, 0.55, base=ASSETS)
         rect(slide, 1.31, 2.42, 10.79, 0.022, fill=C["navy"])
@@ -1652,12 +1648,12 @@ for _s in SLIDES:
 # ── 封面之后插入目录页（预览用）──
 _TOC = dict(
     n=2, kind="toc", title="目录",
-    toc_top=1.56, toc_h=1.04,
-    items=[("01", "研究背景与现状", "万节点规模下的三个瓶颈、两条技术路线与本文的两个问题", "P3–P5"),
-           ("02", "架构总览", "Dispatcher / Scheduler / Binder 三层职责与 Pod 流转", "P6–P8"),
-           ("03", "核心方案实现", "把 Binder 合并进 Scheduler、缓存零拷贝共享；四层容错 + 不变量证明", "P9–P12"),
-           ("04", "实验数据与性能对比分析", "144 次 run 的口径与断言；吞吐、尾延迟、扩展与复杂负载、两场故障注入", "P13–P23"),
-           ("05", "局限与展望", "三条局限（Gang 归因、KWOK 边界、资源开销）与三个延伸方向", "P24")],
+    toc_top=1.72, toc_h=1.00,
+    items=[("01", "研究背景与现状"),
+           ("02", "架构总览"),
+           ("03", "核心方案实现"),
+           ("04", "实验数据与性能对比分析"),
+           ("05", "局限与展望")],
     notes="汇报分六段，二十分钟左右，重点在第五、六段的实验。",
 )
 SLIDES.insert(1, _TOC)
