@@ -1030,6 +1030,19 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
         if s.get("bullets"):
             bullets_block(slide, s["bullets"], top=s.get("bullets_top", 5.55), width=12.0,
                           size=13, gap=6, height=1.0)
+    elif kind == "toc":
+        # 目录页：编号 · 章节 · 一句话说明 · 页码范围
+        for _i, (_num, _t, _d, _p) in enumerate(s["items"]):
+            _y = s.get("toc_top", 1.50) + _i * s.get("toc_h", 0.86)
+            _tf = textbox(slide, 0.62, _y + 0.05, 0.72, 0.46)
+            add_text(_tf, _num, 19, True, C["navy"], first=True)
+            _tf = textbox(slide, 1.38, _y, 3.45, 0.46)
+            add_text(_tf, _t, 17, True, C["text"], first=True)
+            _tf = textbox(slide, 4.90, _y + 0.06, 6.0, 0.42)
+            add_text(_tf, _d, 11.5, False, C["muted"], first=True)
+            _tf = textbox(slide, 10.92, _y + 0.03, 1.18, 0.42)
+            add_text(_tf, _p, 12.5, True, C["blue"], first=True, align=PP_ALIGN.RIGHT)
+            rect(slide, 0.62, _y + 0.76, 11.48, 0.008, fill=C["line"])
     elif kind == "thanks" and TEMPLATE_PATH:
         add_picture(slide, "beihang-logo-navy.png", 10.21, 0.10, 2.89, 0.55, base=ASSETS)
         rect(slide, 1.31, 2.42, 10.79, 0.022, fill=C["navy"])
@@ -1635,6 +1648,19 @@ for _s in SLIDES:
 for _s in SLIDES:
     if _s["title"].startswith("五组基线"):
         _s["notes"] += "这个排序在 16 个场景上是一致的。"
+
+# ── 封面之后插入目录页（预览用）──
+_TOC = dict(
+    n=2, kind="toc", title="目录",
+    items=[("01", "研究背景与现状", "万节点规模下的三个瓶颈、两条技术路线与本文的两个问题", "P3–P5"),
+           ("02", "架构总览", "Dispatcher / Scheduler / Binder 三层职责与 Pod 流转", "P6–P8"),
+           ("03", "两项创新", "进程内 Binder 与 CacheAdapter；四层绑定容错与不变量 I", "P9–P12"),
+           ("04", "实验设计与正确性", "16 场景 144 次 run 的编码、六项指标口径与不变量断言", "P13–P15"),
+           ("05", "性能结果", "五组基线、主场景形态、逐场景吞吐与尾延迟、实例与规模扩展", "P16–P21"),
+           ("06", "故障注入与局限", "Layer 0 / Layer 3 两场注入，以及三条局限与展望", "P22–P24")],
+    notes="汇报分六段，二十分钟左右，重点在第五、六段的实验。",
+)
+SLIDES.insert(1, _TOC)
 
 # ── 作者要求删除第 24 页之后的全部备用页 ──
 BACKUP.clear()
