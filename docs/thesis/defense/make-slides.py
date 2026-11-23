@@ -27,10 +27,11 @@ from PIL import Image
 HERE = Path(__file__).resolve().parent
 FIG = HERE.parent / "figures"
 ASSETS = HERE / "assets"
-OUT_PPTX = HERE / "答辩PPT-基于etcd的分布式Kubernetes调度器.pptx"
+OUT_PPTX = HERE / "基于etcd的分布式Kubernetes调度器研究与实现-高铜.pptx"
 OUT_MD = HERE / "outline.md"
 
 # --template <pptx>：用该模板的母版/主题/配色重新出图（内容不变）
+# 未指定时默认使用同目录的 ppt_template.pptx（新版学校模板）
 TEMPLATE_PATH: Path | None = None
 _args = sys.argv[1:]
 for _i, _a in enumerate(_args):
@@ -38,6 +39,10 @@ for _i, _a in enumerate(_args):
         TEMPLATE_PATH = Path(_args[_i + 1])
     elif _a == "-o" and _i + 1 < len(_args):
         OUT_PPTX = Path(_args[_i + 1])
+if TEMPLATE_PATH is None:
+    _default_tpl = HERE / "ppt_template.pptx"
+    if _default_tpl.exists():
+        TEMPLATE_PATH = _default_tpl
 
 # ── 配色（设计规范） ──
 C = dict(
@@ -53,20 +58,20 @@ C = dict(
     line=RGBColor(0xD8, 0xDF, 0xE8),
 )
 if TEMPLATE_PATH:
-    # 取自模板：标题/装饰 #113E6A，强调 #0070C0，正文 #2E2C2C，浅灰 #F2F4F7
+    # 取自 ppt_template.pptx：深蓝 #002060、红 #C00000、白色标题压在深色照片条上
     C = dict(
-        navy=RGBColor(0x11, 0x3E, 0x6A),
-        blue=RGBColor(0x00, 0x70, 0xC0),
-        orange=RGBColor(0x00, 0x70, 0xC0),
-        green=RGBColor(0x00, 0x70, 0xC0),
+        navy=RGBColor(0x00, 0x20, 0x60),
+        blue=RGBColor(0x1F, 0x3F, 0x8A),
+        orange=RGBColor(0xC0, 0x00, 0x00),
+        green=RGBColor(0x1F, 0x3F, 0x8A),
         red=RGBColor(0xC0, 0x00, 0x00),
         white=RGBColor(0xFF, 0xFF, 0xFF),
-        light=RGBColor(0xF2, 0xF4, 0xF7),
-        light2=RGBColor(0xEA, 0xEF, 0xF4),      # 模板浅钢蓝块
-        soft=RGBColor(0xD6, 0xE3, 0xF0),        # 模板浅蓝描边
-        text=RGBColor(0x2E, 0x2C, 0x2C),
-        muted=RGBColor(0x63, 0x63, 0x63),
-        line=RGBColor(0xD9, 0xDE, 0xE5),
+        light=RGBColor(0xF2, 0xF5, 0xFA),
+        light2=RGBColor(0xE7, 0xEE, 0xF8),
+        soft=RGBColor(0xC9, 0xD6, 0xE8),
+        text=RGBColor(0x26, 0x26, 0x26),
+        muted=RGBColor(0x59, 0x59, 0x59),
+        line=RGBColor(0xD9, 0xD9, 0xD9),
     )
 
 EA_FONT = "微软雅黑"
@@ -672,13 +677,10 @@ def _template_marker(slide) -> None:
 def slide_title(slide, title: str, kicker: str | None = None) -> None:
     """标题：默认版式用橙色竖条；--template 模式用模板的深蓝标记与位置"""
     if TEMPLATE_PATH:
-        _template_marker(slide)
-        # 右上角校名横图（与模板一致：10.21, 0.10，2.89×0.55）
-        add_picture(slide, "beihang-logo-navy.png", 10.21, 0.10, 2.89, 0.55, base=ASSETS)
-        # 标题避让校名：长标题降一档字号
-        _size = 30 if len(title) <= 21 else 24
-        tf = textbox(slide, 0.62, 0.17, 9.35, 0.68, anchor=MSO_ANCHOR.MIDDLE)
-        add_text(tf, title, _size, True, C["navy"], first=True, line=1.0)
+        # 新模板：标题白色居中，压在母版顶部的深色照片条上
+        _size = 36 if len(title) <= 16 else 31
+        tf = textbox(slide, 0.35, 0.06, 12.63, 0.92, anchor=MSO_ANCHOR.MIDDLE)
+        add_text(tf, title, _size, True, C["white"], first=True, align=PP_ALIGN.CENTER, line=1.0)
         if kicker:
             tf2 = textbox(slide, 1.11, 0.88, 11.4, 0.3)
             add_text(tf2, kicker, 12, False, C["muted"], first=True)
@@ -736,7 +738,8 @@ def bullets_block(slide, items: list[str], left=0.62, top=2.1, width=5.7, size=1
 
 
 def add_picture(slide, name: str, left: float, top: float, max_w: float, max_h: float,
-                caption: str | None = None, alpha: int | None = None, base: Path | None = None):
+                caption: str | None = None, alpha: int | None = None, base: Path | None = None,
+                stretch: bool = False):
     path = (base or FIG) / name
     if not path.exists():
         rect(slide, left, top, max_w, max_h * 0.75, fill=C["light"], line=C["line"])
@@ -744,10 +747,15 @@ def add_picture(slide, name: str, left: float, top: float, max_w: float, max_h: 
         add_text(tf, f"[缺图] {name}", 11, False, C["red"], first=True, align=PP_ALIGN.CENTER)
         return
     w, h = Image.open(path).size
-    scale = min(max_w / w, max_h / h)
-    pw, ph = w * scale, h * scale
-    pic = slide.shapes.add_picture(str(path), Inches(left + (max_w - pw) / 2), Inches(top + (max_h - ph) / 2),
-                                   Inches(pw), Inches(ph))
+    if stretch:
+        pic = slide.shapes.add_picture(str(path), Inches(left), Inches(top),
+                                       Inches(max_w), Inches(max_h))
+        pw, ph = max_w, max_h
+    else:
+        scale = min(max_w / w, max_h / h)
+        pw, ph = w * scale, h * scale
+        pic = slide.shapes.add_picture(str(path), Inches(left + (max_w - pw) / 2),
+                                       Inches(top + (max_h - ph) / 2), Inches(pw), Inches(ph))
     if alpha is not None:
         from lxml import etree
 
@@ -805,15 +813,9 @@ def cards_grid(slide, cards: list[tuple[str, str]], left=0.62, top=2.15, width=1
         if TEMPLATE_PATH:
             # 模板构件：白底卡片 + 淡蓝描边 + 左上编号圆（文字用深色保证可读）
             rect(slide, x, y, box_w, box_h, fill=C["white"], line=C.get("soft", C["line"]), radius=True)
-            badge = slide.shapes.add_shape(MSO_SHAPE.OVAL, Inches(x + 0.16), Inches(y + 0.15),
-                                           Inches(0.30), Inches(0.30))
-            badge.fill.solid(); badge.fill.fore_color.rgb = C["navy"]
-            badge.line.fill.background(); badge.shadow.inherit = False
-            btf = badge.text_frame; btf.margin_left = btf.margin_right = Emu(0)
-            btf.margin_top = btf.margin_bottom = Emu(0)
-            add_text(btf, f"{idx + 1:02d}", 10, True, C["white"], first=True, align=PP_ALIGN.CENTER)
+            rect(slide, x, y, 0.06, box_h, fill=C["red"])
             _big = box_h >= 2.0          # 高卡片（P2/P4）用更大字号
-            tf = textbox(slide, x + 0.56, y + 0.15, box_w - 0.7, box_h - 0.22,
+            tf = textbox(slide, x + 0.20, y + 0.15, box_w - 0.34, box_h - 0.22,
                          anchor=MSO_ANCHOR.MIDDLE if _big else MSO_ANCHOR.TOP)
             add_text(tf, head, 16 if _big else 14, True, C["navy"], first=True)
             add_text(tf, body, 15 if _big else 12.5, False, C["text"],
@@ -853,17 +855,20 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
     slide.background.fill.fore_color.rgb = C["white"]
 
     if kind == "cover" and TEMPLATE_PATH:
-        # 北航模板封面：白底 + 校名横图 + 双分隔线 + 标题 + 信息位 + 底边条
-        add_picture(slide, "beihang-logo-navy.png", 4.14, 1.03, 4.62, 0.88, base=ASSETS)
-        rect(slide, 1.31, 2.36, 10.79, 0.022, fill=C["navy"])
-        rect(slide, 1.31, 3.59, 10.79, 0.022, fill=C["navy"])
-        tf = textbox(slide, 0.84, 2.44, 11.73, 1.10, anchor=MSO_ANCHOR.MIDDLE)
-        add_text(tf, s["title"], 28, True, C["navy"], first=True, align=PP_ALIGN.CENTER, line=1.15)
-        tf2 = textbox(slide, 0.84, 3.78, 11.73, 0.45)
-        add_text(tf2, s["core"], 18, False, C["blue"], first=True, align=PP_ALIGN.CENTER)
-        tf3 = textbox(slide, 1.31, 5.05, 10.79, 0.9)
-        add_text(tf3, "　　".join(s["meta"]), 15, False, C["muted"], first=True, align=PP_ALIGN.CENTER)
-        rect(slide, 0.04, 7.38, 13.22, 0.05, fill=C["navy"])
+        # 新模板封面：顶部深色照片条（母版）+ 白色校名 + 红色标题 + 信息 + 底部照片带
+        add_picture(slide, "v2/school-logo.png", 0.17, 0.11, 4.19, 0.88, base=ASSETS, stretch=True)
+        tf = textbox(slide, 1.16, 1.34, 11.02, 1.45, anchor=MSO_ANCHOR.MIDDLE)
+        add_text(tf, s["title"], 34, True, C["red"], first=True, align=PP_ALIGN.CENTER, line=1.25)
+        tf2 = textbox(slide, 1.16, 2.88, 11.02, 0.52)
+        add_text(tf2, s["core"], 22, False, C["navy"], first=True, align=PP_ALIGN.CENTER)
+        rect(slide, 4.67, 3.56, 4.0, 0.018, fill=C["navy"])
+        tf3 = textbox(slide, 1.16, 3.86, 11.02, 0.55)
+        add_text(tf3, "　　　".join(s["meta"]), 19, False, C["navy"], first=True, align=PP_ALIGN.CENTER)
+        add_picture(slide, "v2/bottom-bar.jpg", 0.0, 5.35, 13.33, 0.31, base=ASSETS, stretch=True)
+        for _f, _x, _w in (("photo1.jpg", 0.00, 2.46), ("photo2.png", 2.28, 2.52),
+                           ("photo3.jpg", 4.70, 3.12), ("photo4.jpg", 7.50, 2.83),
+                           ("photo5.jpg", 10.33, 3.00)):
+            add_picture(slide, "v2/" + _f, _x, 5.60, _w, 1.90, base=ASSETS, stretch=True)
         if SHOW_PAGE_NO:
             page_number(slide, s["n"])
         return
@@ -883,7 +888,7 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
         return
 
     # 致谢页自带标题/核心句版式，避免与通用标题重复绘制
-    if kind != "thanks":
+    if kind not in ("thanks", "toc"):
         slide_title(slide, s["title"])
         if s.get("core"):
             core_line(slide, s["core"])
@@ -929,11 +934,10 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
             node.line.color.rgb = C["white"]; node.line.width = Pt(2)
             node.shadow.inherit = False
             _main, _sub = (_t.split("·")[0].strip(), _t.split("·")[1].strip()) if "·" in _t else (_t, "")
-            _main = _main.lstrip("①②③④ ")
             _tf = textbox(slide, 0.62, _y + 0.18, 1.58, 0.78)
             add_text(_tf, _main, 13, True, C["navy"], first=True, align=PP_ALIGN.RIGHT)
             if _sub:
-                add_text(_tf, _sub, 10, False, C["muted"], align=PP_ALIGN.RIGHT, space_before=1)
+                add_text(_tf, "· " + _sub, 10, False, C["muted"], align=PP_ALIGN.RIGHT, space_before=1)
             rect(slide, 2.68, _y, 9.80, 1.06, fill=C["white"], line=C.get("soft", C["line"]), radius=True)
             _tf2 = textbox(slide, 2.86, _y + 0.07, 9.45, 0.94)
             add_text(_tf2, "威胁：" + _threat, 10.5, False, C["text"], first=True, line=1.0)
@@ -968,8 +972,10 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
         bullets_block(slide, s["bullets"], top=5.45, width=12.0, size=12, gap=5, height=1.15)
     elif kind == "arch":
         # 架构图居中放大，图下方三列组件说明
-        add_picture(slide, s["figure"], 0.62, s.get("fig_top", 0.95), 12.06,
-                    s.get("fig_h", 3.85), caption=s.get("caption"))
+        # 顶部照片条占 0~1.12，图片起点不能让到条内
+        _ft = s.get("fig_top", 1.30 if TEMPLATE_PATH else 0.95)
+        _fh = s.get("fig_h", 3.60 if TEMPLATE_PATH else 3.85)
+        add_picture(slide, s["figure"], 0.62, _ft, 12.06, _fh, caption=s.get("caption"))
         _cw = (12.10 - 0.50) / 3
         for _i, (_head, _body) in enumerate(s["comps"]):
             _x = 0.62 + _i * (_cw + 0.25)
@@ -1031,27 +1037,31 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
             bullets_block(slide, s["bullets"], top=s.get("bullets_top", 5.55), width=12.0,
                           size=13, gap=6, height=1.0)
     elif kind == "toc":
-        # 目录页：只保留编号 + 章节名
+        # 目录页（新模板）：照片条上是「目 录」，下方五条深蓝条
+        tf = textbox(slide, 0.35, 0.06, 12.63, 0.92, anchor=MSO_ANCHOR.MIDDLE)
+        add_text(tf, "目　录", 40, True, C["white"], first=True, align=PP_ALIGN.CENTER)
         for _i, (_num, _t) in enumerate(s["items"]):
-            _y = s.get("toc_top", 1.72) + _i * s.get("toc_h", 1.00)
-            _tf = textbox(slide, 1.10, _y + 0.04, 0.85, 0.52)
-            add_text(_tf, _num, 22, True, C["navy"], first=True)
-            _tf = textbox(slide, 2.05, _y, 8.9, 0.60)
-            add_text(_tf, _t, 24, True, C["text"], first=True)
-            rect(slide, 1.10, _y + 0.84, 10.00, 0.008, fill=C["line"])
+            _y = s.get("toc_top", 1.62) + _i * s.get("toc_h", 0.98)
+            rect(slide, 2.42, _y, 8.50, 0.70, fill=C["navy"])
+            rect(slide, 2.42, _y, 0.10, 0.70, fill=C["red"])
+            _tf = textbox(slide, 2.62, _y, 0.90, 0.70, anchor=MSO_ANCHOR.MIDDLE)
+            add_text(_tf, _num, 22, True, C["soft"], first=True)
+            _tf = textbox(slide, 3.55, _y, 7.20, 0.70, anchor=MSO_ANCHOR.MIDDLE)
+            add_text(_tf, _t, 24, True, C["white"], first=True)
     elif kind == "thanks" and TEMPLATE_PATH:
-        add_picture(slide, "beihang-logo-navy.png", 10.21, 0.10, 2.89, 0.55, base=ASSETS)
-        rect(slide, 1.31, 2.42, 10.79, 0.022, fill=C["navy"])
-        tf = textbox(slide, 1.0, 2.62, 11.3, 1.0, anchor=MSO_ANCHOR.MIDDLE)
-        add_text(tf, s["title"], 34, True, C["navy"], first=True, align=PP_ALIGN.CENTER)
-        tf2 = textbox(slide, 1.0, 3.75, 11.3, 0.5)
-        add_text(tf2, s["core"], 16, False, C["muted"], first=True, align=PP_ALIGN.CENTER)
-        tf3 = textbox(slide, 1.0, 4.75, 11.3, 0.8)
-        for i, m in enumerate(s["meta"]):
-            add_text(tf3, m, 13, False, C["muted"], first=(i == 0), align=PP_ALIGN.CENTER,
-                     space_before=(0 if i == 0 else 4))
-        rect(slide, 1.31, 5.55, 10.79, 0.022, fill=C["navy"])
-        rect(slide, 0.04, 7.38, 13.22, 0.05, fill=C["navy"])
+        add_picture(slide, "v2/school-logo.png", 0.17, 0.11, 4.19, 0.88, base=ASSETS, stretch=True)
+        tf = textbox(slide, 1.16, 1.42, 11.02, 1.05, anchor=MSO_ANCHOR.MIDDLE)
+        add_text(tf, s["title"], 36, True, C["red"], first=True, align=PP_ALIGN.CENTER)
+        tf3 = textbox(slide, 1.16, 2.62, 11.02, 0.52)
+        add_text(tf3, s["core"], 19, False, C["navy"], first=True, align=PP_ALIGN.CENTER)
+        tf4 = textbox(slide, 1.16, 3.30, 11.02, 0.55)
+        add_text(tf4, "　　　".join(s["meta"]), 17, False, C["navy"], first=True,
+                 align=PP_ALIGN.CENTER)
+        add_picture(slide, "v2/bottom-bar.jpg", 0.0, 5.35, 13.33, 0.31, base=ASSETS, stretch=True)
+        for _f, _x, _w in (("photo1.jpg", 0.00, 2.46), ("photo2.png", 2.28, 2.52),
+                           ("photo3.jpg", 4.70, 3.12), ("photo4.jpg", 7.50, 2.83),
+                           ("photo5.jpg", 10.33, 3.00)):
+            add_picture(slide, "v2/" + _f, _x, 5.60, _w, 1.90, base=ASSETS, stretch=True)
         if SHOW_PAGE_NO:
             page_number(slide, s["n"])
         return
@@ -1111,7 +1121,8 @@ def _strip_decor(prs) -> None:
 def build() -> None:
     if TEMPLATE_PATH:
         prs = Presentation(str(TEMPLATE_PATH))
-        _strip_decor(prs)
+        # 新模板：保留母版（顶部深色照片条、分隔线），只删示例页
+
         # 清空模板自带的示例页，只保留母版/主题/配色
         # 注意：必须同时 drop_rel，否则旧 slide 部件仍留在包里，与新建页同名
         _sld = prs.slides._sldIdLst
@@ -1119,7 +1130,8 @@ def build() -> None:
             _rid = _sid.rId
             prs.part.drop_rel(_rid)
             _sld.remove(_sid)
-        blank = prs.slide_layouts[6]          # 「空白」版式
+        blank = next((_l for _l in prs.slide_layouts if _l.name.strip() == "空白"),
+                     prs.slide_layouts[0])
     else:
         prs = Presentation()
         prs.slide_width = Inches(13.333)
