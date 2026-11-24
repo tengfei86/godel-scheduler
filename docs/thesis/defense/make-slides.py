@@ -320,7 +320,7 @@ SLIDES: list[dict] = [
         title="故障注入 Layer 0：归属漂移被拦住而非丢弃",
         core="10% 节点注解漂移，300 次拦截全部转为合规重排",
         figure="fig6-29a-layer0-timeseries.png",
-        bullets=["300 次拦截全部转为回退：不发 Bind，Pod 进 Dispatcher 回退队列",
+        bullets=["300 次拦截全部转为回退：不调用 Bind API，Pod 进 Dispatcher 回退队列",
                  "回退后由新归属实例重新调度，15 s 内落到合法节点；累计 50000/50000 绑定成功",
                  "代价：总耗时 683 s，对基线 680 s 多 3 s（+0.4%）"],
         bullets_size=14,
