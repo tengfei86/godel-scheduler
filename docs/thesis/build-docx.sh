@@ -43,6 +43,7 @@ done
 # ── 装订顺序（与学校规范一致）──
 FILES=(
   00-abstract.md
+  00b-list-of-figures-tables.md      # 插图和附表清单（置于目录之后、正文之前）
   01-introduction.md
   02-related-work.md
   03-architecture.md
