@@ -116,5 +116,13 @@ cd ..
 #     偶数页为章标题；参考文献/附录/致谢 不分奇偶，页眉为篇名；页码阿拉伯数字从 1 起
 python3 postprocess-docx.py thesis-preview.docx ${CONSERVATIVE}
 
+# ── 页码分节：前置部分（摘要/Abstract/目录/图表清单）用大写罗马数字，正文从 1 起 ──
+VENV_PY="${THESIS_DIR}/../../../tools/plot-venv/bin/python"
+if [[ -x "${VENV_PY}" ]]; then
+  "${VENV_PY}" "${THESIS_DIR}/fix-frontmatter-pagenum.py" thesis-preview.docx || true
+else
+  echo "提示：未找到 tools/plot-venv，跳过页码分节；可稍后手动运行 fix-frontmatter-pagenum.py" >&2
+fi
+
 echo "导出完成：$(pwd)/thesis-preview.docx"
 rm -rf build
