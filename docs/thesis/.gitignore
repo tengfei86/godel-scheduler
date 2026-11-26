@@ -9,3 +9,6 @@ _ref_tmp/
 # （2026-09-24 起）。每次重建后需要 git add 该文件并提交。
 !thesis-beihang.docx
 thesis-beihang-formatted.docx
+
+# Word 打开文档时生成的锁文件（临时文件，不入库）
+~$*
