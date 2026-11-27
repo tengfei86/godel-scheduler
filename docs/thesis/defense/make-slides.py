@@ -400,8 +400,9 @@ SLIDES: list[dict] = [
         core="主场景 s3/w3：ENO 的稳态吞吐更高、P99 峰值更低、完成更早",
         figures=["fig6-throughput-s3-w3.png", "fig6-6-latency-p99-s3-w3.png"],
         callout="口径说明：kube-scheduler、Volcano、Koordinator 的 P99 只统计出队后的调度与绑定，"
-                "排队时间不计入直方图（§6.3.1），故本页 P99 只与 Gödel 对比",
-        callout_top=5.02, callout_h=0.50, callout_width=12.10,
+                "排队时间不计入直方图（§6.3.1），故本页 P99 只与 Gödel 对比——这也是它们看起来"
+                "吞吐低、延迟也低的原因",
+        callout_top=5.00, callout_h=0.52, callout_width=12.10,
         twopic_top=1.95, twopic_h=3.00, bullets_top=5.58,
         bullets=["左图（吞吐）：稳态吞吐更高，且更早进入稳态",
                  "右图（P99）：峰值更低，回落更快",
