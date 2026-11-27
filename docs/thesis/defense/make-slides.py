@@ -228,7 +228,7 @@ SLIDES: list[dict] = [
                "Bind 原子性：重复 Bind 返回 409，可视为成功"),
               ("③ Layer 2 · 后台回收",
                "T2 Bind 失败后 scheduler-name、assumed-node 注解残留",
-               "异步 Reconciler 消费失败队列，PatchPod 清理调度注解，按失败计数决定本地重试或升 L3",
+               "异步 Reconciler 清理调度注解；累计失败未达上限则回本实例重排，达上限则交回 Dispatcher（升 L3）",
                "Watch 一致性视图；NotFound 直接丢弃"),
               ("④ Layer 3 · 全局回退",
                "T3 本地重试耗尽、Scheduler 实例失活",
@@ -1522,7 +1522,7 @@ NOTES_BY_TITLE: dict[str, str] = {
         "直接拿到同一份 SchedulerCache 的对象引用，所以叫零拷贝。两端共享同一份状态视图，Layer 0 的校验因此有统一依据。",
     "四层绑定容错": "四层是一条时间轴。Bind 前 Layer 0 校验归属注解，非本分区直接拒绝并回退。Bind 中 Layer 1 只处理 409、429、"
         "ServerTimeout 三类暂态错误：线性退避 100、200、300 毫秒，最多三次，其它错误立即上抛。失败后 Layer 2 异步清理残留注解，"
-        "按失败计数决定本地重试还是上升。重试耗尽 Layer 3 用一次原子 patch 交回 Dispatcher 重分发。",
+        "累计失败没到上限就回本实例重排，到了就交回 Dispatcher 重分发。",
     "核心不变量 I": "所有机制最后都归约到这一条不变量 I：任一 Pod 至多绑定到一个节点。证明拆四点。"
         "P1 是 Bind 唯一性，来自 Kubernetes 自身：nodeName 为空才允许原子写入，重复写返回 409。"
         "P2 是 Assumed 清理，Reject 阶段 ForgetPod 清内存态，Layer 2 清 etcd 注解。P3 是清理到重分发的时序，"
