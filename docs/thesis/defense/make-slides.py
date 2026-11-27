@@ -771,7 +771,8 @@ def add_picture(slide, name: str, left: float, top: float, max_w: float, max_h: 
 def add_table(slide, data: list[list[str]], left: float, top: float, width: float,
               row_h: float = 0.42, font: float = 12, header_font: float | None = None,
               highlight: int | None = None, widths: list[float] | None = None,
-              header_rows: int = 1, merges: list | None = None) -> None:
+              header_rows: int = 1, merges: list | None = None,
+              left_cols: int = 1) -> None:
     rows, cols = len(data), len(data[0])
     tbl = slide.shapes.add_table(rows, cols, Inches(left), Inches(top), Inches(width),
                                  Inches(row_h * rows)).table
@@ -788,7 +789,7 @@ def add_table(slide, data: list[list[str]], left: float, top: float, width: floa
             tf = cell.text_frame
             tf.word_wrap = True
             p = tf.paragraphs[0]
-            p.alignment = PP_ALIGN.LEFT if c == 0 else PP_ALIGN.CENTER
+            p.alignment = PP_ALIGN.LEFT if c < left_cols else PP_ALIGN.CENTER
             run = p.add_run()
             run.text = str(data[r][c])
             if r < header_rows:
@@ -1034,7 +1035,7 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
         add_table(slide, s["table"], 0.62, s.get("table_top", 2.0), 12.1,
                   row_h=s.get("row_h", 0.46), font=s.get("font", 12),
                   widths=s.get("widths"), header_rows=s.get("header_rows", 1),
-                  merges=s.get("merges"))
+                  merges=s.get("merges"), left_cols=s.get("left_cols", 1))
         if s.get("bullets"):
             bullets_block(slide, s["bullets"], top=s.get("bullets_top", 5.55), width=12.0,
                           size=13, gap=6, height=1.0)
@@ -1260,7 +1261,7 @@ _NEW_P4 = dict(
            ["Gödel", "国内", "节点分片多实例", "独立 Binder 存在瓶颈"],
            ["Volcano", "国内", "插件增强（Gang/队列）", "中心路径仍有瓶颈"],
            ["Koordinator", "国内", "插件增强（QoS/超卖）", "单实例扩展受限"]],
-    row_h=0.72, font=12, widths=[2.5, 1.15, 4.75, 3.7], table_top=1.32,
+    row_h=0.72, font=12, widths=[2.5, 1.15, 4.75, 3.7], table_top=1.32, left_cols=0,
     notes="第二章把现有工作分成国外与国内两条线。国外从集中式走到共享状态：Borg 是集中式，Omega 提出共享状态加乐观并发，"
           "kube-scheduler 是中心式插件框架。国内的代表是 Gödel，字节跳动开源，"
           "用节点分区做分片式多实例，是目前少数完整实现分布式调度的项目；Volcano 和 Koordinator 走的是插件增强，"
