@@ -357,14 +357,10 @@ SLIDES: list[dict] = [
                ["s2/w3", "352.1", "286.5", "≈297", "≈48", "≈16"],
                ["s3/w3", "297.6", "283.3", "≈292", "≈48", "≈24"]],
         bullets=["较 kube-scheduler +1.8%~+22.5%", "较 Volcano 约 6×，较 Koordinator 12× 以上", "s1/w1 低负载例外 -7.2%（未饱和）"],
-        callout="口径提示：c/d/e 的 P99 只统计出队后的调度与绑定，排队时间不入直方图——"
-                "过载时 Pod 堵在 activeQ，于是吞吐低、P99 也看似低，不能读作“更快”（幸存者偏差，§6.3.1）",
         notes="五组横向对比，结论三档：第一档 ENO 与 Gödel（数百 pods/s），第二档 kube-scheduler，"
               "第三档 Volcano 与 Koordinator（约 48 与 24 pods/s），几乎不随规模变化，这是其批处理与 QoS 调度的固有开销。"
               "ENO 比 kube-scheduler 高 1.8% 到 22.5%，比 Volcano 约 6 倍、Koordinator 12 倍以上；"
-              "例外是 s1/w1，低 7.2%，因为未饱和、完成时间由注入速率决定。"
-              "更要紧的是口径：c、d、e 的 P99 只统计出队后的调度与绑定，排队不计入；过载时 Pod 堵在 activeQ，"
-              "于是“吞吐最低、延迟也不高”并非更快，而是样本只覆盖被处理的少数 Pod——幸存者偏差，故不与 a、b 对齐 P99。",
+              "例外是 s1/w1，低 7.2%，因为未饱和、完成时间由注入速率决定。",
         source="6.4.1 节；图 6-3；表 6-5",
     ),
     dict(
@@ -403,12 +399,18 @@ SLIDES: list[dict] = [
         title="主场景 s3/w3 的时序形态",
         core="主场景 s3/w3：ENO 的稳态吞吐更高、P99 峰值更低、完成更早",
         figures=["fig6-throughput-s3-w3.png", "fig6-6-latency-p99-s3-w3.png"],
+        callout="口径说明：kube-scheduler、Volcano、Koordinator 的 P99 只统计出队后的调度与绑定，"
+                "排队时间不计入直方图（§6.3.1），故本页 P99 只与 Gödel 对比",
+        callout_top=5.02, callout_h=0.50, callout_width=12.10,
+        twopic_top=1.95, twopic_h=3.00, bullets_top=5.58,
         bullets=["左图（吞吐）：稳态吞吐更高，且更早进入稳态",
                  "右图（P99）：峰值更低，回落更快",
                  "两图合看：整体完成时间更短"],
         notes="左边吞吐、右边 P99，共享同一条时间轴。ENO 的稳态吞吐更高、更早进入稳态；"
               "右边的 P99 峰值更低、回落更快。两张图放在一起看：差异不是某个瞬时点上的抖动，"
-              "而是整段完成时间更短。",
+              "而是整段完成时间更短。还有一个口径要说明：kube-scheduler、Volcano、Koordinator 的 P99 只统计出队后的调度与绑定，"
+              "排队时间不计入直方图；过载时 Pod 堵在 activeQ，于是“吞吐低、延迟也看似低”并非更快，是幸存者偏差，"
+              "所以本页 P99 只与 Gödel 对比。",
         source="6.4.2 节；图 6-6、6-9",
     ),
     dict(
@@ -922,21 +924,25 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
                               size=s.get("bullets_size", 15.5), gap=s.get("bullets_gap", 14))
             if s.get("table"):
                 add_table(slide, s["table"], 0.62, 4.55, 5.5, row_h=0.34, font=10.5)
-            if s.get("callout"):
-                _cy = s.get("callout_top", 5.64)
-                _ch = s.get("callout_h", 1.02)
-                rect(slide, 0.62, _cy, 5.50, _ch, fill=C["white"],
-                     line=C.get("soft", C["line"]), radius=True)
-                rect(slide, 0.62, _cy, 0.06, _ch, fill=C["red"])
-                _ctf = textbox(slide, 0.80, _cy + 0.06, 5.15, _ch - 0.12,
-                               anchor=MSO_ANCHOR.MIDDLE)
-                add_text(_ctf, s["callout"], 9.5, False, C["text"], first=True, line=1.18)
+
         else:
-            add_picture(slide, s["figures"][0], 0.62, 2.0, 5.9, 3.5)
-            add_picture(slide, s["figures"][1], 6.75, 2.0, 5.9, 3.5)
-            tf = textbox(slide, 0.62, 5.62, 12.1, 1.2)
+            _ft = s.get("twopic_top", 2.0)
+            _fh = s.get("twopic_h", 3.5)
+            add_picture(slide, s["figures"][0], 0.62, _ft, 5.9, _fh)
+            add_picture(slide, s["figures"][1], 6.75, _ft, 5.9, _fh)
+            tf = textbox(slide, 0.62, s.get("bullets_top", 5.62), 12.1, 1.2)
             for i, b in enumerate(s["bullets"]):
                 add_text(tf, "▪  " + b, 14, False, C["text"], first=(i == 0), space_before=(0 if i == 0 else 6))
+        if s.get("callout"):
+            _cy = s.get("callout_top", 5.64)
+            _ch = s.get("callout_h", 1.02)
+            _cw = s.get("callout_width", 5.50)
+            rect(slide, 0.62, _cy, _cw, _ch, fill=C["white"],
+                 line=C.get("soft", C["line"]), radius=True)
+            rect(slide, 0.62, _cy, 0.06, _ch, fill=C["red"])
+            _ctf = textbox(slide, 0.80, _cy + 0.04, _cw - 0.34, _ch - 0.08,
+                           anchor=MSO_ANCHOR.MIDDLE)
+            add_text(_ctf, s["callout"], 9.5, False, C["text"], first=True, line=1.18)
     elif kind == "ladder" and TEMPLATE_PATH:
         # 模板语言：竖向时间轴（深蓝竖线 + 节点圆 + 左侧层级名 + 右侧浅钢蓝块）
         rows = s["rows"]
