@@ -111,7 +111,7 @@
 - 要点：较 kube-scheduler +1.8%~+22.5%；较 Volcano 约 6×，较 Koordinator 12× 以上；s1/w1 低负载例外 -7.2%（未饱和）
 - 视觉：fig6-3-throughput-5group.png
 - 表格：场景 | ENO | Gödel | k-sched | Volcano | Koord
-- 讲稿：五组横向对比，结论是三档。第一档是 ENO 与 Gödel，单位都是几百 pods/s。第二档是 kube-scheduler。第三档是 Volcano 与 Koordinator，只有约 48 和约 24 pods/s，而且几乎不随规模变化——这是它们批处理与 QoS 感知调度的固有开销。主评估四场景里，ENO 比 kube-scheduler 高 1.8% 到 22.5%，比 Volcano 约 6 倍、比 Koordinator 12 倍以上。唯一的例外是 s1/w1 的低负载，比 kube-scheduler 低 7.2%，因为那个场景没饱和，完成时间由注入速率决定。柱状图按场景排序，第三档几乎是一条水平线，说明它们的瓶颈不在调度吞吐这一维。
+- 讲稿：五组横向对比，结论三档：第一档 ENO 与 Gödel（数百 pods/s），第二档 kube-scheduler，第三档 Volcano 与 Koordinator（约 48 与 24 pods/s），几乎不随规模变化，这是其批处理与 QoS 调度的固有开销。ENO 比 kube-scheduler 高 1.8% 到 22.5%，比 Volcano 约 6 倍、Koordinator 12 倍以上；例外是 s1/w1，低 7.2%，因为未饱和、完成时间由注入速率决定。更要紧的是口径：c、d、e 的 P99 只统计出队后的调度与绑定，排队不计入；过载时 Pod 堵在 activeQ，于是“吞吐最低、延迟也不高”并非更快，而是样本只覆盖被处理的少数 Pod——幸存者偏差，故不与 a、b 对齐 P99。
 - 来源：6.4.1 节；图 6-3；表 6-5
 
 ## P17 主场景 P99 延迟与吞吐走势

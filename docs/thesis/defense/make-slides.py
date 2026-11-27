@@ -357,11 +357,14 @@ SLIDES: list[dict] = [
                ["s2/w3", "352.1", "286.5", "≈297", "≈48", "≈16"],
                ["s3/w3", "297.6", "283.3", "≈292", "≈48", "≈24"]],
         bullets=["较 kube-scheduler +1.8%~+22.5%", "较 Volcano 约 6×，较 Koordinator 12× 以上", "s1/w1 低负载例外 -7.2%（未饱和）"],
-        notes="五组横向对比，结论是三档。第一档是 ENO 与 Gödel，单位都是几百 pods/s。第二档是 kube-scheduler。"
-              "第三档是 Volcano 与 Koordinator，只有约 48 和约 24 pods/s，而且几乎不随规模变化——这是它们"
-              "批处理与 QoS 感知调度的固有开销。主评估四场景里，ENO 比 kube-scheduler 高 1.8% 到 22.5%，"
-              "比 Volcano 约 6 倍、比 Koordinator 12 倍以上。唯一的例外是 s1/w1 的低负载，比 kube-scheduler 低 7.2%，"
-              "因为那个场景没饱和，完成时间由注入速率决定。",
+        callout="口径提示：c/d/e 的 P99 只统计出队后的调度与绑定，排队时间不入直方图——"
+                "过载时 Pod 堵在 activeQ，于是吞吐低、P99 也看似低，不能读作“更快”（幸存者偏差，§6.3.1）",
+        notes="五组横向对比，结论三档：第一档 ENO 与 Gödel（数百 pods/s），第二档 kube-scheduler，"
+              "第三档 Volcano 与 Koordinator（约 48 与 24 pods/s），几乎不随规模变化，这是其批处理与 QoS 调度的固有开销。"
+              "ENO 比 kube-scheduler 高 1.8% 到 22.5%，比 Volcano 约 6 倍、Koordinator 12 倍以上；"
+              "例外是 s1/w1，低 7.2%，因为未饱和、完成时间由注入速率决定。"
+              "更要紧的是口径：c、d、e 的 P99 只统计出队后的调度与绑定，排队不计入；过载时 Pod 堵在 activeQ，"
+              "于是“吞吐最低、延迟也不高”并非更快，而是样本只覆盖被处理的少数 Pod——幸存者偏差，故不与 a、b 对齐 P99。",
         source="6.4.1 节；图 6-3；表 6-5",
     ),
     dict(
@@ -919,6 +922,15 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
                               size=s.get("bullets_size", 15.5), gap=s.get("bullets_gap", 14))
             if s.get("table"):
                 add_table(slide, s["table"], 0.62, 4.55, 5.5, row_h=0.34, font=10.5)
+            if s.get("callout"):
+                _cy = s.get("callout_top", 5.64)
+                _ch = s.get("callout_h", 1.02)
+                rect(slide, 0.62, _cy, 5.50, _ch, fill=C["white"],
+                     line=C.get("soft", C["line"]), radius=True)
+                rect(slide, 0.62, _cy, 0.06, _ch, fill=C["red"])
+                _ctf = textbox(slide, 0.80, _cy + 0.06, 5.15, _ch - 0.12,
+                               anchor=MSO_ANCHOR.MIDDLE)
+                add_text(_ctf, s["callout"], 9.5, False, C["text"], first=True, line=1.18)
         else:
             add_picture(slide, s["figures"][0], 0.62, 2.0, 5.9, 3.5)
             add_picture(slide, s["figures"][1], 6.75, 2.0, 5.9, 3.5)
@@ -1379,7 +1391,6 @@ _EXTRA: dict[int, str] = {
     14: "两场注入分别是分区漂移与实例失活，正好覆盖两类威胁。判据包括成功率、断言、拦截数、回退数、耗时与队列行为，六项都要成立。",
     15: "这组数字说明 Layer 0 只是把错误前置，不是把工作丢掉，代价几乎为零。",
     16: "对比基线是同一场景下的无故障运行，680 秒；这也说明接管是可控的，代价有界。",
-    17: "柱状图按场景排序，第三档几乎是一条水平线。",
     18: "四个亮点场景分别是高负载、突发、异构与多实例。平均 11.9% 这个数，是把 14 个领先场景的幅度取均值得到的。",
     19: "延迟的单位都是秒，纵轴用对数，便于跨量级比较；改善的下界 0.3% 出现在接近饱和的场景。",
     20: "扩展性实验固定负载为 s3/w3，w3 即 1000 pods per second，两组都跑三次取中位数。延迟数量级下降，"
@@ -1593,7 +1604,6 @@ APPEND_BY_TITLE: dict[str, str] = {
     "评估指标": "",
     "绑定正确性与不变量验证": "所谓正确，不是日志里没报错，而是外部可观测的事实对得上。",
     "故障注入 Layer 0": "这组数字说明 Layer 0 只是把错误前置，不是把工作丢掉，代价几乎为零。",
-    "五组基线": "柱状图按场景排序，第三档几乎是一条水平线，说明它们的瓶颈不在调度吞吐这一维。",
     "ENO vs Gödel 各场景吞吐对比": "两个持平场景说明，未饱和时调度器再快也压不出更多吞吐。",
     "ENO vs Gödel 各场景尾延迟对比": "延迟单位是秒，纵轴用对数，便于跨量级比较。",
     "ENO vs Gödel 实例扩展对比": "延迟数量级下降说明瓶颈不在决策侧，而在绑定这一环的串行化。",
