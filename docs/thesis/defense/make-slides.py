@@ -206,12 +206,12 @@ SLIDES: list[dict] = [
                 "CacheAdapter 把 Scheduler 的 SchedulerCache 交给进程内 Binder，两边持有同一份缓存对象"),
                ("② 零拷贝、零同步",
                 "状态以引用传递，不做序列化复制，也没有跨进程的同步延迟与网络往返"),
-               ("③ 同一份真相",
-                "Layer 0 的节点归属校验读的就是这份缓存，Scheduler 与 Binder 看到的状态一致")],
+               ("③ 状态视图一致",
+                "Layer 0 的归属校验与调度决策读取同一份缓存，两端的状态视图保持一致")],
         notes="这一页讲缓存。以前 Binder 在另一个进程，SchedulerCache 要么复制、要么重新构建，代价高还有延迟。"
               "CacheAdapter 的做法是共享同一个实例：把 Scheduler 的缓存直接交给进程内 Binder，两边持有同一个对象，"
               "状态以引用传递，既没有序列化复制，也没有跨进程同步延迟。这不只是性能问题——两边看到的是同一份状态，"
-              "Layer 0 的归属校验才有同一个真相可依。",
+              "Layer 0 的归属校验因此有统一依据。",
         source="第 5 章 §5.2；图 5-2",
     ),
     dict(
@@ -1183,7 +1183,7 @@ NOTES: dict[int, str] = {
        "状态推进靠 Watch 事件驱动，这是能横向扩展的前提。",
     8: "难点在缓存。以前 Binder 在另一个进程，SchedulerCache 要么复制、要么重建，代价高还有延迟。"
        "CacheAdapter 让进程内 Binder 直接拿到同一份 SchedulerCache 的对象引用，所以叫零拷贝。"
-       "这不只是性能问题：两边看到同一份状态，Layer 0 的归属校验才有同一个真相可依。",
+       "这不只是性能问题：两端共享同一份状态视图，Layer 0 的归属校验因此有统一依据。",
     9: "四层不是并列罗列，是一条时间轴。Bind 之前，Layer 0 校验目标节点的归属注解，把漂移拦在门外；"
        "Bind 过程中，Layer 1 用同步退避处理 apiserver 暂态错误；失败后，Layer 2 用异步 Reconciler 回收孤儿状态；"
        "本地重试耗尽，Layer 3 由 Dispatcher 清注解、触发全局重分发。四层各自依赖一种 etcd 原子语义。",
@@ -1312,7 +1312,7 @@ NOTES2: dict[int, str] = {
     8: "左边是原形态，Binder 独立部署，决策完要把任务发过去；右边是本文形态，Binder 就在 Scheduler 进程里。"
        "这一刀去掉三段开销：事件传递、跨进程调用、序列化。后面所有吞吐数字都从这一刀下来，同时保留 CLI 开关可回退。",
     9: "难点在缓存。以前 Binder 在另一个进程，缓存要么复制要么重建。CacheAdapter 让进程内 Binder 直接拿到同一份 "
-       "SchedulerCache 的对象引用，所以叫零拷贝。两边看到同一份状态，Layer 0 的校验才有同一个真相可依。",
+       "SchedulerCache 的对象引用，所以叫零拷贝。两端共享同一份状态视图，Layer 0 的校验因此有统一依据。",
     10: "四层是一条时间轴。Bind 前，Layer 0 校验归属注解，把漂移拦在门外；Bind 中，Layer 1 用同步退避处理暂态错误；"
         "失败后，Layer 2 用异步 Reconciler 回收孤儿状态；重试耗尽，Layer 3 由 Dispatcher 清注解、触发全局重分发。",
     11: "所有机制最后都回到不变量 I：任一 Pod 至多绑定到一个节点。证明拆四点：P1 来自 Bind 子资源原子写；"
@@ -1519,7 +1519,7 @@ NOTES_BY_TITLE: dict[str, str] = {
     "进程内 Binder 架构": "左边是原形态，Binder 独立部署，决策完要把任务发过去；右边是本文形态，Binder 就在 Scheduler 进程里。"
         "这一刀去掉三段开销：事件传递、跨进程调用、序列化。我把它称为第一性来源。",
     "CacheAdapter": "难点在缓存。以前 Binder 在另一个进程，缓存要么复制要么重建。CacheAdapter 让进程内 Binder "
-        "直接拿到同一份 SchedulerCache 的对象引用，所以叫零拷贝。两边看到同一份状态，Layer 0 的校验才有同一个真相可依。",
+        "直接拿到同一份 SchedulerCache 的对象引用，所以叫零拷贝。两端共享同一份状态视图，Layer 0 的校验因此有统一依据。",
     "四层绑定容错": "四层是一条时间轴。Bind 前 Layer 0 校验归属注解，非本分区直接拒绝并回退。Bind 中 Layer 1 只处理 409、429、"
         "ServerTimeout 三类暂态错误：线性退避 100、200、300 毫秒，最多三次，其它错误立即上抛。失败后 Layer 2 异步清理残留注解，"
         "按失败计数决定本地重试还是上升。重试耗尽 Layer 3 用一次原子 patch 交回 Dispatcher 重分发。",

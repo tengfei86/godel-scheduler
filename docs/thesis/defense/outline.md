@@ -66,7 +66,7 @@
 
 - 核心信息：
 - 视觉：fig5-2-cache-zero-copy.png
-- 讲稿：难点在缓存。以前 Binder 在另一个进程，缓存要么复制要么重建。CacheAdapter 让进程内 Binder 直接拿到同一份 SchedulerCache 的对象引用，所以叫零拷贝。两边看到同一份状态，Layer 0 的校验才有同一个真相可依。
+- 讲稿：难点在缓存。以前 Binder 在另一个进程，缓存要么复制要么重建。CacheAdapter 让进程内 Binder 直接拿到同一份 SchedulerCache 的对象引用，所以叫零拷贝。两端共享同一份状态视图，Layer 0 的校验因此有统一依据。
 - 来源：第 5 章 §5.2；图 5-2
 
 ## P11 四层容错机制设计
