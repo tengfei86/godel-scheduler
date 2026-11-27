@@ -334,7 +334,7 @@ SLIDES: list[dict] = [
         n=15, kind="figure",
         legend=True,
         title="故障注入 Layer 3：实例失活后能接管",
-        core="注入实例失活后，784 s 内完成全部绑定：apiserver 断言 50000/50000",
+        core="注入实例失活后，784 s 内完成全部绑定，无丢失、无重复",
         figure="fig6-29b-layer3-timeseries.png",
         bullets=["kill 后 90 s 窗口内，被杀实例只剩 68 次绑定，占该窗口 8407 次的 0.81%",
                  "同窗口全体实例完成 8407 次绑定，吞吐未断档；Pending 峰值 353，60 s 内回落至 2",
