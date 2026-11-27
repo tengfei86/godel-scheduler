@@ -942,7 +942,7 @@ def render(slide, s: dict, page_label: str, is_backup: bool) -> None:
             if _sub:
                 add_text(_tf, "· " + _sub, 10, False, C["muted"], align=PP_ALIGN.RIGHT, space_before=1)
             rect(slide, 2.68, _y, 9.80, 1.06, fill=C["white"], line=C.get("soft", C["line"]), radius=True)
-            _tf2 = textbox(slide, 2.86, _y + 0.07, 9.45, 0.94)
+            _tf2 = textbox(slide, 2.86, _y, 9.45, 1.06, anchor=MSO_ANCHOR.MIDDLE)
             add_text(_tf2, "威胁：" + _threat, 10.5, False, C["text"], first=True, line=1.0)
             add_text(_tf2, "动作：" + _act, 10, False, C["text"], space_before=1, line=1.0)
             add_text(_tf2, "依赖：" + _sem, 9.5, False, C["muted"], space_before=1, line=1.0)
